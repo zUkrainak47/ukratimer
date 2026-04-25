@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Terms of Service for UkraTimer.">
+  <meta name="theme-color" content="#0d1117">
+  <title>Terms of Service | UkraTimer</title>
+  <link rel="icon" href="/resources/pwa-icon.svg" type="image/svg+xml">
+  <style>
+    :root {
+      --bg: #0d1117;
+      --bg-elevated: rgba(22, 27, 34, 0.9);
+      --card: rgba(28, 33, 40, 0.9);
+      --card-border: rgba(255, 255, 255, 0.1);
+      --text: #e6edf3;
+      --text-secondary: #9da7b3;
+      --accent: #58a6ff;
+      --accent-soft: rgba(88, 166, 255, 0.18);
+      --accent-warm: rgba(240, 136, 62, 0.14);
+      --max-width: 860px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font: 16px/1.65 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      overscroll-behavior-y: none;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(circle at top left, var(--accent-soft), transparent 34%),
+        radial-gradient(circle at top right, var(--accent-warm), transparent 28%),
+        linear-gradient(180deg, #11161d 0%, var(--bg) 100%);
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .page {
+      width: min(calc(100% - 32px), var(--max-width));
+      margin: 0 auto;
+      padding: 56px 0 72px;
+      overflow-x: clip;
+    }
+
+    .hero {
+      margin-bottom: 28px;
+      padding: 28px;
+      border: 1px solid var(--card-border);
+      border-radius: 28px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0)),
+        var(--bg-elevated);
+      backdrop-filter: blur(16px);
+    }
+
+    .eyebrow {
+      display: inline-block;
+      margin-bottom: 12px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(88, 166, 255, 0.12);
+      color: #b6d7ff;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(32px, 5vw, 48px);
+      line-height: 1.05;
+    }
+
+    .hero p,
+    .hero li,
+    main p,
+    main li {
+      color: var(--text-secondary);
+    }
+
+    .hero p {
+      margin: 0;
+      max-width: 62ch;
+    }
+
+    .card {
+      margin-top: 18px;
+      padding: 24px 26px;
+      border-radius: 24px;
+      border: 1px solid var(--card-border);
+      background: var(--card);
+      backdrop-filter: blur(14px);
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 22px;
+      line-height: 1.2;
+    }
+
+    p {
+      margin: 0 0 14px;
+    }
+
+    ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+
+    li + li {
+      margin-top: 8px;
+    }
+
+    .meta {
+      margin-top: 24px;
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    .links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .pill-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 9px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--card-border);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text);
+      transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
+    }
+
+    .pill-link:hover {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.18);
+      text-decoration: none;
+      transform: translateY(-1px);
+    }
+
+    @media (max-width: 640px) {
+      .page {
+        width: min(calc(100% - 20px), var(--max-width));
+        padding: 24px 0 40px;
+      }
+
+      .hero,
+      .card {
+        padding: 20px;
+        border-radius: 22px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="page">
+    <section class="hero">
+      <span class="eyebrow">UkraTimer</span>
+      <h1>Terms of Service</h1>
+      <p>
+        These Terms of Service apply to UkraTimer as published on this site.
+      </p>
+      <div class="links">
+        <a class="pill-link" href="/">Open Timer</a>
+        <a class="pill-link" href="/privacy.html">Privacy Policy</a>
+      </div>
+    </section>
+
+    <main>
+      <section class="card">
+        <h2>Use of the service</h2>
+        <p>
+          UkraTimer is provided as a browser-based speedcubing timer and related statistics tool. You may use it for
+          personal, non-exclusive use in accordance with these terms and applicable law.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>Your data</h2>
+        <p>
+          You are responsible for the data you store, import, export, or back up through the app. Because the app is
+          primarily client-side, you are also responsible for keeping your own backups if the data is important to you.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>Google Drive backup</h2>
+        <p>
+          If you choose to use Google Drive backup, you authorize the app to access only the app-specific Drive data it
+          needs to create, update, and restore your timer backup. You may revoke that access at any time through the
+          app or through your Google account settings.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>Acceptable use</h2>
+        <ul>
+          <li>Do not use the service in a way that breaks, overloads, or interferes with the site.</li>
+          <li>Do not attempt to misuse the Google integration or access data that does not belong to you.</li>
+          <li>Do not use the service for unlawful activity.</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>No warranty</h2>
+        <p>
+          UkraTimer is provided on an “as is” and “as available” basis without warranties of any kind, to the fullest
+          extent permitted by applicable law.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>Limitation of liability</h2>
+        <p>
+          To the fullest extent permitted by law, the operator of UkraTimer will not be liable for any indirect,
+          incidental, special, consequential, or data-loss-related damages arising from your use of the service.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>Changes</h2>
+        <p>
+          These terms may be updated from time to time. Continued use of the service after changes are posted means you
+          accept the updated terms.
+        </p>
+        <p class="meta">Last updated: April 2, 2026</p>
+      </section>
+    </main>
+  </div>
+</body>
+
+</html>

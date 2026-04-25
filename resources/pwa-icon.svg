@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#101822" />
+      <stop offset="100%" stop-color="#0d1117" />
+    </linearGradient>
+    <linearGradient id="glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#58a6ff" stop-opacity="0.32" />
+      <stop offset="100%" stop-color="#f0883e" stop-opacity="0.22" />
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="116" fill="url(#bg)" />
+  <circle cx="164" cy="138" r="112" fill="url(#glow)" />
+  <circle cx="390" cy="380" r="116" fill="#3fb950" opacity="0.12" />
+
+  <rect x="104" y="104" width="304" height="304" rx="64" fill="#161b22" stroke="#30363d" stroke-width="14" />
+
+  <g transform="translate(130 130)">
+    <g fill="#0d1117" opacity="0.48">
+      <rect x="0" y="0" width="74" height="74" rx="16" />
+      <rect x="89" y="0" width="74" height="74" rx="16" />
+      <rect x="178" y="0" width="74" height="74" rx="16" />
+      <rect x="0" y="89" width="74" height="74" rx="16" />
+      <rect x="89" y="89" width="74" height="74" rx="16" />
+      <rect x="178" y="89" width="74" height="74" rx="16" />
+      <rect x="0" y="178" width="74" height="74" rx="16" />
+      <rect x="89" y="178" width="74" height="74" rx="16" />
+      <rect x="178" y="178" width="74" height="74" rx="16" />
+    </g>
+
+    <g>
+      <rect x="0" y="0" width="74" height="74" rx="16" fill="#ff5800" />
+      <rect x="89" y="0" width="74" height="74" rx="16" fill="#ffffff" />
+      <rect x="178" y="0" width="74" height="74" rx="16" fill="#009b48" />
+      <rect x="0" y="89" width="74" height="74" rx="16" fill="#ffd500" />
+      <rect x="89" y="89" width="74" height="74" rx="16" fill="#b71234" />
+      <rect x="178" y="89" width="74" height="74" rx="16" fill="#0046ad" />
+      <rect x="0" y="178" width="74" height="74" rx="16" fill="#009b48" />
+      <rect x="89" y="178" width="74" height="74" rx="16" fill="#ff5800" />
+      <rect x="178" y="178" width="74" height="74" rx="16" fill="#ffffff" />
+    </g>
+  </g>
+</svg>

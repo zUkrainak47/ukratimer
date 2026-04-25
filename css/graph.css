@@ -1,0 +1,543 @@
+/* Graph panel — fixed height, not flex-grow */
+#graph-panel {
+    flex: 0 0 auto;
+}
+
+#graph-panel.collapsed {
+    flex: 0 0 auto;
+}
+
+/* Legend in header */
+.graph-legend {
+    display: inline-flex;
+    gap: 10px;
+    margin-right: auto;
+    font-size: 10px;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+    transition: opacity 0.25s ease;
+    opacity: 1;
+}
+
+/* Hide title when expanded, show legend; opposite when collapsed */
+.graph-title {
+    transition: opacity 0.25s ease;
+}
+
+#graph-panel:not(.collapsed) .graph-title {
+    display: none;
+}
+
+#graph-panel.collapsed .graph-legend {
+    display: none;
+}
+
+.legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-tertiary);
+}
+
+.legend-dot {
+    width: 10px;
+    height: 3px;
+    border-radius: 1px;
+    display: inline-block;
+}
+
+/* Canvas area */
+#graph-canvas-container {
+    width: 100%;
+    height: 200px;
+    padding: var(--space-xs);
+    overflow: hidden;
+}
+
+#graph-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+}
+
+/* Controls bar — stacked rows */
+#graph-controls {
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--surface-border);
+    position: relative;
+}
+
+.graph-controls-primary {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 4px;
+    padding: 6px;
+    position: relative;
+}
+
+#btn-graph-distribution .icon-mask {
+    width: 14px;
+    height: 14px;
+}
+
+.graph-controls-secondary {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 4px;
+    padding: 6px;
+    background: var(--bg-tertiary);
+
+    /* Make absolute so it flies out without pushing parents */
+    position: absolute;
+    top: 100%;
+    left: -1px;
+    width: calc(100% + 2px);
+    z-index: 10;
+
+    border: 1px solid var(--surface-border);
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+
+    overflow: hidden;
+    max-height: 42px;
+    transition: max-height 0.25s ease, padding 0.25s ease, opacity 0.2s ease, border-color 0.25s ease;
+    opacity: 1;
+}
+
+.graph-controls-secondary-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.graph-controls-secondary.collapsed {
+    max-height: 0;
+    padding: 0 8px;
+    opacity: 0;
+    border-color: transparent;
+}
+
+/* Square buttons */
+#graph-controls button {
+    font-size: 12px;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    background: transparent;
+    border: 1px solid var(--surface-border);
+    cursor: pointer;
+    line-height: 1;
+    text-align: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    outline: none;
+}
+
+#graph-controls button:hover {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+}
+
+#graph-controls button:active {
+    background: var(--surface-active);
+}
+
+#graph-controls button,
+.graph-line-toggle {
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.btn-graph-toggle.active {
+    background: var(--surface-hover) !important;
+    color: var(--text-primary) !important;
+}
+
+.graph-controls-sep {
+    width: 1px;
+    height: 20px;
+    background: var(--surface-border);
+    margin: 0 auto;
+}
+
+/* Line toggle buttons */
+.graph-line-toggle {
+    font-size: 16px !important;
+    opacity: 0.3;
+    transition: opacity 0.15s ease;
+}
+
+.graph-line-toggle.active {
+    opacity: 1;
+}
+
+@media (max-width: 1100px),
+(pointer: coarse) {
+    body.mobile-viewport #graph-panel.panel.collapsible>.panel-header {
+        cursor: default;
+    }
+
+    body.mobile-viewport #graph-panel.panel.collapsible>.panel-header:hover {
+        background: transparent;
+    }
+
+    body.mobile-viewport #graph-panel .collapse-chevron,
+    body.mobile-viewport #btn-graph-tools {
+        display: none;
+    }
+
+    .graph-legend {
+        gap: 8px;
+        flex-wrap: wrap;
+        font-size: 9px;
+    }
+
+    #graph-canvas-container {
+        height: auto;
+        min-height: 248px;
+        max-height: min(42vh, 340px);
+        aspect-ratio: 4 / 3;
+        padding: var(--space-sm);
+    }
+
+    .graph-controls-primary {
+        display: grid;
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        gap: 8px;
+        padding: 10px 8px 8px;
+        align-items: stretch;
+    }
+
+    .graph-controls-primary>span {
+        display: none;
+    }
+
+    .graph-controls-primary>#btn-graph-distribution {
+        grid-column: 1 / span 4;
+        grid-row: 1;
+    }
+
+    .graph-controls-primary>button[data-action="last25"] {
+        grid-column: 5 / span 4;
+        grid-row: 1;
+    }
+
+    .graph-controls-primary>button[data-action="reset"] {
+        grid-column: 9 / span 4;
+        grid-row: 1;
+    }
+
+    .graph-controls-primary>.graph-line-toggle[data-line="time"] {
+        grid-column: 1 / span 3;
+        grid-row: 2;
+    }
+
+    .graph-controls-primary>.graph-line-toggle[data-line="line1"] {
+        grid-column: 4 / span 3;
+        grid-row: 2;
+    }
+
+    .graph-controls-primary>.graph-line-toggle[data-line="line2"] {
+        grid-column: 7 / span 3;
+        grid-row: 2;
+    }
+
+    .graph-controls-primary>.graph-line-toggle[data-line="line3"] {
+        grid-column: 10 / span 3;
+        grid-row: 2;
+    }
+
+    .graph-controls-primary.graph-controls-primary-no-last25>#btn-graph-distribution {
+        grid-column: 1 / span 6;
+    }
+
+    .graph-controls-primary.graph-controls-primary-no-last25>button[data-action="reset"] {
+        grid-column: 7 / span 6;
+    }
+
+    .graph-controls-sep {
+        display: none;
+    }
+
+    .graph-controls-secondary {
+        position: static;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        justify-items: center;
+        align-items: flex-start;
+        width: 100%;
+        left: auto;
+        border-left: none;
+        border-right: none;
+        border-bottom: none;
+        border-radius: 0;
+        column-gap: 0;
+        row-gap: 0;
+        padding: 0 8px 10px;
+        background: transparent;
+        max-height: none;
+        opacity: 1;
+        overflow: visible;
+    }
+
+    .graph-controls-secondary.collapsed {
+        max-height: none;
+        padding: 0 8px 10px;
+        opacity: 1;
+        border-color: transparent;
+    }
+
+    .graph-controls-secondary-group {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-rows: repeat(3, 42px);
+        column-gap: 8px;
+        row-gap: 8px;
+        width: 100%;
+        max-width: 190px;
+        padding-inline: 6px;
+        box-sizing: border-box;
+    }
+
+    .graph-controls-secondary-group>button[data-action="zoom-y-in"],
+    .graph-controls-secondary-group>button[data-action="pan-up"] {
+        grid-column: 1 / -1;
+        grid-row: 1;
+        justify-self: center;
+    }
+
+    .graph-controls-secondary-group>button[data-action="zoom-x-out"],
+    .graph-controls-secondary-group>button[data-action="pan-left"] {
+        grid-column: 1;
+        grid-row: 2;
+    }
+
+    .graph-controls-secondary-group>button[data-action="zoom-x-in"],
+    .graph-controls-secondary-group>button[data-action="pan-right"] {
+        grid-column: 2;
+        grid-row: 2;
+    }
+
+    .graph-controls-secondary-group>button[data-action="zoom-y-out"],
+    .graph-controls-secondary-group>button[data-action="pan-down"] {
+        grid-column: 1 / -1;
+        grid-row: 3;
+        justify-self: center;
+    }
+
+    #graph-controls button {
+        width: 100%;
+        min-width: 0;
+        height: auto;
+        min-height: 42px;
+        padding: 0 10px;
+        border-radius: 14px;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        background: linear-gradient(180deg, var(--surface-ghost), var(--surface-ghost-muted));
+        box-shadow: inset 0 1px 0 var(--surface-ghost-hover);
+    }
+
+    #graph-controls .graph-controls-secondary .graph-controls-secondary-group>button {
+        width: 100%;
+        min-width: 0;
+        height: 42px;
+        min-height: 42px;
+        padding: 0;
+    }
+
+    #graph-controls .graph-controls-secondary .graph-controls-secondary-group>button[data-action="zoom-y-in"],
+    #graph-controls .graph-controls-secondary .graph-controls-secondary-group>button[data-action="zoom-y-out"],
+    #graph-controls .graph-controls-secondary .graph-controls-secondary-group>button[data-action="pan-up"],
+    #graph-controls .graph-controls-secondary .graph-controls-secondary-group>button[data-action="pan-down"] {
+        width: calc((100% - 8px) / 2);
+    }
+
+    .graph-controls-primary>button[data-action] {
+        background: linear-gradient(180deg, rgba(88, 166, 255, 0.16), rgba(88, 166, 255, 0.06));
+        border-color: rgba(121, 192, 255, 0.22);
+        color: var(--text-primary);
+    }
+
+    .graph-controls-primary .graph-line-toggle {
+        font-size: 0 !important;
+        gap: 8px;
+        opacity: 0.72;
+        background: var(--surface-ghost-muted);
+        border-color: var(--floating-surface-border);
+    }
+
+    .graph-controls-primary .graph-line-toggle::before {
+        content: "";
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: currentColor;
+        flex: 0 0 auto;
+    }
+
+    .graph-controls-primary .graph-line-toggle::after {
+        content: attr(data-mobile-label);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        line-height: 1;
+    }
+
+    .graph-controls-primary .graph-line-toggle.active {
+        opacity: 1;
+        background: var(--surface-ghost-active);
+        border-color: currentColor;
+    }
+}
+
+/* @media (max-width: 1100px) and (orientation: landscape) and (max-height: 650px),
+(pointer: coarse) and (orientation: landscape) and (max-height: 650px) { */
+@media (orientation: landscape) {
+    body.mobile-viewport[data-mobile-panel="trend"] #graph-panel>.panel-header {
+        display: none;
+    }
+
+    body.mobile-viewport[data-mobile-panel="trend"] #right-panel {
+        height: 100%;
+        min-height: 0;
+        align-items: stretch;
+        justify-content: stretch;
+    }
+
+    body.mobile-viewport[data-mobile-panel="trend"] #graph-panel {
+        height: 100%;
+        min-height: 0;
+        max-height: 100%;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    body.mobile-viewport[data-mobile-panel="trend"] #graph-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        align-items: stretch;
+    }
+
+    body.mobile-viewport[data-mobile-panel="trend"] #graph-canvas-container {
+        height: 100%;
+        min-height: 0;
+        max-height: none;
+        aspect-ratio: auto;
+        padding: 8px;
+    }
+
+    body.mobile-viewport[data-mobile-panel="trend"] #graph-controls {
+        border-top: none;
+        border-left: 1px solid var(--surface-border);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-height: 0;
+    }
+
+    body.mobile-viewport[data-mobile-panel="trend"] .graph-controls-primary,
+    body.mobile-viewport[data-mobile-panel="trend"] .graph-controls-secondary {
+        row-gap: 6px;
+        column-gap: 6px;
+    }
+
+    body.mobile-viewport[data-mobile-panel="trend"] .graph-controls-primary {
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        padding: 6px;
+    }
+
+    body.mobile-viewport[data-mobile-panel="trend"] .graph-controls-primary>#btn-graph-distribution {
+        grid-column: 1 / span 4;
+        grid-row: 1;
+    }
+
+    body.mobile-viewport[data-mobile-panel="trend"] .graph-controls-primary>button[data-action="last25"] {
+        grid-column: 5 / span 4;
+        grid-row: 1;
+    }
+
+    body.mobile-viewport[data-mobile-panel="trend"] .graph-controls-primary>button[data-action="reset"] {
+        grid-column: 9 / span 4;
+        grid-row: 1;
+    }
+
+    body.mobile-viewport[data-mobile-panel="trend"] .graph-controls-primary>.graph-line-toggle[data-line="time"] {
+        grid-column: 1 / span 3;
+        grid-row: 2;
+    }
+
+    body.mobile-viewport[data-mobile-panel="trend"] .graph-controls-primary>.graph-line-toggle[data-line="line1"] {
+        grid-column: 4 / span 3;
+        grid-row: 2;
+    }
+
+    body.mobile-viewport[data-mobile-panel="trend"] .graph-controls-primary>.graph-line-toggle[data-line="line2"] {
+        grid-column: 7 / span 3;
+        grid-row: 2;
+    }
+
+    body.mobile-viewport[data-mobile-panel="trend"] .graph-controls-primary>.graph-line-toggle[data-line="line3"] {
+        grid-column: 10 / span 3;
+        grid-row: 2;
+    }
+
+    body.mobile-viewport[data-mobile-panel="trend"] .graph-controls-primary.graph-controls-primary-no-last25>#btn-graph-distribution {
+        grid-column: 1 / span 6;
+    }
+
+    body.mobile-viewport[data-mobile-panel="trend"] .graph-controls-primary.graph-controls-primary-no-last25>button[data-action="reset"] {
+        grid-column: 7 / span 6;
+    }
+
+    body.mobile-viewport[data-mobile-panel="trend"] .graph-controls-secondary {
+        padding: 0 6px 6px;
+    }
+
+    body.mobile-viewport[data-mobile-panel="trend"] .graph-controls-secondary-group {
+        grid-template-rows: repeat(3, minmax(34px, 1fr));
+        row-gap: 6px;
+        column-gap: 6px;
+        max-width: 170px;
+    }
+
+    body.mobile-viewport[data-mobile-panel="trend"] #graph-controls button,
+    body.mobile-viewport[data-mobile-panel="trend"] #graph-controls .graph-controls-secondary .graph-controls-secondary-group>button {
+        min-height: clamp(34px, 6.8vh, 42px);
+        height: clamp(34px, 6.8vh, 42px);
+        border-radius: 12px;
+        font-size: 12px;
+    }
+}
+
+@media (max-width: 1100px) {
+    .graph-legend {
+        display: none;
+    }
+
+    #graph-panel:not(.collapsed) .graph-title {
+        display: inline;
+    }
+
+    #graph-canvas-container {
+        min-height: 232px;
+        max-height: min(40vh, 320px);
+    }
+
+    .graph-controls-sep {
+        display: none;
+    }
+}

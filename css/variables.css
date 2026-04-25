@@ -1,0 +1,220 @@
+:root {
+  /* Background layers */
+  --bg-primary: #0d1117;
+  --bg-secondary: #161b22;
+  --bg-tertiary: #21262d;
+  --bg-overlay: rgba(0, 0, 0, 0.6);
+  --bg-glow-1: rgba(88, 166, 255, 0.18);
+  --bg-glow-2: rgba(240, 136, 62, 0.18);
+  --bg-glow-3: rgba(63, 185, 80, 0.12);
+  --panel-sheen: rgba(255, 255, 255, 0.02);
+  --panel-sheen-fade: rgba(255, 255, 255, 0);
+  --app-background-image: none;
+  --app-background-overlay-layer: none;
+
+  /* Surface / panels */
+  --surface: #1c2128;
+  --surface-hover: #262c36;
+  --surface-active: #2d333b;
+  --surface-border: #30363d;
+  --surface-elevated: rgba(28, 33, 40, 0.88);
+  --floating-surface: rgba(24, 29, 35, 0.99);
+  --floating-surface-hover: rgba(32, 38, 45, 0.99);
+  --floating-surface-border: rgba(255, 255, 255, 0.08);
+  --floating-surface-border-strong: rgba(255, 255, 255, 0.12);
+  --surface-ghost: rgba(255, 255, 255, 0.05);
+  --surface-ghost-hover: rgba(255, 255, 255, 0.06);
+  --surface-ghost-active: rgba(255, 255, 255, 0.08);
+  --surface-ghost-muted: rgba(255, 255, 255, 0.025);
+  --pill-border: #3a4048;
+  --pill-background-hover: #21262d;
+  --pill-border-hover: #505863;
+  --tooltip-surface: rgba(28, 33, 40, 0.96);
+  --mobile-tabs-surface: rgba(13, 17, 23, 0.86);
+  --new-best-popup-surface: rgba(13, 17, 23, 0.94);
+  --divider-subtle: rgba(255, 255, 255, 0.08);
+
+  /* Text */
+  --text-primary: #e6edf3;
+  --scramble-top-text: #e6edf3;
+  --text-secondary: #8b949e;
+  --text-tertiary: #6e7681;
+  --text-muted: #484f58;
+
+  /* Accent */
+  --accent: #58a6ff;
+  --accent-hover: #79c0ff;
+  --accent-subtle: rgba(56, 139, 253, 0.15);
+
+  /* Timer states */
+  --timer-idle: #e6edf3;
+  --timer-holding: #f85149;
+  --timer-ready: #3fb950;
+  --timer-running: #e6edf3;
+
+  /* Statistics */
+  --stat-best: #3fb950;
+  --stat-ao5: #f0883e;
+  --distribution-median: #f85149;
+  --danger-penalty: #f85149;
+  --stat-ao12: #a371f7;
+  --stat-ao100: #58a6ff;
+  --new-best-popup-color: #3fb950;
+  --stat-new-best: #fe2b2b;
+  --danger: var(--danger-penalty);
+  --success: var(--stat-best);
+  --new-best-popup-border: rgba(63, 185, 80, 0.45);
+  --danger-bg-soft: rgba(248, 81, 73, 0.1);
+  --danger-bg-strong: rgba(248, 81, 73, 0.15);
+  --danger-bg-hover: rgba(248, 81, 73, 0.2);
+  --danger-border: rgba(248, 81, 73, 0.5);
+  --danger-border-strong: rgba(248, 81, 73, 0.6);
+
+  /* Graph */
+  --graph-color-time: #8b949e;
+  --graph-color-line1: #ff2020;
+  --graph-color-line2: #2b91ff;
+  --graph-color-line3: #a371f7;
+  --graph-color-ao5: #ff2020;
+  --graph-color-ao12: #2b91ff;
+  --graph-color-ao100: #a371f7;
+  --graph-grid: #3c4552;
+  --distribution-legend-bg: rgba(13, 17, 23, 0.92);
+  --distribution-legend-border: rgba(255, 255, 255, 0.12);
+  --distribution-selected-stroke: #79c0ff;
+  --timer-delta-glow-strong: rgba(12, 17, 22, 1);
+  --timer-delta-glow-soft: rgba(12, 17, 22, 0.92);
+
+  /* Cube face colors */
+  --cube-white: #FFF;
+  --cube-yellow: #FFFF05;
+  --cube-red: #F00;
+  --cube-orange: #FFA503;
+  --cube-blue: #00F;
+  --cube-green: #33CD32;
+  --cube-bg: #333333;
+  --preview-cube-white: #ffffff;
+  --preview-cube-red: #ff0000;
+  --preview-cube-green: #33cd32;
+  --preview-cube-yellow: #ffff05;
+  --preview-cube-orange: #ffa503;
+  --preview-cube-blue: #0000ff;
+  --preview-cube-outline: rgba(0, 0, 0, 0.4);
+  --preview-skewb-white: #ffffff;
+  --preview-skewb-red: #ff0000;
+  --preview-skewb-green: #33cd32;
+  --preview-skewb-yellow: #ffff05;
+  --preview-skewb-orange: #ffa503;
+  --preview-skewb-blue: #0000ff;
+  --preview-skewb-outline: rgba(0, 0, 0, 0.4);
+  --preview-pyraminx-yellow: #ffff05;
+  --preview-pyraminx-green: #33cd32;
+  --preview-pyraminx-red: #ff0000;
+  --preview-pyraminx-blue: #0000ff;
+  --preview-pyraminx-outline: rgba(0, 0, 0, 0.4);
+  --preview-megaminx-face-1: #f8f8f5;
+  --preview-megaminx-face-2: #f9c91c;
+  --preview-megaminx-face-3: #fff6b4;
+  --preview-megaminx-face-4: #9c9c9c;
+  --preview-megaminx-face-5: #ec1111;
+  --preview-megaminx-face-6: #0a7f12;
+  --preview-megaminx-face-7: #74fb00;
+  --preview-megaminx-face-8: #ff9136;
+  --preview-megaminx-face-9: #1223c8;
+  --preview-megaminx-face-10: #8a28ff;
+  --preview-megaminx-face-11: #e28dee;
+  --preview-megaminx-face-12: #8bd6f8;
+  --preview-megaminx-outline: rgba(0, 0, 0, 0.45);
+  --preview-square1-up: #ffff00;
+  --preview-square1-down: #ffffff;
+  --preview-square1-front: #ff0000;
+  --preview-square1-back: #ff8800;
+  --preview-square1-left: #0000ff;
+  --preview-square1-right: #00ff00;
+  --preview-square1-outline: #000000;
+  --preview-clock-body: #000000;
+  --preview-clock-front-face: #57c5f8;
+  --preview-clock-back-face: #315f9b;
+  --preview-clock-front-dial: #315f9b;
+  --preview-clock-back-dial: #57c5f8;
+  --preview-clock-hand-fill: #ffd700;
+  --preview-clock-hand-stroke: #ff0000;
+  --preview-clock-pin-up: #ffeb3b;
+  --preview-clock-pin-down: #7b4c20;
+
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-2xl: 32px;
+  --space-3xl: 48px;
+
+  /* Typography */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Consolas', monospace;
+  --font-timer: 'JetBrains Mono', monospace;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.875rem;
+  --text-lg: 1rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 2rem;
+  --text-timer: clamp(4rem, 12vw, 8rem);
+  --text-timer-small: clamp(1.5rem, 4vw, 2.5rem);
+
+  /* Border radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 16px;
+  --radius-2xl: 24px;
+
+  /* Transitions */
+  --transition-fast: 100ms ease;
+  --transition-base: 200ms ease;
+  --transition-slow: 300ms ease;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-card: 0 20px 50px rgba(0, 0, 0, 0.35);
+
+  /* Layout */
+  --sidebar-width: 300px;
+  --right-panel-width: 300px;
+  --desktop-panel-scale: 1;
+  --header-height: 48px;
+  --scramble-bar-height: 56px;
+  --mobile-tab-height: 62px;
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+body.no-animations,
+body.no-animations * {
+  transition: none !important;
+  animation: none !important;
+}
+
+body.high-contrast-mode {
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.52);
+  --shadow-card: 0 20px 50px rgba(0, 0, 0, 0.52);
+}
+
+/* ── Compact panels at low window heights ── */
+/* @media (max-height: 700px) and (min-width: 1101px) {
+  :root {
+    --right-panel-width: 240px;
+  }
+}
+
+@media (max-height: 650px) and (min-width: 1101px) {
+  :root {
+    --right-panel-width: 200px;
+  }
+} */

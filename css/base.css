@@ -1,0 +1,499 @@
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html,
+body {
+    height: 100%;
+    overflow: hidden;
+}
+
+body {
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    color: var(--text-primary);
+    background-color: var(--bg-primary);
+    background-image: var(--app-background-overlay-layer), var(--app-background-image);
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+@media (hover: none) and (pointer: coarse) {
+
+    html,
+    body {
+        touch-action: manipulation;
+    }
+
+    body,
+    body * {
+        user-select: none !important;
+        -webkit-user-select: none !important;
+        -webkit-touch-callout: none;
+    }
+
+    input,
+    textarea,
+    [contenteditable],
+    [contenteditable="true"],
+    [contenteditable="plaintext-only"] {
+        user-select: text !important;
+        -webkit-user-select: text !important;
+        -webkit-touch-callout: default;
+    }
+    
+    #chart-image-overlay,
+    #chart-image-overlay * {
+        user-select: auto !important;
+        -webkit-user-select: auto !important;
+        -webkit-touch-callout: default;
+    }
+
+    input:not([type]),
+    input[type="text"],
+    input[type="search"],
+    input[type="email"],
+    input[type="url"],
+    input[type="tel"],
+    input[type="password"],
+    input[type="number"],
+    textarea,
+    [contenteditable],
+    [contenteditable="true"],
+    [contenteditable="plaintext-only"] {
+        font-size: 16px !important;
+    }
+}
+
+a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+a:hover {
+    color: var(--accent-hover);
+}
+
+button {
+    font-family: inherit;
+    font-size: inherit;
+    cursor: pointer;
+    border: none;
+    background: none;
+    color: inherit;
+}
+
+input,
+select,
+textarea {
+    font-family: inherit;
+    font-size: inherit;
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-xs) var(--space-sm);
+    outline: none;
+    transition: border-color var(--transition-fast);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    border-color: var(--accent);
+}
+
+select {
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%238b949e'%3E%3Cpath d='M6 8.5L1 3.5h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    padding-right: 24px;
+}
+
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--surface-border);
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+}
+
+.panel {
+    background:
+        linear-gradient(180deg, var(--panel-sheen), var(--panel-sheen-fade)),
+        var(--surface-elevated);
+    border: 1px solid var(--surface-border);
+    border-radius: 12px;
+    overflow: hidden;
+    transition: border-radius 0.2s ease;
+    backdrop-filter: blur(18px);
+    /* box-shadow: var(--shadow-card); */
+}
+
+.panel.overflow-visible {
+    overflow: visible;
+}
+
+.panel.drawer-open {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+@media (max-width: 1100px), (pointer: coarse) {
+    .panel {
+        border-radius: 20px;
+    }
+}
+
+.panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-sm) var(--space-md);
+    border-bottom: 1px solid var(--surface-border);
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    user-select: none;
+}
+
+/* Collapsible panels */
+.panel.collapsible>.panel-header {
+    cursor: pointer;
+    transition: background var(--transition-fast);
+}
+
+.panel.collapsible>.panel-header:hover {
+    background: var(--surface-hover);
+}
+
+.collapse-chevron {
+    font-size: 18px;
+    transition: transform 0.2s ease;
+    display: inline-block;
+    line-height: 1;
+}
+
+.panel.collapsed .collapse-chevron {
+    transform: rotate(-90deg);
+}
+
+.panel.collapsed>.panel-header {
+    border-bottom: none;
+}
+
+.collapsible-body {
+    overflow: hidden;
+    transition: max-height 0.3s ease, opacity 0.25s ease;
+    opacity: 1;
+}
+
+.collapsible-body.overflow-visible {
+    overflow: visible;
+}
+
+.panel.collapsed .graph-legend {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.panel.collapsed .collapsible-body {
+    max-height: 0;
+    opacity: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: 999px;
+    font-size: var(--text-sm);
+    font-weight: 500;
+    transition: background var(--transition-fast), color var(--transition-fast);
+    user-select: none;
+    -webkit-user-select: none;
+    min-height: 36px;
+}
+
+.btn:hover {
+    background: var(--surface-hover);
+}
+
+.btn:active {
+    background: var(--surface-active);
+}
+
+.btn-primary {
+    background: var(--accent);
+    color: #000;
+}
+
+.btn-primary:hover {
+    background: var(--accent-hover);
+}
+
+.btn-icon {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+    user-select: none;
+    -webkit-user-select: none;
+    transition: opacity var(--transition-fast), transform var(--transition-fast);
+}
+
+.btn-icon:active {
+    transform: scale(0.96);
+}
+
+.icon-mask {
+    width: 1em;
+    height: 1em;
+    display: block;
+    flex: 0 0 auto;
+    pointer-events: none;
+    background-color: currentColor;
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    -webkit-mask-size: contain;
+    mask-repeat: no-repeat;
+    mask-position: center;
+    mask-size: contain;
+}
+
+.icon-mask-settings {
+    width: 1em;
+    height: 1em;
+    -webkit-mask-image: url('../resources/settings.svg');
+    mask-image: url('../resources/settings.svg');
+}
+
+.icon-mask-distribution {
+    width: 1em;
+    height: 1em;
+    -webkit-mask-image: url('../resources/distribution.svg');
+    mask-image: url('../resources/distribution.svg');
+}
+
+.icon-mask-legend {
+    width: 1em;
+    height: 1em;
+    -webkit-mask-image: url('../resources/legend.svg');
+    mask-image: url('../resources/legend.svg');
+}
+
+.icon-mask-trash {
+    -webkit-mask-image: url('../resources/trash.svg');
+    mask-image: url('../resources/trash.svg');
+}
+
+.icon-mask-search {
+    -webkit-mask-image: url('../resources/search.svg');
+    mask-image: url('../resources/search.svg');
+}
+
+@media (min-width: 1101px) and (pointer: fine) {
+    #btn-settings .icon-mask-settings {
+        width: 0.85em;
+        height: 0.85em;
+    }
+}
+
+.shortcut-hint {
+    font-size: var(--text-xs);
+    color: var(--text-tertiary);
+    background: var(--bg-tertiary);
+    padding: 1px 5px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--surface-border);
+    font-family: var(--font-mono);
+}
+
+#shortcut-tooltip {
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 2000;
+    padding: 5px 8px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--surface-border);
+    background: var(--tooltip-surface);
+    color: var(--text-secondary);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+    font-weight: 500;
+    font-size: var(--text-xs);
+    line-height: 1;
+    white-space: nowrap;
+    box-shadow: var(--shadow-md);
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transform: translate(-50%, -4px);
+    transition: opacity var(--transition-fast), transform var(--transition-fast), visibility var(--transition-fast);
+}
+
+#shortcut-tooltip.shortcut-tooltip-below-pills {
+    z-index: 60;
+}
+
+#shortcut-tooltip.no-transition {
+    transition: none;
+}
+
+#shortcut-tooltip[data-placement="right"] {
+    transform: translate(4px, -50%);
+}
+
+#shortcut-tooltip[data-placement="top"] {
+    transform: translate(-50%, -4px);
+}
+
+#shortcut-tooltip::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: -5px;
+    transform: translateX(-50%) rotate(45deg);
+    width: 8px;
+    height: 8px;
+    background: var(--tooltip-surface);
+    border-left: 1px solid var(--surface-border);
+    border-top: 1px solid var(--surface-border);
+}
+
+#shortcut-tooltip[data-placement="right"]::before {
+    left: -5px;
+    top: 50%;
+    transform: translateY(-50%) rotate(45deg);
+    border-left: 1px solid var(--surface-border);
+    border-top: 0;
+    border-bottom: 1px solid var(--surface-border);
+}
+
+#shortcut-tooltip[data-placement="top"]::before {
+    left: 50%;
+    top: auto;
+    bottom: -5px;
+    transform: translateX(-50%) rotate(45deg);
+    border-left: 0;
+    border-top: 0;
+    border-right: 1px solid var(--surface-border);
+    border-bottom: 1px solid var(--surface-border);
+}
+
+#shortcut-tooltip.active {
+    opacity: 1;
+    visibility: visible;
+    transform: translate(-50%, 0);
+}
+
+#shortcut-tooltip[data-placement="right"].active {
+    transform: translate(0, -50%);
+}
+
+#shortcut-tooltip[data-placement="top"].active {
+    transform: translate(-50%, 0);
+}
+
+body.coarse-pointer #shortcut-tooltip {
+    display: none;
+}
+
+
+
+/* Zen mode — hide panels but keep grid intact so timer doesn't shift */
+body.zen #left-panel,
+body.zen #right-panel {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+body.zen #btn-settings,
+body.zen #scramble-type-menu-desktop,
+body.zen #scramble-type-menu-mobile,
+body.zen:not(.mobile-viewport) #btn-edit-scramble,
+body.zen:not(.mobile-viewport) #btn-copy-scramble,
+body.zen:not(.mobile-viewport) #btn-prev-scramble,
+body.zen:not(.mobile-viewport) #btn-next-scramble {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+body.zen #btn-zen {
+    opacity: 1;
+    background: transparent;
+}
+
+body.zen.mobile-viewport #btn-zen {
+    background: var(--surface-ghost);
+}
+
+body.zen.mobile-viewport .mobile-session-select-wrapper {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.3s ease, visibility 0s linear 0.3s;
+}
+
+body.zen.mobile-viewport .daily-streak-mobile-control {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.3s ease, visibility 0s linear 0.3s;
+}
+
+body.zen #scramble-type-menu-desktop,
+body.zen #scramble-type-menu-mobile {
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0s linear 0.3s;
+}
+
+body.zen.mobile-viewport #scramble-top-row {
+    justify-content: flex-end;
+}
+
+
+/* Smooth transitions back when exiting zen */
+#left-panel,
+#right-panel,
+#btn-settings,
+#scramble-container,
+#timer-info,
+#timer-display-wrapper {
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+body.instant-mobile-timer-layout #scramble-container,
+body.instant-mobile-timer-layout #timer-display-wrapper {
+    transition: none !important;
+}
