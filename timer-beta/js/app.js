@@ -297,6 +297,7 @@ const bluetoothSessionState = {
 };
 
 let currentHardwareSelectionTask = 0;
+let pendingHardwareModeReconnect = false;
 
 function syncTimerPopupStacking() {
     const hasVisiblePopup = TIMER_POPUP_ELEMENT_IDS.some((elementId) =>
@@ -3858,7 +3859,9 @@ async function init() {
         if (key === 'timeEntryMode') {
             clearPenaltyShortcutAlert();
             syncPersistentManualEntryMode();
-            void reconcileHardwareTimeEntryMode();
+            const attemptConnect = pendingHardwareModeReconnect && isHardwareTimeEntryMode(getSelectedTimeEntryMode());
+            pendingHardwareModeReconnect = false;
+            void reconcileHardwareTimeEntryMode({ attemptConnect });
         }
         if (key === 'cameraBackgroundEnabled' || key === 'cameraBackgroundSuspended') {
             void syncCameraBackgroundMode();
@@ -9264,9 +9267,10 @@ function initSettingsPanel() {
     if (timeEntryModeSelect) {
         timeEntryModeSelect.value = normalizeTimeEntryMode(settings.get('timeEntryMode'));
         timeEntryModeSelect.onchange = () => {
+            pendingHardwareModeReconnect = isHardwareTimeEntryMode(timeEntryModeSelect.value);
             settings.set('timeEntryMode', timeEntryModeSelect.value);
+            pendingHardwareModeReconnect = false;
             updateTimeEntryVisibility();
-            void reconcileHardwareTimeEntryMode({ attemptConnect: isHardwareTimeEntryMode(timeEntryModeSelect.value) });
             timeEntryModeSelect.blur();
         };
     }
