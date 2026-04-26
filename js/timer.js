@@ -1,5 +1,6 @@
-import { settings } from './settings.js?v=2026041801';
-import { EventEmitter, formatTime, truncateTimeDisplay } from './utils.js?v=2026041801';
+import { settings } from './settings.js?v=2026042601';
+import { isHardwareTimeEntryMode, TIME_ENTRY_MODE_TIMER, TIME_ENTRY_MODE_TYPING } from './time-entry.js?v=2026042601';
+import { EventEmitter, formatTime, truncateTimeDisplay } from './utils.js?v=2026042601';
 
 const State = {
     IDLE: 'idle',
@@ -164,6 +165,23 @@ class Timer extends EventEmitter {
             return;
         }
 
+        if (this._isHardwareEntryMode()) {
+            if (isEscape && this._isInspectionPreSolveState(this.state)) {
+                this._cancelInspection();
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                return;
+            }
+
+            if (this._inspectionEnabled() && e.code === 'Space' && (this.state === State.IDLE || this.state === State.STOPPED)) {
+                e.preventDefault();
+                if (this._spaceDown) return;
+                this._spaceDown = true;
+                this._armInspection();
+            }
+            return;
+        }
+
         if ((e.ctrlKey || e.metaKey) && !isStackmatKey && !isEscape) return;
 
         if (isDnfKey && this.state === State.RUNNING) {
@@ -239,6 +257,18 @@ class Timer extends EventEmitter {
             return;
         }
 
+        if (this._isHardwareEntryMode()) {
+            if (e.code === 'Space') {
+                this._spaceDown = false;
+                if (this.state === State.INSPECTION_PRIMED) {
+                    e.preventDefault();
+                    this._startInspection();
+                }
+            }
+            if (isStackmatKey) this._setStackmatFlag(e.code, false);
+            return;
+        }
+
         if (this._hasBlockingOverlayOpen()) {
             if (e.code === 'Space') this._spaceDown = false;
             if (isStackmatKey) this._setStackmatFlag(e.code, false);
@@ -274,6 +304,7 @@ class Timer extends EventEmitter {
     }
 
     _onPointerDown(e) {
+        if (this._isHardwareEntryMode()) return;
         if (!this._isTouchPointer(e)) return;
         if (this._hasBlockingOverlayOpen()) return;
         if (this._isManualTimeEntryActive()) return;
@@ -293,6 +324,7 @@ class Timer extends EventEmitter {
     }
 
     _onDocumentPointerDown(e) {
+        if (this._isHardwareEntryMode()) return;
         if (this._hasBlockingOverlayOpen()) return;
         if (this._isManualTimeEntryActive()) return;
         if (this._backgroundSpacebarEnabled() && this._isPrimaryPointerDown(e) && this._isBackgroundPointerTarget(e.target)) {
@@ -577,17 +609,7 @@ class Timer extends EventEmitter {
             this.elapsed = performance.now() - this.startTime;
 
             if (this._shouldShowRunningTime()) {
-                let displayTime = this.elapsed;
-                let digits = 2;
-                const updateMode = settings.get('timerUpdate');
-                if (updateMode === '1s') {
-                    displayTime = Math.floor(displayTime / 1000) * 1000;
-                    digits = 0;
-                } else if (updateMode === '0.1s') {
-                    displayTime = Math.floor(displayTime / 100) * 100;
-                    digits = 1;
-                }
-                this._updateDisplay(formatTime(displayTime, digits));
+                this._updateDisplay(this._formatRunningDisplay(this.elapsed));
             }
 
             this._rafId = requestAnimationFrame(this._tick);
@@ -748,7 +770,11 @@ class Timer extends EventEmitter {
     }
 
     _isDesktopTypingEntryMode() {
-        return settings.get('timeEntryMode') === 'typing' && !document.body.classList.contains('mobile-viewport');
+        return settings.get('timeEntryMode') === TIME_ENTRY_MODE_TYPING && !document.body.classList.contains('mobile-viewport');
+    }
+
+    _isHardwareEntryMode() {
+        return isHardwareTimeEntryMode(settings.get('timeEntryMode'));
     }
 
     _isInteractivePointerTarget(target) {
@@ -851,6 +877,7 @@ class Timer extends EventEmitter {
 
     _backgroundSpacebarEnabled() {
         return settings.get('backgroundSpacebarEnabled') === true
+            && settings.get('timeEntryMode') === TIME_ENTRY_MODE_TIMER
             && !this._isDesktopTypingEntryMode();
     }
 
@@ -971,10 +998,156 @@ class Timer extends EventEmitter {
         if (this._displayEl.textContent !== displayStr) {
             this._displayEl.textContent = displayStr;
         }
+
+        this.emit('displayChange', {
+            fullText: text,
+            displayText: displayStr,
+        });
     }
 
     setDisplay(text) {
         this._updateDisplay(text);
+    }
+
+    setExternalState(state, { displayText = null } = {}) {
+        this._cancelHold();
+
+        if (state !== State.RUNNING && !this._isInspectionTickingState(state)) {
+            this._cancelRaf();
+        }
+
+        if (!this._isInspectionTickingState(state) && state !== State.INSPECTION_PRIMED) {
+            this._cancelTypingInspectionAutoTimeout();
+        }
+
+        this._setState(state);
+        this._setColor(state);
+
+        if (displayText != null) {
+            this._updateDisplay(displayText);
+        }
+    }
+
+    startExternalInspection({ elapsedMs = 0 } = {}) {
+        if (!this._inspectionEnabled()) return false;
+
+        if (!this._inspectionSnapshot) {
+            this._inspectionSnapshot = {
+                state: this.state,
+                text: this._displayEl ? this._displayEl.textContent : '0.00',
+            };
+        }
+
+        const safeElapsed = Math.max(0, Number(elapsedMs) || 0);
+        this._cancelHold();
+        this._cancelRaf();
+        this._cancelTypingInspectionAutoTimeout();
+        this._inspectionStartTime = performance.now() - safeElapsed;
+        this._inspectionElapsed = safeElapsed;
+        this._inspectionAlertsFired.clear();
+        this._pendingPenalty = this._getInspectionPenalty(safeElapsed);
+        this._setState(State.INSPECTING);
+        this._setColor(State.INSPECTING);
+
+        if (this._shouldShowInspectionCount()) {
+            this._updateDisplay(this._formatInspectionDisplay(safeElapsed));
+        } else {
+            this._updateDisplay('Inspect');
+        }
+
+        this._tick();
+        return true;
+    }
+
+    syncExternalInspection({ elapsedMs = null, state = null } = {}) {
+        const nextState = state || this.state;
+        if (!this._isInspectionTickingState(nextState)) return;
+
+        if (Number.isFinite(elapsedMs)) {
+            const safeElapsed = Math.max(0, Number(elapsedMs) || 0);
+            this._inspectionStartTime = performance.now() - safeElapsed;
+            this._inspectionElapsed = safeElapsed;
+            this._pendingPenalty = this._getInspectionPenalty(safeElapsed);
+            if (this._shouldShowInspectionCount()) {
+                this._updateDisplay(this._formatInspectionDisplay(safeElapsed));
+            }
+        }
+
+        if (nextState !== this.state) {
+            this._setState(nextState);
+            this._setColor(nextState);
+        }
+
+        if (!this._rafId) {
+            this._tick();
+        }
+    }
+
+    startExternalTimer({ elapsedMs = 0 } = {}) {
+        const safeElapsed = Math.max(0, Number(elapsedMs) || 0);
+        if (this.state === State.RUNNING) {
+            this.syncExternalRunningTime(safeElapsed);
+            return;
+        }
+
+        const fromInspection = this._isInspectionTickingState(this.state);
+
+        this._cancelHold();
+        this._cancelRaf();
+        this._cancelTypingInspectionAutoTimeout();
+        if (!fromInspection) {
+            this._pendingPenalty = null;
+        }
+
+        this._inspectionSnapshot = null;
+        this._inspectionStartTime = 0;
+        this._inspectionElapsed = 0;
+        this._inspectionAlertsFired.clear();
+
+        this._setState(State.RUNNING);
+        this._setColor(State.RUNNING);
+        this.startTime = performance.now() - safeElapsed;
+        this.elapsed = safeElapsed;
+
+        if (this._shouldShowRunningTime()) {
+            this._updateDisplay(this._formatRunningDisplay(safeElapsed));
+        } else {
+            this._updateDisplay('...');
+        }
+
+        this.emit('started', this._pendingPenalty);
+        this._tick();
+    }
+
+    syncExternalRunningTime(elapsedMs) {
+        if (this.state !== State.RUNNING || !Number.isFinite(elapsedMs)) return;
+
+        const safeElapsed = Math.max(0, Number(elapsedMs) || 0);
+        this.startTime = performance.now() - safeElapsed;
+        this.elapsed = safeElapsed;
+
+        if (this._shouldShowRunningTime()) {
+            this._updateDisplay(this._formatRunningDisplay(safeElapsed));
+        }
+    }
+
+    stopExternalTimer(elapsedMs, penaltyOverride = null) {
+        this._cancelRaf();
+        this._cancelTypingInspectionAutoTimeout();
+        this.elapsed = Math.max(0, Number(elapsedMs) || 0);
+        this._inspectionStartTime = 0;
+        this._inspectionElapsed = 0;
+        this._inspectionAlertsFired.clear();
+
+        const finalPenalty = penaltyOverride ?? this._pendingPenalty ?? null;
+
+        this._setState(State.STOPPED);
+        this._setColor(State.STOPPED);
+        this._updateDisplay(this._formatStoppedDisplay(this.elapsed, finalPenalty));
+
+        this._pendingPenalty = null;
+        this._inspectionSnapshot = null;
+        this.emit('stopped', this.elapsed, finalPenalty);
     }
 
     cancelPendingStart() {
@@ -1019,6 +1192,21 @@ class Timer extends EventEmitter {
     getState() {
         return this.state;
     }
+
+    _formatRunningDisplay(elapsed) {
+        let displayTime = elapsed;
+        let digits = 2;
+        const updateMode = settings.get('timerUpdate');
+        if (updateMode === '1s') {
+            displayTime = Math.floor(displayTime / 1000) * 1000;
+            digits = 0;
+        } else if (updateMode === '0.1s') {
+            displayTime = Math.floor(displayTime / 100) * 100;
+            digits = 1;
+        }
+        return formatTime(displayTime, digits);
+    }
 }
 
 export const timer = new Timer();
+export { State };

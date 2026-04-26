@@ -1,4 +1,4 @@
-import * as db from './db.js?v=2026041801';
+import * as db from './db.js?v=2026042601';
 
 const STORAGE_PREFIX = 'cubetimer_';
 const STORAGE_VERSION = 1;
@@ -555,6 +555,8 @@ const CSTIMER_EXPORT_SETTING_DEFAULTS = Object.freeze({
     hideUIWhileSolving: true,
     pillSize: 'medium',
     showDelta: false,
+    cameraBackgroundEnabled: false,
+    cameraBackgroundSuspended: false,
     theme: 'default',
     backgroundImageSource: 'none',
     backgroundImageUrl: '',
@@ -751,7 +753,10 @@ function _deriveSettingsFromCsTimerProperties(properties) {
     }
 
     if (_hasOwn(properties, 'input')) {
-        settingsData.timeEntryMode = properties?.input === 'i' ? 'typing' : 'timer';
+        if (properties?.input === 'i') settingsData.timeEntryMode = 'typing';
+        else if (properties?.input === 's' || properties?.input === 'm') settingsData.timeEntryMode = 'stackmat';
+        else if (properties?.input === 'b') settingsData.timeEntryMode = 'bluetooth';
+        else settingsData.timeEntryMode = 'timer';
     }
 
     if (_hasOwn(properties, 'ahide')) {
@@ -1095,7 +1100,13 @@ export async function exportCsTimer() {
         ...(sessions.length !== 15 ? { sessionN: sessions.length } : {}),
         ...(_hasOwn(settingsData, 'inspectionTime') && settingsData.inspectionTime === '15s' ? { useIns: 'ap' } : {}),
         ...(settingsData.inspectionAlerts === 'screen' ? { voiceIns: 'n' } : {}),
-        ...(settingsData.timeEntryMode === 'typing' ? { input: 'i' } : {}),
+        ...(settingsData.timeEntryMode === 'typing'
+            ? { input: 'i' }
+            : settingsData.timeEntryMode === 'stackmat'
+                ? { input: 's' }
+                : settingsData.timeEntryMode === 'bluetooth'
+                    ? { input: 'b' }
+                    : {}),
         ...(settingsData.hideUIWhileSolving === false ? { ahide: false } : {}),
         ...(settingsData.pillSize === 'hidden' ? { showAvg: false } : {}),
         ...(settingsData.showDelta === false ? { showDiff: 'n' } : {}),

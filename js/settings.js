@@ -1,5 +1,6 @@
-import { load, save } from './storage.js?v=2026041801';
-import { EventEmitter } from './utils.js?v=2026041801';
+import { load, save } from './storage.js?v=2026042601';
+import { normalizeTimeEntryMode, TIME_ENTRY_MODE_TIMER, TIME_ENTRY_MODE_TYPING } from './time-entry.js?v=2026042601';
+import { EventEmitter } from './utils.js?v=2026042601';
 
 export const THEME_DEFAULT_ID = 'default';
 export const THEME_OLED_ID = 'oled';
@@ -394,7 +395,8 @@ const DEFAULTS = {
     inspectionTime: 'off',  // 'off', '15s'
     inspectionAlerts: 'off', // 'off', 'voice', 'screen', 'both'
     timerUpdate: '0.01s',   // 'none', 'inspection', '1s', '0.1s', '0.01s'
-    timeEntryMode: 'timer', // 'timer', 'typing'
+    timeEntryMode: TIME_ENTRY_MODE_TIMER, // 'timer', 'typing', 'stackmat', 'bluetooth'
+    stackmatInputDeviceId: '',
     holdDuration: 300,       // ms
     animationMode: 'auto',   // 'auto', 'on', 'off'
     animationsEnabled: true, // Legacy effective boolean kept for backwards compatibility.
@@ -440,6 +442,11 @@ const DEFAULTS = {
     centerTimer: true,
     hideUIWhileSolving: true,
     backgroundSpacebarEnabled: false,
+    googleDriveBackupReminderEvery100Solves: false,
+    googleDriveBackupCheckpointSolveCount: 0,
+    googleDriveBackupLastReminderSolveCount: 0,
+    cameraBackgroundEnabled: false,
+    cameraBackgroundSuspended: false,
     // Legacy global background fields kept for migration and older imports.
     backgroundImageSource: 'none',
     backgroundImageUrl: '',
@@ -594,6 +601,17 @@ function withAlpha(value, alpha, fallback = 'rgba(0, 0, 0, 1)') {
     const parsed = parseThemeColorValue(value);
     if (!parsed) return fallback;
     return `rgba(${parsed.r}, ${parsed.g}, ${parsed.b}, ${trimAlpha(normalizeAlpha(alpha))})`;
+}
+
+function mixThemeColors(baseValue, accentValue, accentAmount, alpha = 1, fallback = 'rgba(0, 0, 0, 1)') {
+    const base = parseThemeColorValue(baseValue);
+    const accent = parseThemeColorValue(accentValue);
+    if (!base || !accent) return fallback;
+
+    const amount = clamp(Number(accentAmount) || 0, 0, 1);
+    const mixChannel = (start, end) => Math.round(start + ((end - start) * amount));
+
+    return `rgba(${mixChannel(base.r, accent.r)}, ${mixChannel(base.g, accent.g)}, ${mixChannel(base.b, accent.b)}, ${trimAlpha(normalizeAlpha(alpha))})`;
 }
 
 function normalizeThemeId(value) {
@@ -917,6 +935,16 @@ class Settings extends EventEmitter {
             return;
         }
 
+        if (key === 'timeEntryMode') {
+            const nextTimeEntryMode = normalizeTimeEntryMode(value);
+            if (this._settings.timeEntryMode === nextTimeEntryMode) return;
+
+            this._settings.timeEntryMode = nextTimeEntryMode;
+            this._saveAndApply();
+            this.emit('change', 'timeEntryMode', nextTimeEntryMode);
+            return;
+        }
+
         if (key === 'animationMode') {
             const nextAnimationMode = this._normalizeAnimationMode(value);
             if (this._settings.animationMode === nextAnimationMode) return;
@@ -1022,8 +1050,11 @@ class Settings extends EventEmitter {
 
         document.body.classList.toggle('no-animations', !this._settings.animationsEnabled);
         document.body.classList.toggle('high-contrast-mode', this._settings.theme === THEME_OLED_ID);
-        document.body.classList.toggle('typing-entry-mode', this._settings.timeEntryMode === 'typing');
-        document.body.classList.toggle('background-spacebar-enabled', Boolean(this._settings.backgroundSpacebarEnabled));
+        document.body.classList.toggle('typing-entry-mode', this._settings.timeEntryMode === TIME_ENTRY_MODE_TYPING);
+        document.body.classList.toggle(
+            'background-spacebar-enabled',
+            Boolean(this._settings.backgroundSpacebarEnabled) && this._settings.timeEntryMode === TIME_ENTRY_MODE_TIMER,
+        );
 
         document.body.classList.remove('pill-size-small', 'pill-size-medium', 'pill-size-large', 'pill-size-hidden');
         document.body.classList.add(`pill-size-${this._settings.pillSize}`);
@@ -1043,6 +1074,7 @@ class Settings extends EventEmitter {
         document.documentElement.style.setProperty('--danger', themeColors.dangerPenalty);
         document.documentElement.style.setProperty('--success', themeColors.statBest);
         document.documentElement.style.setProperty('--new-best-popup-border', withAlpha(themeColors.newBestPopup, 0.45, 'rgba(63, 185, 80, 0.45)'));
+        document.documentElement.style.setProperty('--danger-popup-surface', mixThemeColors(themeColors.bgPrimary, themeColors.dangerPenalty, 0.18, 0.94, 'rgba(55, 29, 32, 0.94)'));
         document.documentElement.style.setProperty('--danger-bg-soft', withAlpha(themeColors.dangerPenalty, 0.1, 'rgba(248, 81, 73, 0.1)'));
         document.documentElement.style.setProperty('--danger-bg-strong', withAlpha(themeColors.dangerPenalty, 0.15, 'rgba(248, 81, 73, 0.15)'));
         document.documentElement.style.setProperty('--danger-bg-hover', withAlpha(themeColors.dangerPenalty, 0.2, 'rgba(248, 81, 73, 0.2)'));

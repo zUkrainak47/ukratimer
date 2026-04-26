@@ -1,6 +1,6 @@
-import { formatTime, getEffectiveTime, EventEmitter } from './utils.js?v=2026041801';
-import { settings } from './settings.js?v=2026041801';
-import { parseGraphStatType } from './stats.js?v=2026041801';
+import { formatTime, getEffectiveTime, EventEmitter } from './utils.js?v=2026042601';
+import { settings } from './settings.js?v=2026042601';
+import { parseGraphStatType } from './stats.js?v=2026042601';
 
 /**
  * Time trend graph with pan/zoom controls.
@@ -525,6 +525,7 @@ export function initGraph(canvas) {
                     if (panel) {
                         panel.classList.add('overflow-visible');
                         panel.classList.add('drawer-open');
+                        panel.classList.add('tools-open');
                     }
                 } else {
                     // Closing
@@ -532,7 +533,10 @@ export function initGraph(canvas) {
                     toggleBtn.classList.remove('active');
                     const body = document.getElementById('graph-body');
                     const panel = document.getElementById('graph-panel');
-                    if (panel) panel.classList.remove('drawer-open');
+                    if (panel) {
+                        panel.classList.remove('drawer-open');
+                        panel.classList.remove('tools-open');
+                    }
                     setTimeout(() => {
                         if (body) body.classList.remove('overflow-visible');
                         if (panel) panel.classList.remove('overflow-visible');

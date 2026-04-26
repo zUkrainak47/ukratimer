@@ -47,6 +47,55 @@
     display: block;
 }
 
+#cube-camera-timer-slot[hidden] {
+    display: none !important;
+}
+
+body.camera-background-active #cube-panel.camera-background-hosting-timer .panel-header,
+body.camera-background-active #cube-panel.camera-background-hosting-timer #cube-canvas-container {
+    display: none;
+}
+
+body.camera-background-active #cube-panel.camera-background-hosting-timer .collapsible-body,
+body.camera-background-active #cube-panel.camera-background-hosting-timer.collapsed .collapsible-body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    max-height: none !important;
+    opacity: 1;
+}
+
+body.camera-background-active #cube-panel.camera-background-hosting-timer #cube-camera-timer-slot {
+    --text-timer: clamp(3.25rem, 4.9vw, 5.4rem);
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: clamp(250px, 36vh, 420px);
+    padding: clamp(18px, 2.8vh, 28px) 12px;
+}
+
+body.camera-background-active #graph-panel {
+    order: 1;
+    width: 100%;
+    min-width: 100%;
+    align-self: stretch;
+}
+
+body.camera-background-active:not(.mobile-viewport) #graph-panel.tools-open {
+    z-index: 2;
+}
+
+body.camera-background-active #cube-panel {
+    order: 2;
+    width: 100%;
+    min-width: 100%;
+    align-self: stretch;
+}
+
 @media (max-width: 1100px),
 (pointer: coarse) {
     body[data-mobile-panel="timer"] #cube-canvas-container {

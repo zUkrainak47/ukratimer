@@ -161,6 +161,16 @@
     border-bottom: none;
 }
 
+.setting-row.setting-row-no-divider {
+    border-bottom: none;
+}
+
+#setting-hardware-input-row[hidden],
+#setting-stackmat-device-row[hidden],
+#setting-camera-background-row[hidden] {
+    display: none !important;
+}
+
 body.mobile-viewport #setting-hide-ui-row,
 body.mobile-viewport #setting-large-scramble-text-row {
     display: none;
@@ -176,6 +186,31 @@ body.mobile-viewport #setting-large-scramble-text-row {
     color: var(--text-tertiary);
     font-size: var(--text-xs);
     margin-top: 2px;
+}
+
+#setting-hardware-input-status.is-error {
+    color: var(--danger);
+}
+
+#setting-hardware-input-btn {
+    min-width: 148px;
+    justify-content: center;
+    margin-left: 15px;
+}
+
+#setting-stackmat-input-select {
+    width: 220px;
+    max-width: 52%;
+    min-width: 0;
+    flex: 0 1 220px;
+}
+
+#setting-stackmat-device-status.is-error {
+    color: var(--danger);
+}
+
+#setting-camera-background-status.is-error {
+    color: var(--danger);
 }
 
 #setting-summary-stats-custom {

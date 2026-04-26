@@ -1,5 +1,5 @@
-import { formatTime, formatSolveTime, formatReadableDate, formatDateTime, getEffectiveTime } from './utils.js?v=2026041801';
-import { sessionManager } from './session.js?v=2026041801';
+import { formatTime, formatSolveTime, formatReadableDate, formatDateTime, getEffectiveTime } from './utils.js?v=2026042601';
+import { sessionManager } from './session.js?v=2026042601';
 
 let _overlay = null;
 let _textarea = null;
@@ -1039,7 +1039,7 @@ export function customConfirm(message) {
             overlay.removeEventListener('mousedown', onOverlayMouseDown);
             overlay.removeEventListener('mouseup', onOverlayMouseUp);
             overlay.removeEventListener('click', onOverlayClick);
-            document.removeEventListener('keydown', onKeydown);
+            document.removeEventListener('keydown', onKeydown, true);
             if (document.activeElement) document.activeElement.blur();
         };
 
@@ -1069,7 +1069,9 @@ export function customConfirm(message) {
         overlay.addEventListener('mousedown', onOverlayMouseDown);
         overlay.addEventListener('mouseup', onOverlayMouseUp);
         overlay.addEventListener('click', onOverlayClick);
-        document.addEventListener('keydown', onKeydown);
+        // Capture Escape before other document-level handlers can dismiss UI
+        // underneath the confirm overlay.
+        document.addEventListener('keydown', onKeydown, true);
 
         // Show modal and wait for user interaction
         overlay.classList.add('active');
@@ -1117,7 +1119,7 @@ export function customPrompt(message, defaultValue = '', maxLength = 100, title 
             overlay.removeEventListener('mousedown', onPromptOverlayMouseDown);
             overlay.removeEventListener('mouseup', onPromptOverlayMouseUp);
             overlay.removeEventListener('click', onOverlayClick);
-            document.removeEventListener('keydown', onKeydown);
+            document.removeEventListener('keydown', onKeydown, true);
             inputEl.removeEventListener('input', onInput);
             if (document.activeElement) document.activeElement.blur();
         };
@@ -1156,7 +1158,7 @@ export function customPrompt(message, defaultValue = '', maxLength = 100, title 
         overlay.addEventListener('mousedown', onPromptOverlayMouseDown);
         overlay.addEventListener('mouseup', onPromptOverlayMouseUp);
         overlay.addEventListener('click', onOverlayClick);
-        document.addEventListener('keydown', onKeydown);
+        document.addEventListener('keydown', onKeydown, true);
         inputEl.addEventListener('input', onInput);
 
         // Show modal and wait for user interaction

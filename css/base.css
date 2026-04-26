@@ -26,6 +26,28 @@ body {
     -moz-osx-font-smoothing: grayscale;
 }
 
+#camera-background-video {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    object-fit: cover;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 0;
+    background: #000;
+    transition: opacity var(--transition-base);
+}
+
+body.camera-background-live #camera-background-video {
+    opacity: 1;
+}
+
+body.camera-background-live #app-layout {
+    position: relative;
+    z-index: 1;
+}
+
 @media (hover: none) and (pointer: coarse) {
 
     html,
@@ -139,15 +161,53 @@ select {
 }
 
 .panel {
+    position: relative;
+    isolation: isolate;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    overflow: hidden;
+    transition: border-radius 0.2s ease, border-color var(--transition-base);
+    /* box-shadow: var(--shadow-card); */
+}
+
+.panel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    box-sizing: border-box;
+    border-radius: inherit;
     background:
         linear-gradient(180deg, var(--panel-sheen), var(--panel-sheen-fade)),
         var(--surface-elevated);
-    border: 1px solid var(--surface-border);
-    border-radius: 12px;
-    overflow: hidden;
-    transition: border-radius 0.2s ease;
     backdrop-filter: blur(18px);
-    /* box-shadow: var(--shadow-card); */
+    -webkit-backdrop-filter: blur(18px);
+    pointer-events: none;
+    z-index: 0;
+    transition: opacity var(--transition-base), visibility var(--transition-base);
+}
+
+.panel::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    box-sizing: border-box;
+    border-radius: inherit;
+    border: 1px solid var(--surface-border);
+    pointer-events: none;
+    z-index: 2;
+    transition: opacity var(--transition-base), visibility var(--transition-base), border-color var(--transition-base);
+}
+
+.panel-shell {
+    flex: 1 1 auto;
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 100%;
+    transition: opacity var(--transition-base), visibility var(--transition-base);
 }
 
 .panel.overflow-visible {
@@ -180,12 +240,12 @@ select {
 }
 
 /* Collapsible panels */
-.panel.collapsible>.panel-header {
+.panel.collapsible .panel-header {
     cursor: pointer;
     transition: background var(--transition-fast);
 }
 
-.panel.collapsible>.panel-header:hover {
+.panel.collapsible .panel-header:hover {
     background: var(--surface-hover);
 }
 
@@ -200,7 +260,7 @@ select {
     transform: rotate(-90deg);
 }
 
-.panel.collapsed>.panel-header {
+.panel.collapsed .panel-header {
     border-bottom: none;
 }
 
@@ -320,6 +380,16 @@ select {
     mask-image: url('../resources/search.svg');
 }
 
+.icon-mask-camera-video {
+    -webkit-mask-image: url('../resources/camera-video.svg');
+    mask-image: url('../resources/camera-video.svg');
+}
+
+.icon-mask-camera-video-off {
+    -webkit-mask-image: url('../resources/camera-video-off.svg');
+    mask-image: url('../resources/camera-video-off.svg');
+}
+
 @media (min-width: 1101px) and (pointer: fine) {
     #btn-settings .icon-mask-settings {
         width: 0.85em;
@@ -431,7 +501,14 @@ body.coarse-pointer #shortcut-tooltip {
 
 /* Zen mode — hide panels but keep grid intact so timer doesn't shift */
 body.zen #left-panel,
-body.zen #right-panel {
+body.zen:not(.camera-background-active) #right-panel,
+body.zen.mobile-viewport #right-panel {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+body.zen.camera-background-active:not(.mobile-viewport) #right-panel > :not(#cube-panel):not(#graph-panel) {
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.3s ease;
