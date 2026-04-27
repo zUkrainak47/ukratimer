@@ -33,6 +33,10 @@
     color: var(--danger);
 }
 
+.battle-connection-status.is-reconnecting {
+    color: var(--text-secondary);
+}
+
 .battle-form-grid {
     display: grid;
     gap: 12px;
@@ -328,7 +332,7 @@
 
 .battle-table-compact th:nth-child(4),
 .battle-table-compact td:nth-child(4) {
-    width: 84px;
+    width: 74px;
 }
 
 .battle-table-compact th:nth-child(1),
@@ -426,7 +430,7 @@
     overflow: visible;
 }
 
-#graph-overlay .graph-controls-primary > span,
+#graph-overlay .graph-controls-primary>span,
 #graph-overlay #btn-graph-tools {
     display: none;
 }

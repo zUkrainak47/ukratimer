@@ -10,6 +10,12 @@ const STORAGE_KEYS = Object.freeze({
 const ROOM_ID_PATTERN = /^[a-z0-9](?:[a-z0-9_-]{2,31})$/i;
 const MAX_NICKNAME_LENGTH = 18;
 
+const PING_INTERVAL_MS = 25000;
+const MAX_RECONNECT_ATTEMPTS = 15;
+const RECONNECT_BASE_DELAY_MS = 1000;
+const RECONNECT_MAX_DELAY_MS = 30000;
+const ZOMBIE_TIMEOUT_MS = 35000;
+
 export const BattlePresenceStatus = Object.freeze({
     READY: 'READY',
     INSPECTING: 'INSPECTING',
@@ -281,6 +287,11 @@ class BattleManager extends EventEmitter {
         this._joined = false;
         this._submittedRoundId = null;
         this._expectedClose = false;
+        this._pingIntervalId = null;
+        this._reconnecting = false;
+        this._reconnectTimer = null;
+        this._reconnectAttempt = 0;
+        this._lastMessageAt = 0;
 
         save(STORAGE_KEYS.accountId, this._accountId);
 
@@ -289,6 +300,12 @@ class BattleManager extends EventEmitter {
         });
         window.addEventListener('beforeunload', () => {
             this.leaveRoomSync();
+        });
+        document.addEventListener('visibilitychange', () => {
+            this._handleVisibilityChange();
+        });
+        window.addEventListener('online', () => {
+            this._handleVisibilityChange();
         });
     }
 
@@ -368,6 +385,7 @@ class BattleManager extends EventEmitter {
         this._submittedRoundId = null;
         save(STORAGE_KEYS.nickname, this._nickname);
         save(STORAGE_KEYS.roomId, this._roomId);
+        this._cancelReconnect();
 
         if (this._socket) {
             this._expectedClose = true;
@@ -420,6 +438,7 @@ class BattleManager extends EventEmitter {
     }
 
     async leaveRoom() {
+        this._cancelReconnect();
         this._expectedClose = true;
 
         if (this._socket && this._socket.readyState === WebSocket.OPEN) {
@@ -440,6 +459,7 @@ class BattleManager extends EventEmitter {
 
     leaveRoomSync() {
         if (!this._joined || !this._roomId) return;
+        this._cancelReconnect();
 
         const payload = JSON.stringify({
             action: 'leave',
@@ -542,12 +562,18 @@ class BattleManager extends EventEmitter {
                     cleanup();
                     reject(new Error('Unable to connect to the battle server.'));
                 };
+                const onClose = () => {
+                    cleanup();
+                    reject(new Error('Battle connection closed before opening.'));
+                };
                 const cleanup = () => {
                     this._socket?.removeEventListener('open', onOpen);
                     this._socket?.removeEventListener('error', onError);
+                    this._socket?.removeEventListener('close', onClose);
                 };
                 this._socket?.addEventListener('open', onOpen, { once: true });
                 this._socket?.addEventListener('error', onError, { once: true });
+                this._socket?.addEventListener('close', onClose, { once: true });
             });
             return;
         }
@@ -564,17 +590,31 @@ class BattleManager extends EventEmitter {
             this._handleSocketMessage(event.data);
         });
         socket.addEventListener('close', () => {
-            const wasExpected = this._expectedClose;
-            this._teardownSocket();
-            this._joined = false;
-            this._submittedRoundId = null;
-            this._roomState = createInitialRoomState();
-            if (!wasExpected) {
-                this._setConnection('error', 'Battle connection closed.');
-            } else {
-                this._setConnection('idle', '');
+            if (this._socket !== socket) return;
+            if (this._reconnecting) {
+                this._teardownSocket();
+                return;
             }
-            this._emitState();
+
+            const wasExpected = this._expectedClose;
+            const wasJoined = this._joined;
+            this._teardownSocket();
+
+            if (!wasExpected && wasJoined) {
+                this._setConnection('reconnecting', 'Reconnecting to battle...');
+                this._emitState();
+                this._scheduleReconnect();
+            } else {
+                this._joined = false;
+                this._submittedRoundId = null;
+                this._roomState = createInitialRoomState();
+                if (!wasExpected) {
+                    this._setConnection('error', 'Battle connection closed.');
+                } else {
+                    this._setConnection('idle', '');
+                }
+                this._emitState();
+            }
         });
         socket.addEventListener('error', () => {
             this._setConnection('error', 'Unable to connect to the battle server.');
@@ -584,6 +624,7 @@ class BattleManager extends EventEmitter {
         await new Promise((resolve, reject) => {
             const handleOpen = () => {
                 cleanup();
+                this._startPingInterval();
                 this._setConnection('connected', 'Connected to the battle server.');
                 this._emitState();
                 resolve();
@@ -592,17 +633,24 @@ class BattleManager extends EventEmitter {
                 cleanup();
                 reject(new Error('Unable to connect to the battle server.'));
             };
+            const handleClose = () => {
+                cleanup();
+                reject(new Error('Battle connection closed before opening.'));
+            };
             const cleanup = () => {
                 socket.removeEventListener('open', handleOpen);
                 socket.removeEventListener('error', handleError);
+                socket.removeEventListener('close', handleClose);
             };
 
             socket.addEventListener('open', handleOpen, { once: true });
             socket.addEventListener('error', handleError, { once: true });
+            socket.addEventListener('close', handleClose, { once: true });
         });
     }
 
     _teardownSocket() {
+        this._stopPingInterval();
         this._pendingRequests.forEach(({ reject, timeoutId }) => {
             clearTimeout(timeoutId);
             reject(new Error('Battle connection closed.'));
@@ -618,6 +666,118 @@ class BattleManager extends EventEmitter {
         }
         this._socket = null;
         this._expectedClose = false;
+    }
+
+    _startPingInterval() {
+        this._stopPingInterval();
+        this._lastMessageAt = Date.now();
+        this._pingIntervalId = window.setInterval(() => {
+            if (this._socket?.readyState === WebSocket.OPEN) {
+                if (this._lastMessageAt && Date.now() - this._lastMessageAt > ZOMBIE_TIMEOUT_MS) {
+                    // No data received for too long — connection is likely dead.
+                    this._socket.close();
+                    return;
+                }
+                try {
+                    this._socket.send(JSON.stringify({ action: 'ping' }));
+                } catch {
+                    // Send failure; the close event will handle cleanup.
+                }
+            }
+        }, PING_INTERVAL_MS);
+    }
+
+    _stopPingInterval() {
+        if (this._pingIntervalId != null) {
+            window.clearInterval(this._pingIntervalId);
+            this._pingIntervalId = null;
+        }
+    }
+
+    _scheduleReconnect() {
+        if (this._reconnectTimer != null) return;
+        const delay = Math.min(
+            RECONNECT_BASE_DELAY_MS * Math.pow(2, this._reconnectAttempt),
+            RECONNECT_MAX_DELAY_MS,
+        );
+        this._reconnectAttempt++;
+        this._reconnectTimer = window.setTimeout(() => {
+            this._reconnectTimer = null;
+            this._attemptReconnect();
+        }, delay);
+    }
+
+    _cancelReconnect() {
+        if (this._reconnectTimer != null) {
+            window.clearTimeout(this._reconnectTimer);
+            this._reconnectTimer = null;
+        }
+        this._reconnectAttempt = 0;
+        this._reconnecting = false;
+    }
+
+    async _attemptReconnect() {
+        if (!this._joined || this._expectedClose) {
+            this._cancelReconnect();
+            return;
+        }
+
+        this._reconnecting = true;
+
+        try {
+            await this._connect(this._roomId);
+            const response = await this._request('join', {
+                accountId: this._accountId,
+                nickname: this._nickname,
+                scrambleType: this._roomState.scrambleType || '333',
+                initialScramble: this._roomState.currentScramble || '',
+            });
+
+            this._reconnecting = false;
+            this._reconnectAttempt = 0;
+            this._joined = true;
+            this._setConnection('connected', `Rejoined room ${this._roomId}.`);
+            if (response?.roomInfo) {
+                this._applyRoomInfo(response.roomInfo);
+            } else {
+                this._emitState();
+            }
+        } catch {
+            this._reconnecting = false;
+            this._teardownSocket();
+
+            if (!this._joined || this._expectedClose) {
+                this._cancelReconnect();
+                return;
+            }
+
+            if (this._reconnectAttempt < MAX_RECONNECT_ATTEMPTS) {
+                this._setConnection('reconnecting', 'Reconnecting to battle...');
+                this._emitState();
+                this._scheduleReconnect();
+            } else {
+                this._joined = false;
+                this._submittedRoundId = null;
+                this._roomState = createInitialRoomState();
+                this._setConnection('error', 'Unable to reconnect. Please rejoin the room.');
+                this._emitState();
+            }
+        }
+    }
+
+    _handleVisibilityChange() {
+        if (document.visibilityState !== 'visible') return;
+        if (!this._joined) return;
+        if (this._socket?.readyState === WebSocket.OPEN) return;
+
+        // Socket is dead but we think we're still joined — trigger reconnect
+        if (!this._reconnecting && this._reconnectTimer == null) {
+            this._teardownSocket();
+            this._reconnectAttempt = 0;
+            this._setConnection('reconnecting', 'Reconnecting to battle...');
+            this._emitState();
+            this._scheduleReconnect();
+        }
     }
 
     async _request(action, payload = {}) {
@@ -640,6 +800,8 @@ class BattleManager extends EventEmitter {
     }
 
     _handleSocketMessage(rawData) {
+        this._lastMessageAt = Date.now();
+
         let message;
         try {
             message = JSON.parse(String(rawData ?? ''));

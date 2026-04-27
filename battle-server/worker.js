@@ -218,6 +218,9 @@ export class BattleRoom {
                     this.reply(socket, requestId, true, { roomInfo: this.getRoomInfo() });
                     this.broadcastRoomInfo();
                     return;
+                case 'ping':
+                    this.reply(socket, requestId, true);
+                    return;
                 default:
                     this.reply(socket, requestId, false, { error: 'Unknown battle action.' });
             }

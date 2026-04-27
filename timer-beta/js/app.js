@@ -1581,8 +1581,12 @@ function renderBattleUi(state = battleManager.getState()) {
 
     if (statusEl) {
         const hasError = state.connectionState === 'error' && state.connectionMessage;
-        statusEl.hidden = !hasError;
-        statusEl.textContent = hasError ? state.connectionMessage : '';
+        const isReconnecting = state.connectionState === 'reconnecting' && state.connectionMessage;
+        const showStatus = hasError || isReconnecting;
+        statusEl.hidden = !showStatus;
+        statusEl.textContent = showStatus ? state.connectionMessage : '';
+        statusEl.classList.toggle('is-error', Boolean(hasError));
+        statusEl.classList.toggle('is-reconnecting', Boolean(isReconnecting));
     }
 
     renderBattleRows('battle-players-body', state.rows);
