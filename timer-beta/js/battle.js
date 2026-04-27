@@ -286,6 +286,7 @@ class BattleManager extends EventEmitter {
         this._pendingRequests = new Map();
         this._joined = false;
         this._submittedRoundId = null;
+        this._lastSolvedRoundId = null;
         this._expectedClose = false;
         this._pingIntervalId = null;
         this._reconnecting = false;
@@ -452,6 +453,7 @@ class BattleManager extends EventEmitter {
         this._teardownSocket();
         this._joined = false;
         this._submittedRoundId = null;
+        this._lastSolvedRoundId = null;
         this._roomState = createInitialRoomState();
         this._setConnection('idle', '');
         this._emitState();
@@ -489,6 +491,7 @@ class BattleManager extends EventEmitter {
         this._teardownSocket();
         this._joined = false;
         this._submittedRoundId = null;
+        this._lastSolvedRoundId = null;
         this._roomState = createInitialRoomState();
     }
 
@@ -516,6 +519,7 @@ class BattleManager extends EventEmitter {
         if (!solve || this._roomState.currentRoundId <= 0) return;
 
         this._submittedRoundId = this._roomState.currentRoundId;
+        this._lastSolvedRoundId = this._roomState.currentRoundId;
         this._emitState();
 
         await this._request('solve', {
@@ -530,6 +534,21 @@ class BattleManager extends EventEmitter {
             this._emitState();
             throw error;
         });
+    }
+
+    async updatePenalty(solveId, penalty) {
+        if (!this._joined || !this._socket || this._socket.readyState !== WebSocket.OPEN) return;
+        await this._request('updatePenalty', {
+            accountId: this._accountId,
+            solveId,
+            penalty: penalty === '+2' || penalty === 'DNF' ? penalty : null,
+        }).catch((error) => {
+            console.error('Failed to update battle penalty:', error);
+        });
+    }
+
+    getLastSolvedRoundId() {
+        return this._lastSolvedRoundId;
     }
 
     async setScrambleType(scrambleType, scramble) {
@@ -607,6 +626,7 @@ class BattleManager extends EventEmitter {
             } else {
                 this._joined = false;
                 this._submittedRoundId = null;
+                this._lastSolvedRoundId = null;
                 this._roomState = createInitialRoomState();
                 if (!wasExpected) {
                     this._setConnection('error', 'Battle connection closed.');
@@ -758,6 +778,7 @@ class BattleManager extends EventEmitter {
             } else {
                 this._joined = false;
                 this._submittedRoundId = null;
+                this._lastSolvedRoundId = null;
                 this._roomState = createInitialRoomState();
                 this._setConnection('error', 'Unable to reconnect. Please rejoin the room.');
                 this._emitState();

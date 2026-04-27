@@ -110,6 +110,7 @@ export class BattleRoom {
         this.nextScramble = '';
         this.socketAccounts = new Map();
         this.departedStats = new Map();
+        this.lastRoundScoreSnapshot = new Map();
     }
 
     async fetch(request) {
@@ -211,6 +212,11 @@ export class BattleRoom {
                     return;
                 case 'solve':
                     this.handleSolve(socket, message);
+                    this.reply(socket, requestId, true, { roomInfo: this.getRoomInfo() });
+                    this.broadcastRoomInfo();
+                    return;
+                case 'updatePenalty':
+                    this.handleUpdatePenalty(socket, message);
                     this.reply(socket, requestId, true, { roomInfo: this.getRoomInfo() });
                     this.broadcastRoomInfo();
                     return;
@@ -396,6 +402,41 @@ export class BattleRoom {
         this.maybeAdvanceRound();
     }
 
+    handleUpdatePenalty(socket, message) {
+        const accountId = String(message?.accountId ?? this.socketAccounts.get(socket) ?? '').trim();
+        const solveId = Number(message?.solveId);
+        const penalty = message?.penalty === '+2' || message?.penalty === 'DNF' ? message.penalty : null;
+        const player = this.getPlayer(accountId);
+
+        if (!player) {
+            throw new Error('Player not found in this room.');
+        }
+        if (!Number.isFinite(solveId) || (solveId !== this.current.id && solveId !== this.last.id)) {
+            throw new Error('Can only update penalties for the current or last round.');
+        }
+
+        const solve = this.solves.find((s) => s.accountId === accountId && s.solveId === solveId);
+        if (!solve) {
+            throw new Error('Solve not found.');
+        }
+
+        solve.penalty = penalty;
+
+        // If the solve belongs to the already-scored last round, recalculate.
+        if (solveId === this.last.id && this.lastRoundScoreSnapshot.size > 0) {
+            // Restore pre-round scores from the snapshot.
+            this.lastRoundScoreSnapshot.forEach((snapshot, id) => {
+                const stats = this.getPlayer(id) || this.departedStats.get(id);
+                if (stats) {
+                    stats.elo = snapshot.elo;
+                    stats.wins = snapshot.wins;
+                }
+            });
+            // Recalculate with the corrected penalty.
+            this.updateScoresForRound(solveId);
+        }
+    }
+
     handleSetScrambleType(socket, message) {
         const accountId = String(message?.accountId ?? this.socketAccounts.get(socket) ?? '').trim();
         const scrambleType = normalizeScrambleType(message?.scrambleType);
@@ -415,6 +456,7 @@ export class BattleRoom {
             scramble,
         };
         this.nextScramble = '';
+        this.lastRoundScoreSnapshot.clear();
         this.solves = this.solves.filter((solve) => solve.solveId >= this.current.id - 5);
         this.players.forEach((player) => {
             player.status = STATUS.READY;
@@ -448,12 +490,21 @@ export class BattleRoom {
 
         if (roundSolves.length <= 1) return;
 
-        const bestSolve = roundSolves[0];
-        const lastSolve = roundSolves[roundSolves.length - 1];
-        
+        // Snapshot pre-scoring state so penalties can trigger recalculation later.
         const getStatsObj = (accountId) => {
             return this.getPlayer(accountId) || this.departedStats.get(accountId) || null;
         };
+
+        this.lastRoundScoreSnapshot = new Map();
+        roundSolves.forEach((solve) => {
+            const stats = getStatsObj(solve.accountId);
+            if (stats) {
+                this.lastRoundScoreSnapshot.set(solve.accountId, { elo: stats.elo, wins: stats.wins });
+            }
+        });
+
+        const bestSolve = roundSolves[0];
+        const lastSolve = roundSolves[roundSolves.length - 1];
 
         const baseRatings = new Map(roundSolves.map((solve) => {
             const stats = getStatsObj(solve.accountId);
@@ -496,6 +547,7 @@ export class BattleRoom {
         this.current = { id: 1, scramble: '' };
         this.last = { id: 0, scramble: '' };
         this.nextScramble = '';
+        this.lastRoundScoreSnapshot = new Map();
     }
 
     getRoomInfo() {

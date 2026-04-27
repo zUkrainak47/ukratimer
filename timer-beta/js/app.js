@@ -2218,6 +2218,13 @@ function toggleLastSolvePenaltyFromMainTimerShortcut(penalty) {
     }
 }
 
+function syncBattlePenalty(penalty) {
+    if (!battleManager.isJoined()) return;
+    const roundId = battleManager.getLastSolvedRoundId();
+    if (roundId == null) return;
+    battleManager.updatePenalty(roundId, penalty);
+}
+
 function ensurePanelExpanded(panelId) {
     const panel = getEl(panelId);
     const body = panel?.querySelector('.collapsible-body');
@@ -4253,6 +4260,12 @@ async function init() {
     sessionManager.on('solveUpdated', (solve) => {
         dailyStreakStore.upsertSolve(solve);
         rebuildStatsCache();
+        
+        const lastSessionSolve = getLastSessionSolve();
+        if (lastSessionSolve && solve.id === lastSessionSolve.id) {
+            syncBattlePenalty(solve.penalty);
+        }
+
         refreshUI();
     });
     sessionManager.on('solveDeleted', (solveIdOrIds) => {
