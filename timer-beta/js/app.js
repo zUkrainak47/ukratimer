@@ -4261,8 +4261,7 @@ async function init() {
         dailyStreakStore.upsertSolve(solve);
         rebuildStatsCache();
 
-        const lastSessionSolve = getLastSessionSolve();
-        if (lastSessionSolve && solve.id === lastSessionSolve.id) {
+        if (battleManager.isJoined() && solve.id === battleManager.getLastSolvedLocalId()) {
             syncBattlePenalty(solve.penalty);
         }
 

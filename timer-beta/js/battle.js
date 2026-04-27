@@ -287,6 +287,7 @@ class BattleManager extends EventEmitter {
         this._joined = false;
         this._submittedRoundId = null;
         this._lastSolvedRoundId = null;
+        this._lastSolvedLocalId = null;
         this._expectedClose = false;
         this._pingIntervalId = null;
         this._reconnecting = false;
@@ -454,6 +455,7 @@ class BattleManager extends EventEmitter {
         this._joined = false;
         this._submittedRoundId = null;
         this._lastSolvedRoundId = null;
+        this._lastSolvedLocalId = null;
         this._roomState = createInitialRoomState();
         this._setConnection('idle', '');
         this._emitState();
@@ -492,6 +494,7 @@ class BattleManager extends EventEmitter {
         this._joined = false;
         this._submittedRoundId = null;
         this._lastSolvedRoundId = null;
+        this._lastSolvedLocalId = null;
         this._roomState = createInitialRoomState();
     }
 
@@ -520,6 +523,7 @@ class BattleManager extends EventEmitter {
 
         this._submittedRoundId = this._roomState.currentRoundId;
         this._lastSolvedRoundId = this._roomState.currentRoundId;
+        this._lastSolvedLocalId = solve.id ?? null;
         this._emitState();
 
         await this._request('solve', {
@@ -549,6 +553,10 @@ class BattleManager extends EventEmitter {
 
     getLastSolvedRoundId() {
         return this._lastSolvedRoundId;
+    }
+
+    getLastSolvedLocalId() {
+        return this._lastSolvedLocalId;
     }
 
     async setScrambleType(scrambleType, scramble) {
@@ -627,6 +635,7 @@ class BattleManager extends EventEmitter {
                 this._joined = false;
                 this._submittedRoundId = null;
                 this._lastSolvedRoundId = null;
+                this._lastSolvedLocalId = null;
                 this._roomState = createInitialRoomState();
                 if (!wasExpected) {
                     this._setConnection('error', 'Battle connection closed.');
@@ -779,6 +788,7 @@ class BattleManager extends EventEmitter {
                 this._joined = false;
                 this._submittedRoundId = null;
                 this._lastSolvedRoundId = null;
+                this._lastSolvedLocalId = null;
                 this._roomState = createInitialRoomState();
                 this._setConnection('error', 'Unable to reconnect. Please rejoin the room.');
                 this._emitState();
