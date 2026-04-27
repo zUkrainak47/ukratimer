@@ -1,5 +1,5 @@
-import { load, save } from './storage.js?v=2026042701';
-import { EventEmitter, formatTime, generateId } from './utils.js?v=2026042701';
+import { load, save } from './storage.js?v=2026042702';
+import { EventEmitter, formatTime, generateId } from './utils.js?v=2026042702';
 
 const STORAGE_KEYS = Object.freeze({
     accountId: 'battleAccountId',
@@ -479,7 +479,7 @@ class BattleManager extends EventEmitter {
                         'Content-Type': 'application/json',
                     },
                     body: payload,
-                }).catch(() => {});
+                }).catch(() => { });
             }
         } catch {
             // Ignore unload delivery errors.
@@ -497,7 +497,7 @@ class BattleManager extends EventEmitter {
         await this._request('status', {
             accountId: this._accountId,
             status,
-        }).catch(() => {});
+        }).catch(() => { });
     }
 
     async handleTimerStateChange(timerState) {

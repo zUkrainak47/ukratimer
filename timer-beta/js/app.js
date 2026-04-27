@@ -1,20 +1,20 @@
-import { timer, State as TimerState } from './timer.js?v=2026042701';
-import { SCRAMBLE_TYPE_OPTIONS, generateScrambleForType, getScramble, getCurrentScramble, getCurrentScrambleType, getPrevScramble, getNextScramble, getSelectedScrambleType, setCurrentScramble, setScrambleType, isCurrentScrambleManual, hasPrevScramble, isViewingPreviousScramble, preloadScrambleEngines, needsCubingWarmup, runCubingWarmup } from './scramble.js?v=2026042701';
-import { sessionManager } from './session.js?v=2026042701';
-import { settings, DEFAULTS, THEME_OPTIONS, THEME_COLOR_SECTIONS, THEME_DEFAULT_ID, THEME_OLED_ID, THEME_CUSTOM_IDS, composeThemeColor, decomposeThemeColor, getThemePresetColors, isCustomThemeId } from './settings.js?v=2026042701';
-import { parseGraphStatType, parseRollingStatType, rollingStatAt, StatsCache } from './stats.js?v=2026042701';
-import { formatTime, formatSolveTime, formatTimerDisplayTime, getEffectiveTime, formatDate, formatDateTime, parseTimeInputToMs, truncateTimeDisplay } from './utils.js?v=2026042701';
-import { initModal, showSolveDetail, showAverageDetail, closeModal, closeMoveSessionMenus, customConfirm, customPrompt, getModalSelectionContext, setModalStatNavigator, setModalStatButtons, armModalGhostClickGuard } from './modal.js?v=2026042701';
-import { applyMegaminxScramble, applyPyraminxScramble, applyScramble, applySquare1Scramble, applySkewbScramble, applyClockScramble, clearCubeDisplay, drawMegaminxFacePreview, drawSquare1, drawClock, initCubeDisplay, updateCubeDisplay, updateMegaminxDisplay, updatePyraminxDisplay, updateSquare1Display, updateSkewbDisplay, updateClockDisplay } from './cube-display.js?v=2026042701';
-import { initGraph, updateGraph, updateGraphData, setLineVisibility, getLineVisibility, applyAction, graphEvents, getGraphLineDefinitions } from './graph.js?v=2026042701';
-import { closeTimeDistributionModal, initTimeDistributionModal, isTimeDistributionModalOpen, refreshTimeDistributionData, refreshTimeDistributionTheme, showTimeDistributionModal } from './distribution.js?v=2026042701';
-import { exportAll, importAll, isCsTimerFormat, importCsTimer, exportCsTimer, importSessionCsv } from './storage.js?v=2026042701';
-import { connectGoogleDrive, exportBackupToGoogleDrive, getGoogleDriveBackupInfo, hasGoogleDriveSession, importBackupFromGoogleDrive, isGoogleDriveSyncConfigured, restoreGoogleDriveSession, signOutOfGoogleDrive } from './google-drive-sync.js?v=2026042701';
-import { dailyStreakStore, normalizeDailyStreakGoal } from './streaks.js?v=2026042701';
-import { bluetoothTimerInput, BluetoothTimerState } from './hardware-bluetooth-timer.js?v=2026042701';
-import { stackmatInput } from './hardware-stackmat.js?v=2026042701';
-import { isHardwareTimeEntryMode, isTypingTimeEntryMode, normalizeTimeEntryMode, TIME_ENTRY_MODE_BLUETOOTH, TIME_ENTRY_MODE_STACKMAT, TIME_ENTRY_MODE_TIMER } from './time-entry.js?v=2026042701';
-import { battleManager } from './battle.js?v=2026042701';
+import { timer, State as TimerState } from './timer.js?v=2026042702';
+import { SCRAMBLE_TYPE_OPTIONS, generateScrambleForType, getScramble, getCurrentScramble, getCurrentScrambleType, getPrevScramble, getNextScramble, getSelectedScrambleType, setCurrentScramble, setScrambleType, isCurrentScrambleManual, hasPrevScramble, isViewingPreviousScramble, preloadScrambleEngines, needsCubingWarmup, runCubingWarmup } from './scramble.js?v=2026042702';
+import { sessionManager } from './session.js?v=2026042702';
+import { settings, DEFAULTS, THEME_OPTIONS, THEME_COLOR_SECTIONS, THEME_DEFAULT_ID, THEME_OLED_ID, THEME_CUSTOM_IDS, composeThemeColor, decomposeThemeColor, getThemePresetColors, isCustomThemeId } from './settings.js?v=2026042702';
+import { parseGraphStatType, parseRollingStatType, rollingStatAt, StatsCache } from './stats.js?v=2026042702';
+import { formatTime, formatSolveTime, formatTimerDisplayTime, getEffectiveTime, formatDate, formatDateTime, parseTimeInputToMs, truncateTimeDisplay } from './utils.js?v=2026042702';
+import { initModal, showSolveDetail, showAverageDetail, closeModal, closeMoveSessionMenus, customConfirm, customPrompt, getModalSelectionContext, setModalStatNavigator, setModalStatButtons, armModalGhostClickGuard } from './modal.js?v=2026042702';
+import { applyMegaminxScramble, applyPyraminxScramble, applyScramble, applySquare1Scramble, applySkewbScramble, applyClockScramble, clearCubeDisplay, drawMegaminxFacePreview, drawSquare1, drawClock, initCubeDisplay, updateCubeDisplay, updateMegaminxDisplay, updatePyraminxDisplay, updateSquare1Display, updateSkewbDisplay, updateClockDisplay } from './cube-display.js?v=2026042702';
+import { initGraph, updateGraph, updateGraphData, setLineVisibility, getLineVisibility, applyAction, graphEvents, getGraphLineDefinitions } from './graph.js?v=2026042702';
+import { closeTimeDistributionModal, initTimeDistributionModal, isTimeDistributionModalOpen, refreshTimeDistributionData, refreshTimeDistributionTheme, showTimeDistributionModal } from './distribution.js?v=2026042702';
+import { exportAll, importAll, isCsTimerFormat, importCsTimer, exportCsTimer, importSessionCsv } from './storage.js?v=2026042702';
+import { connectGoogleDrive, exportBackupToGoogleDrive, getGoogleDriveBackupInfo, hasGoogleDriveSession, importBackupFromGoogleDrive, isGoogleDriveSyncConfigured, restoreGoogleDriveSession, signOutOfGoogleDrive } from './google-drive-sync.js?v=2026042702';
+import { dailyStreakStore, normalizeDailyStreakGoal } from './streaks.js?v=2026042702';
+import { bluetoothTimerInput, BluetoothTimerState } from './hardware-bluetooth-timer.js?v=2026042702';
+import { stackmatInput } from './hardware-stackmat.js?v=2026042702';
+import { isHardwareTimeEntryMode, isTypingTimeEntryMode, normalizeTimeEntryMode, TIME_ENTRY_MODE_BLUETOOTH, TIME_ENTRY_MODE_STACKMAT, TIME_ENTRY_MODE_TIMER } from './time-entry.js?v=2026042702';
+import { battleManager } from './battle.js?v=2026042702';
 
 let currentScramble = '';
 let currentSortCol = null;
@@ -255,7 +255,7 @@ async function registerServiceWorker() {
     if (window.location?.protocol === 'file:') return;
 
     try {
-        const serviceWorkerUrl = new URL('../sw.js?v=2026042701', import.meta.url);
+        const serviceWorkerUrl = new URL('../sw.js?v=2026042702', import.meta.url);
         await navigator.serviceWorker.register(serviceWorkerUrl);
     } catch (error) {
         console.warn('Service worker registration failed:', error);
@@ -8714,7 +8714,7 @@ function renderSolvesTable(solves, stats) {
     // Cache for virtualized rendering
     _tableSortedIndices = indices;
     _tableSolves = solves;
-    
+
     updateSearchBulkActionUI();
 
     // ── Virtual scroll: only render visible rows ──
@@ -8866,7 +8866,7 @@ function renderSolvesTable(solves, stats) {
                 selectionAnchorSolveId = selectedSolveIds.has(solveId) ? solveId : null;
             }
             updateSearchBulkActionUI();
-            
+
             // Re-render
             const tbodyInstance = document.getElementById('solves-tbody');
             const scrollBefore = tbodyInstance.scrollTop;
@@ -9421,7 +9421,7 @@ function updateSearchBulkActionUI() {
     const activeSessionId = sessionManager.getActiveSessionId();
     const hasMoveTargets = sessionManager.getSessions().some((session) => session.id !== activeSessionId);
     const bulkActionActive = bulkActionProgressState.active;
-    
+
     if (countEl) {
         if (isSearchActive) {
             countEl.textContent = `${selectedSolveIds.size} selected, ${matchCount} matches`;
@@ -9429,7 +9429,7 @@ function updateSearchBulkActionUI() {
             countEl.textContent = `${selectedSolveIds.size} selected`;
         }
     }
-    
+
     const hasSelection = selectedSolveIds.size > 0;
     if (moveSelect instanceof HTMLSelectElement) {
         moveSelect.disabled = bulkActionActive || !hasSelection || !hasMoveTargets;
@@ -9620,10 +9620,10 @@ function initSearchMenu() {
             }
         };
     }
-    
+
     // Bulk move setup
     const moveSelect = document.getElementById('search-bulk-move-select');
-    
+
     if (moveSelect) {
         syncSearchBulkMoveOptions();
 
