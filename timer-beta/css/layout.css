@@ -34,7 +34,7 @@ body.solving.camera-background-active:not(.mobile-viewport) #right-panel > :not(
     pointer-events: none;
 }
 
-body.solving.camera-background-active:not(.mobile-viewport) #graph-panel {
+body.solving.camera-background-active:not(.mobile-viewport) #right-panel > :not(.camera-background-hosting-timer) {
     pointer-events: none;
 }
 
@@ -60,7 +60,7 @@ body.zen.camera-background-active:not(.mobile-viewport) #right-panel {
     pointer-events: none;
 }
 
-body.zen.camera-background-active:not(.mobile-viewport) #cube-panel {
+body.zen.camera-background-active:not(.mobile-viewport) .camera-background-hosting-timer {
     pointer-events: auto;
 }
 
@@ -96,23 +96,19 @@ body.zen.mobile-viewport #right-panel .panel {
     border-color: transparent;
 }
 
-body.solving.camera-background-active:not(.mobile-viewport) #right-panel > :not(#cube-panel):not(#graph-panel).panel::before,
-body.solving.camera-background-active:not(.mobile-viewport) #right-panel > :not(#cube-panel):not(#graph-panel).panel::after,
-body.solving.camera-background-active:not(.mobile-viewport) #right-panel > :not(#cube-panel):not(#graph-panel).panel > .panel-shell,
-body.solving.camera-background-active:not(.mobile-viewport) #graph-panel::before,
-body.solving.camera-background-active:not(.mobile-viewport) #graph-panel::after,
-body.solving.camera-background-active:not(.mobile-viewport) #graph-panel > .panel-shell,
-body.zen.camera-background-active:not(.mobile-viewport) #right-panel > :not(#cube-panel).panel::before,
-body.zen.camera-background-active:not(.mobile-viewport) #right-panel > :not(#cube-panel).panel::after,
-body.zen.camera-background-active:not(.mobile-viewport) #right-panel > :not(#cube-panel).panel > .panel-shell {
+body.solving.camera-background-active:not(.mobile-viewport) #right-panel > :not(.camera-background-hosting-timer).panel::before,
+body.solving.camera-background-active:not(.mobile-viewport) #right-panel > :not(.camera-background-hosting-timer).panel::after,
+body.solving.camera-background-active:not(.mobile-viewport) #right-panel > :not(.camera-background-hosting-timer).panel > .panel-shell,
+body.zen.camera-background-active:not(.mobile-viewport) #right-panel > :not(.camera-background-hosting-timer).panel::before,
+body.zen.camera-background-active:not(.mobile-viewport) #right-panel > :not(.camera-background-hosting-timer).panel::after,
+body.zen.camera-background-active:not(.mobile-viewport) #right-panel > :not(.camera-background-hosting-timer).panel > .panel-shell {
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
 }
 
-body.solving.camera-background-active:not(.mobile-viewport) #right-panel > :not(#cube-panel):not(#graph-panel).panel,
-body.solving.camera-background-active:not(.mobile-viewport) #graph-panel,
-body.zen.camera-background-active:not(.mobile-viewport) #right-panel > :not(#cube-panel).panel {
+body.solving.camera-background-active:not(.mobile-viewport) #right-panel > :not(.camera-background-hosting-timer).panel,
+body.zen.camera-background-active:not(.mobile-viewport) #right-panel > :not(.camera-background-hosting-timer).panel {
     border-color: transparent;
 }
 
@@ -363,6 +359,18 @@ body.zen #inspection-voice-unlock-wrap {
     }
 
     body[data-mobile-panel="timer"] #cube-panel .panel-header {
+        display: none;
+    }
+
+    body[data-mobile-panel="timer"].battle-active #cube-panel {
+        grid-column: 1 / -1;
+    }
+
+    body[data-mobile-panel="timer"].battle-active #mobile-summary-card {
+        display: none;
+    }
+
+    body[data-mobile-panel="timer"].battle-active #cube-panel .panel-header {
         display: none;
     }
 

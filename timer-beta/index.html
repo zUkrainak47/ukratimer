@@ -15,6 +15,8 @@
   <!-- Add your Google OAuth Web Client ID below to enable Drive backups. -->
   <meta name="google-drive-client-id"
     content="210179775275-e62l646u4b8157hqs7j2ovt6ap608bjo.apps.googleusercontent.com">
+  <!-- Optional websocket endpoint base for online battle, for example wss://example.com/battle -->
+  <meta name="battle-server-url" content="https://ukratimer-battle.zukrainak47.workers.dev">
   <title>UkraTimer</title>
 
   <link rel="manifest" href="manifest.webmanifest?v=2026042601">
@@ -57,6 +59,7 @@
   <link rel="stylesheet" href="css/cube.css?v=2026042601">
   <link rel="stylesheet" href="css/graph.css?v=2026042601">
   <link rel="stylesheet" href="css/modal.css?v=2026042601">
+  <link rel="stylesheet" href="css/battle.css?v=2026042601">
   <link rel="stylesheet" href="css/settings.css?v=2026042601">
 </head>
 
@@ -97,12 +100,20 @@
             aria-label="Mobile sessions"></div>
           <select id="mobile-session-select" tabindex="-1" aria-hidden="true"></select>
         </div>
+        <button id="btn-battle-room-launch" class="btn-icon" type="button" hidden
+          aria-label="Open online battle room">
+          <span id="battle-room-launch-value" aria-hidden="true">1000</span>
+        </button>
         <button id="btn-scramble-preview" class="btn-icon" title="Scramble preview" aria-label="Open scramble preview">
           <canvas class="scramble-preview-face-icon" aria-hidden="true"></canvas>
         </button>
         <button id="btn-camera-background-toggle" class="btn-icon" type="button" hidden
           aria-label="Turn camera background off" aria-pressed="true">
           <span id="icon-camera-background-toggle" class="icon-mask icon-mask-camera-video" aria-hidden="true"></span>
+        </button>
+        <button id="btn-battle-graph" class="btn-icon" type="button" hidden
+          aria-label="Open graph" title="Open graph" aria-pressed="false">
+          <span class="icon-mask icon-mask-trending-down" aria-hidden="true"></span>
         </button>
         <div id="scramble-type-menu-mobile" class="scramble-type-menu" data-no-timer-start>
           <button id="btn-scramble-type-mobile" class="btn-icon scramble-type-btn" type="button"
@@ -425,10 +436,30 @@
       </div>
       <div id="cube-panel" class="panel collapsible">
         <div class="panel-shell">
-        <div class="panel-header" data-collapse-target="cube-body">Scramble Preview <span
-            class="collapse-chevron">▾</span></div>
+        <div class="panel-header" data-collapse-target="cube-body"><span id="cube-panel-title">Scramble Preview</span>
+          <span class="collapse-chevron">▾</span></div>
         <div id="cube-body" class="collapsible-body">
           <div id="cube-camera-timer-slot" hidden></div>
+          <button id="battle-preview-panel" class="battle-preview-panel" type="button" hidden
+            aria-label="Open online battle room">
+        <div class="battle-table-shell battle-table-shell-compact">
+          <table class="battle-table battle-table-compact">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>ELO</th>
+                <th>Status</th>
+                <th>Time</th>
+                  </tr>
+                </thead>
+                <tbody id="battle-preview-body">
+                  <tr>
+                    <td colspan="4" class="battle-empty-cell">Join a room to start battling.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </button>
           <div id="cube-canvas-container">
             <canvas id="cube-canvas"></canvas>
           </div>
@@ -478,6 +509,7 @@
           <span class="collapse-chevron">▾</span>
         </div>
         <div id="graph-body" class="collapsible-body">
+          <div id="graph-camera-timer-slot" hidden></div>
           <div id="graph-canvas-container">
             <canvas id="graph-canvas"></canvas>
           </div>
@@ -819,6 +851,75 @@
 
   <div id="daily-streak-toast" class="daily-streak-toast" role="status" aria-live="polite" hidden></div>
 
+  <div id="battle-overlay" class="modal-overlay" aria-hidden="true">
+    <div class="modal-box battle-modal-box">
+      <div class="modal-header">
+        <h2 id="battle-title">Round 1</h2>
+        <button id="battle-close" class="modal-close" type="button" aria-label="Close online battle">✕</button>
+      </div>
+      <div class="modal-body battle-modal-body">
+        <div class="battle-room-toolbar">
+          <p id="battle-room-summary" class="battle-room-summary">Join or create a shared room.</p>
+          <button id="battle-room-action" class="btn" type="button">Join Room</button>
+        </div>
+        <p id="battle-connection-status" class="battle-connection-status" role="status" aria-live="polite" hidden></p>
+
+        <div id="battle-form-grid" class="battle-form-grid">
+          <label class="battle-field" for="battle-nickname-input">
+            <span class="battle-field-label">Nickname</span>
+            <input id="battle-nickname-input" type="text" maxlength="18" spellcheck="false"
+              placeholder="Your nickname">
+          </label>
+          <label class="battle-field" for="battle-room-input">
+            <span class="battle-field-label">Room</span>
+            <input id="battle-room-input" type="text" maxlength="32" autocomplete="off" spellcheck="false"
+              placeholder="battle-room">
+          </label>
+        </div>
+
+        <div class="battle-table-shell">
+          <table class="battle-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Name</th>
+                <th>ELO</th>
+                <th>Status</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody id="battle-players-body">
+              <tr>
+                <td colspan="5" class="battle-empty-cell">Join a room to start battling.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="graph-overlay" class="modal-overlay" aria-hidden="true"></div>
+
+  <div id="battle-create-overlay" class="modal-overlay" aria-hidden="true">
+    <div class="modal-box battle-create-modal-box">
+      <div class="modal-header">
+        <h2>Create Battle Room</h2>
+        <button id="battle-create-close" class="modal-close" type="button" aria-label="Close room creation">✕</button>
+      </div>
+      <div class="modal-body battle-create-modal-body">
+        <p class="battle-room-summary">This room does not exist yet. Choose the puzzle type before creating it.</p>
+        <label class="battle-field" for="battle-create-scramble-type">
+          <span class="battle-field-label">Scramble type</span>
+          <select id="battle-create-scramble-type" aria-label="Battle room scramble type"></select>
+        </label>
+        <div class="battle-create-actions">
+          <button id="battle-create-confirm" class="btn" type="button">Create Room</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ─── Settings Overlay ─── -->
   <div id="settings-overlay" class="settings-overlay">
     <div class="settings-box">
@@ -827,6 +928,26 @@
         <button id="settings-close" class="modal-close">✕</button>
       </div>
       <div class="settings-body">
+
+        <div class="setting-group" data-settings-section-id="tools">
+          <button class="setting-group-toggle" type="button" aria-expanded="true" data-settings-section-toggle="tools">
+            <span class="setting-group-toggle-inner">
+              <span class="setting-group-chevron" aria-hidden="true"></span>
+              <span class="setting-group-title">Tools</span>
+              <span class="setting-group-chevron-spacer" aria-hidden="true"></span>
+            </span>
+          </button>
+          <div class="setting-group-content">
+            <div class="setting-row">
+              <button id="btn-open-online-battle" class="setting-row-button" type="button">
+                <div class="setting-label">
+                  Online Battle
+                  <small>Join or create a live room</small>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
 
         <div class="setting-group" data-settings-section-id="timer">
           <button class="setting-group-toggle" type="button" aria-expanded="true" data-settings-section-toggle="timer">

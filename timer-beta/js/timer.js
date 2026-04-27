@@ -51,6 +51,7 @@ class Timer extends EventEmitter {
         this._ghostClickGuardTimeout = null;
         this._typingInspectionTimeout = null;
         this._cachedViewport = { width: 0, height: 0 };
+        this._startGuard = null;
 
         this._onKeyDown = this._onKeyDown.bind(this);
         this._onKeyUp = this._onKeyUp.bind(this);
@@ -428,6 +429,8 @@ class Timer extends EventEmitter {
     }
 
     _handleStartPress() {
+        if (this._shouldBlockStart()) return;
+
         if (this.state === State.IDLE || this.state === State.STOPPED) {
             if (this._inspectionEnabled()) {
                 this._armInspection();
@@ -1029,6 +1032,9 @@ class Timer extends EventEmitter {
     }
 
     startExternalInspection({ elapsedMs = 0 } = {}) {
+        if ((this.state === State.IDLE || this.state === State.STOPPED) && this._shouldBlockStart()) {
+            return false;
+        }
         if (!this._inspectionEnabled()) return false;
 
         if (!this._inspectionSnapshot) {
@@ -1089,6 +1095,7 @@ class Timer extends EventEmitter {
             this.syncExternalRunningTime(safeElapsed);
             return;
         }
+        if (this._shouldBlockStart()) return;
 
         const fromInspection = this._isInspectionTickingState(this.state);
 
@@ -1191,6 +1198,22 @@ class Timer extends EventEmitter {
 
     getState() {
         return this.state;
+    }
+
+    setStartGuard(fn) {
+        this._startGuard = typeof fn === 'function' ? fn : null;
+    }
+
+    _shouldBlockStart() {
+        const startGuardReason = this._getStartGuardReason();
+        if (!startGuardReason) return false;
+        this.emit('startBlocked', startGuardReason);
+        return true;
+    }
+
+    _getStartGuardReason() {
+        if (typeof this._startGuard !== 'function') return null;
+        return this._startGuard(this.state) || null;
     }
 
     _formatRunningDisplay(elapsed) {

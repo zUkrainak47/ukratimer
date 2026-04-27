@@ -390,6 +390,11 @@ select {
     mask-image: url('../resources/camera-video-off.svg');
 }
 
+.icon-mask-trending-down {
+    -webkit-mask-image: url('../resources/trending-down.svg');
+    mask-image: url('../resources/trending-down.svg');
+}
+
 @media (min-width: 1101px) and (pointer: fine) {
     #btn-settings .icon-mask-settings {
         width: 0.85em;

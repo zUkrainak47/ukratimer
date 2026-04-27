@@ -602,6 +602,10 @@ export async function getScramble() {
     return text;
 }
 
+export async function generateScrambleForType(type) {
+    return generateNextScrambleForType(type);
+}
+
 export function getPrevScramble() {
     if (_prevScramble && !_isViewingPrev) {
         _isViewingPrev = true;

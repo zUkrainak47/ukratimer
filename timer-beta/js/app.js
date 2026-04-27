@@ -1,5 +1,5 @@
 import { timer, State as TimerState } from './timer.js?v=2026042601';
-import { SCRAMBLE_TYPE_OPTIONS, getScramble, getCurrentScramble, getCurrentScrambleType, getPrevScramble, getNextScramble, getSelectedScrambleType, setCurrentScramble, setScrambleType, isCurrentScrambleManual, hasPrevScramble, isViewingPreviousScramble, preloadScrambleEngines, needsCubingWarmup, runCubingWarmup } from './scramble.js?v=2026042601';
+import { SCRAMBLE_TYPE_OPTIONS, generateScrambleForType, getScramble, getCurrentScramble, getCurrentScrambleType, getPrevScramble, getNextScramble, getSelectedScrambleType, setCurrentScramble, setScrambleType, isCurrentScrambleManual, hasPrevScramble, isViewingPreviousScramble, preloadScrambleEngines, needsCubingWarmup, runCubingWarmup } from './scramble.js?v=2026042601';
 import { sessionManager } from './session.js?v=2026042601';
 import { settings, DEFAULTS, THEME_OPTIONS, THEME_COLOR_SECTIONS, THEME_DEFAULT_ID, THEME_OLED_ID, THEME_CUSTOM_IDS, composeThemeColor, decomposeThemeColor, getThemePresetColors, isCustomThemeId } from './settings.js?v=2026042601';
 import { parseGraphStatType, parseRollingStatType, rollingStatAt, StatsCache } from './stats.js?v=2026042601';
@@ -14,6 +14,7 @@ import { dailyStreakStore, normalizeDailyStreakGoal } from './streaks.js?v=20260
 import { bluetoothTimerInput, BluetoothTimerState } from './hardware-bluetooth-timer.js?v=2026042601';
 import { stackmatInput } from './hardware-stackmat.js?v=2026042601';
 import { isHardwareTimeEntryMode, isTypingTimeEntryMode, normalizeTimeEntryMode, TIME_ENTRY_MODE_BLUETOOTH, TIME_ENTRY_MODE_STACKMAT, TIME_ENTRY_MODE_TIMER } from './time-entry.js?v=2026042601';
+import { battleManager } from './battle.js?v=2026042601';
 
 let currentScramble = '';
 let currentSortCol = null;
@@ -99,6 +100,14 @@ const SIMPLE_THEME_SHARED_SECTION_IDS = new Set([
     'scramble-preview-clock',
 ]);
 const THEME_BACKGROUND_IMAGE_SECTION_ID = 'background-image';
+let battleRestoreScrambleType = null;
+let isBattleEnvironmentActive = false;
+let battleGraphModalOpen = false;
+let battleGraphCanvasPlaceholder = null;
+let battleGraphControlsPlaceholder = null;
+let battleGraphCloseRestoreTimer = null;
+let battlePendingCreateRoomId = '';
+let battleFormHydrated = false;
 
 function clampThemeChannel(value) {
     return Math.max(0, Math.min(255, Math.round(Number(value) || 0)));
@@ -882,7 +891,7 @@ const ALT_SCRAMBLE_TYPE_SHORTCUTS = new Map([
     ['KeyC', 'clock'],
     ['KeyS', 'skewb'],
 ]);
-const blockingOverlayIds = ['modal-overlay', 'distribution-overlay', 'scramble-preview-overlay', 'confirm-overlay', 'prompt-overlay', 'shortcuts-overlay', 'chart-image-overlay', 'theme-customization-overlay'];
+const blockingOverlayIds = ['modal-overlay', 'distribution-overlay', 'scramble-preview-overlay', 'confirm-overlay', 'prompt-overlay', 'shortcuts-overlay', 'chart-image-overlay', 'theme-customization-overlay', 'battle-overlay', 'graph-overlay', 'battle-create-overlay'];
 const THEME_OPTION_LABELS = new Map(THEME_OPTIONS.map(({ value, label }) => [value, label]));
 let settingsOverlayEl = null;
 let shortcutsOverlayEl = null;
@@ -1225,6 +1234,388 @@ function getEl(id) {
     return domCache.get(id);
 }
 
+function getBattleManagedControlElements() {
+    return [
+        getEl('btn-scramble-type-desktop'),
+        getEl('btn-scramble-type-mobile'),
+        getEl('btn-edit-scramble'),
+        getEl('btn-prev-scramble'),
+        getEl('btn-next-scramble'),
+    ].filter(Boolean);
+}
+
+function syncScrambleNavigationButtons({ locked = battleManager.isJoined() || isBattleEnvironmentActive } = {}) {
+    const editBtn = getEl('btn-edit-scramble');
+    const prevBtn = getEl('btn-prev-scramble');
+    const nextBtn = getEl('btn-next-scramble');
+    const controlsLocked = Boolean(locked);
+
+    if (editBtn) {
+        editBtn.disabled = controlsLocked;
+    }
+    if (prevBtn) {
+        prevBtn.disabled = controlsLocked || !hasPrevScramble();
+    }
+    if (nextBtn) {
+        nextBtn.disabled = controlsLocked;
+    }
+}
+
+function setBattleManagedControlsLocked(locked) {
+    getBattleManagedControlElements().forEach((element) => {
+        element.disabled = Boolean(locked);
+    });
+    syncScrambleNavigationButtons({ locked });
+    performBattleManagedControlLockVisuals(locked);
+    if (locked) {
+        closeScrambleTypeMenus();
+    }
+}
+
+function openBattleOverlay() {
+    const overlay = getEl('battle-overlay');
+    if (!overlay) return;
+    overlay.classList.add('active');
+    overlay.setAttribute('aria-hidden', 'false');
+}
+
+function closeBattleOverlay() {
+    const overlay = getEl('battle-overlay');
+    if (!overlay) return;
+    overlay.classList.remove('active');
+    overlay.setAttribute('aria-hidden', 'true');
+    closeBattleCreateOverlay();
+}
+
+function openBattleCreateOverlay() {
+    const overlay = getEl('battle-create-overlay');
+    if (!overlay) return;
+    overlay.classList.add('active');
+    overlay.setAttribute('aria-hidden', 'false');
+}
+
+function closeBattleCreateOverlay() {
+    const overlay = getEl('battle-create-overlay');
+    if (!overlay) return;
+    overlay.classList.remove('active');
+    overlay.setAttribute('aria-hidden', 'true');
+    battlePendingCreateRoomId = '';
+}
+
+function ensureGraphOverlayModal() {
+    const overlay = getEl('graph-overlay');
+    if (!overlay) return null;
+
+    let modalBox = overlay.querySelector('.battle-graph-modal-box');
+    let legendSlot = overlay.querySelector('.battle-graph-modal-legend');
+    let modalBody = overlay.querySelector('.battle-graph-modal-body');
+
+    if (!modalBox || !legendSlot || !modalBody) {
+        overlay.replaceChildren();
+
+        modalBox = document.createElement('div');
+        modalBox.className = 'modal-box battle-graph-modal-box';
+
+        const header = document.createElement('div');
+        header.className = 'panel-header battle-graph-modal-header';
+
+        legendSlot = document.createElement('div');
+        legendSlot.className = 'battle-graph-modal-legend';
+        header.appendChild(legendSlot);
+
+        modalBody = document.createElement('div');
+        modalBody.className = 'modal-body battle-graph-modal-body';
+
+        modalBox.append(header, modalBody);
+        overlay.appendChild(modalBox);
+    }
+
+    return { overlay, modalBox, legendSlot, modalBody };
+}
+
+function restoreGraphOverlayContent() {
+    const graphBody = getEl('graph-body');
+    const graphCanvasContainer = getEl('graph-canvas-container');
+    const graphControls = getEl('graph-controls');
+    if (!graphBody || !graphCanvasContainer || !graphControls) return;
+
+    if (battleGraphCanvasPlaceholder?.parentNode) {
+        battleGraphCanvasPlaceholder.parentNode.insertBefore(graphCanvasContainer, battleGraphCanvasPlaceholder);
+        battleGraphCanvasPlaceholder.remove();
+        battleGraphCanvasPlaceholder = null;
+    } else if (graphCanvasContainer.parentElement !== graphBody) {
+        graphBody.appendChild(graphCanvasContainer);
+    }
+
+    if (battleGraphControlsPlaceholder?.parentNode) {
+        battleGraphControlsPlaceholder.parentNode.insertBefore(graphControls, battleGraphControlsPlaceholder);
+        battleGraphControlsPlaceholder.remove();
+        battleGraphControlsPlaceholder = null;
+    } else if (graphControls.parentElement !== graphBody) {
+        graphBody.appendChild(graphControls);
+    }
+}
+
+function openGraphOverlay() {
+    const graphPanel = getEl('graph-panel');
+    const graphBody = getEl('graph-body');
+    const graphCanvasContainer = getEl('graph-canvas-container');
+    const graphControls = getEl('graph-controls');
+    const graphLegend = graphPanel?.querySelector('.graph-legend');
+    const modal = ensureGraphOverlayModal();
+    if (!graphPanel || !graphBody || !graphCanvasContainer || !graphControls || !modal) return;
+    if (battleGraphCloseRestoreTimer != null) {
+        window.clearTimeout(battleGraphCloseRestoreTimer);
+        battleGraphCloseRestoreTimer = null;
+    }
+
+    if (!battleGraphCanvasPlaceholder) {
+        battleGraphCanvasPlaceholder = document.createComment('graph-canvas-container-placeholder');
+        graphCanvasContainer.parentElement?.insertBefore(battleGraphCanvasPlaceholder, graphCanvasContainer);
+    }
+    if (!battleGraphControlsPlaceholder) {
+        battleGraphControlsPlaceholder = document.createComment('graph-controls-placeholder');
+        graphControls.parentElement?.insertBefore(battleGraphControlsPlaceholder, graphControls);
+    }
+
+    modal.legendSlot.replaceChildren(graphLegend ? graphLegend.cloneNode(true) : document.createTextNode('Time Trend'));
+    modal.modalBody.append(graphCanvasContainer, graphControls);
+
+    battleGraphModalOpen = true;
+    document.body.classList.add('battle-graph-modal-open');
+    modal.overlay.classList.add('active');
+    modal.overlay.setAttribute('aria-hidden', 'false');
+    syncBattleAuxButtons();
+}
+
+function closeGraphOverlay() {
+    const overlay = getEl('graph-overlay');
+    if (!overlay) return;
+    battleGraphModalOpen = false;
+    document.body.classList.remove('battle-graph-modal-open');
+    overlay.classList.remove('active');
+    overlay.setAttribute('aria-hidden', 'true');
+    if (battleGraphCloseRestoreTimer != null) {
+        window.clearTimeout(battleGraphCloseRestoreTimer);
+    }
+    battleGraphCloseRestoreTimer = window.setTimeout(() => {
+        battleGraphCloseRestoreTimer = null;
+        if (battleGraphModalOpen) return;
+        restoreGraphOverlayContent();
+    }, 200);
+    syncBattleAuxButtons();
+}
+
+function applyBattleScramble(scramble) {
+    const nextScramble = String(scramble ?? '').trim();
+    if (!nextScramble) return;
+    currentScramble = nextScramble;
+    setCurrentScramble(nextScramble);
+    updateScrambleUI(nextScramble);
+}
+
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function renderBattleRows(targetId, rows = [], emptyMessage = 'Join a room to start battling.', { compact = false } = {}) {
+    const tbody = getEl(targetId);
+    if (!tbody) return;
+    const columnCount = compact ? 4 : 5;
+
+    if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="${columnCount}" class="battle-empty-cell">${escapeHtml(emptyMessage)}</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = rows.map((row) => `
+        <tr class="${row.isLocal ? 'is-local-player' : ''}">
+            ${compact ? '' : `<td>${row.rank}</td>`}
+            <td class="battle-player-name" title="${escapeHtml(row.nickname)}"><span class="battle-player-name-text">${escapeHtml(row.nickname)}</span></td>
+            <td>${row.elo}</td>
+            <td><span class="battle-status-pill" data-battle-status="${row.status}">${row.statusLabel}</span></td>
+            <td class="${row.dimSolve ? 'is-muted-time' : ''}">${row.solveText}</td>
+        </tr>
+    `).join('');
+}
+
+function getBattleRoundTitle(state = battleManager.getState()) {
+    const scrambleType = state.scrambleType || '333';
+    return `${getScrambleTypeButtonDescription(scrambleType)} - Round ${Math.max(1, state.currentRoundId || 1)}`;
+}
+
+function normalizeBattleRoomId(value) {
+    return String(value ?? '').trim().toLowerCase();
+}
+
+function syncBattleAuxButtons() {
+    const previewButton = getEl('btn-scramble-preview');
+    const graphButton = getEl('btn-battle-graph');
+    const roomLaunchButton = getEl('btn-battle-room-launch');
+    const roomLaunchValue = getEl('battle-room-launch-value');
+    const battleState = battleManager.getState();
+    const isJoined = battleState.joined;
+    const isCameraBackgroundActive = document.body.classList.contains('camera-background-active');
+    const showPreview = isJoined || shouldShowCameraBackgroundToggleButton();
+    const showGraph = isJoined && isCameraBackgroundActive;
+    const localElo = Number.isFinite(Number(battleState.localPlayer?.elo))
+        ? Math.round(Number(battleState.localPlayer.elo))
+        : 1000;
+
+    if (previewButton) {
+        previewButton.hidden = !showPreview;
+    }
+    if (graphButton) {
+        graphButton.hidden = !showGraph;
+        graphButton.setAttribute('aria-pressed', String(showGraph && battleGraphModalOpen));
+    }
+    if (roomLaunchButton) {
+        roomLaunchButton.hidden = !isJoined;
+        roomLaunchButton.setAttribute('aria-label', isJoined
+            ? `Open online battle room. Current ELO ${localElo}.`
+            : 'Open online battle room');
+    }
+    if (roomLaunchValue) {
+        roomLaunchValue.textContent = String(localElo);
+    }
+
+    if (!showGraph && battleGraphModalOpen) {
+        closeGraphOverlay();
+    }
+}
+
+function performBattleManagedControlLockVisuals(locked) {
+    ['scramble-type-menu-desktop', 'scramble-type-menu-mobile'].forEach((id) => {
+        const menu = getEl(id);
+        if (!menu) return;
+        menu.classList.toggle('battle-control-locked', Boolean(locked));
+        menu.toggleAttribute('inert', Boolean(locked));
+        menu.setAttribute('aria-disabled', String(Boolean(locked)));
+    });
+}
+
+function renderBattlePreviewPanel(state = battleManager.getState()) {
+    const cubePanel = getEl('cube-panel');
+    const cubeTitle = getEl('cube-panel-title');
+    const cubeCanvasContainer = getEl('cube-canvas-container');
+    const battlePreview = getEl('battle-preview-panel');
+
+    if (!cubePanel || !cubeTitle || !cubeCanvasContainer || !battlePreview) return;
+
+    const isBattle = state.joined;
+    cubePanel.classList.toggle('battle-preview-active', isBattle);
+    cubeTitle.textContent = isBattle ? getBattleRoundTitle(state) : 'Scramble Preview';
+    cubeCanvasContainer.hidden = isBattle;
+    battlePreview.hidden = !isBattle;
+
+    if (!isBattle) {
+        syncBattleAuxButtons();
+        return;
+    }
+
+    renderBattleRows('battle-preview-body', state.rows, 'Waiting for players to join.', { compact: true });
+    syncBattleAuxButtons();
+}
+
+function syncBattleScrambleType(type = battleManager.getScrambleType()) {
+    const nextType = String(type ?? '333').trim().toLowerCase() || '333';
+    setScrambleType(nextType);
+    syncScrambleTypeMenus(nextType);
+}
+
+function getBattleSelectedType() {
+    return getEl('battle-create-scramble-type')?.value || battleManager.getScrambleType() || getSelectedScrambleType();
+}
+
+function renderBattleUi(state = battleManager.getState()) {
+    const titleEl = getEl('battle-title');
+    const summaryEl = getEl('battle-room-summary');
+    const formGrid = getEl('battle-form-grid');
+    const nicknameInput = getEl('battle-nickname-input');
+    const roomInput = getEl('battle-room-input');
+    const roomButton = getEl('battle-room-action');
+    const statusEl = getEl('battle-connection-status');
+    const preserveDraftInputs = !state.joined && state.connectionState === 'error';
+    const shouldSyncInputs = (state.joined || !battleFormHydrated) && !preserveDraftInputs;
+
+    if (titleEl) {
+        titleEl.textContent = state.joined ? getBattleRoundTitle(state) : 'Online Battle';
+    }
+
+    if (nicknameInput && document.activeElement !== nicknameInput && shouldSyncInputs) {
+        nicknameInput.value = state.nickname || '';
+    }
+    if (roomInput && document.activeElement !== roomInput && shouldSyncInputs) {
+        roomInput.value = state.roomId || '';
+    }
+    if (shouldSyncInputs) {
+        battleFormHydrated = true;
+    }
+
+    if (summaryEl) {
+        summaryEl.textContent = state.joined
+            ? `Room ${state.roomId}`
+            : 'Join an existing room or enter a new room name.';
+    }
+
+    if (formGrid) {
+        formGrid.hidden = state.joined;
+        formGrid.style.display = state.joined ? 'none' : '';
+    }
+
+    const inputsDisabled = state.connectionState === 'connecting' || state.joined;
+    nicknameInput && (nicknameInput.disabled = inputsDisabled);
+    roomInput && (roomInput.disabled = inputsDisabled);
+
+    if (roomButton) {
+        roomButton.disabled = state.connectionState === 'connecting';
+        roomButton.textContent = state.connectionState === 'connecting'
+            ? 'Joining...'
+            : (state.joined ? 'Leave Room' : 'Join Room');
+    }
+
+    if (statusEl) {
+        const hasError = state.connectionState === 'error' && state.connectionMessage;
+        statusEl.hidden = !hasError;
+        statusEl.textContent = hasError ? state.connectionMessage : '';
+    }
+
+    renderBattleRows('battle-players-body', state.rows);
+    renderBattlePreviewPanel(state);
+}
+
+function beginBattleMode(initialType = getSelectedScrambleType()) {
+    if (!isBattleEnvironmentActive) {
+        battleRestoreScrambleType = getSelectedScrambleType();
+    }
+    isBattleEnvironmentActive = true;
+    setBattleManagedControlsLocked(true);
+    syncBattleScrambleType(initialType);
+}
+
+async function restoreAfterBattle() {
+    setBattleManagedControlsLocked(false);
+    isBattleEnvironmentActive = false;
+    battlePendingCreateRoomId = '';
+
+    if (battleRestoreScrambleType) {
+        const restoreType = battleRestoreScrambleType;
+        battleRestoreScrambleType = null;
+        setScrambleType(restoreType);
+        syncScrambleTypeMenus(restoreType);
+    }
+
+    syncBattleAuxButtons();
+    if (timer.getState() === TimerState.IDLE || timer.getState() === TimerState.STOPPED) {
+        await loadNewScramble();
+    }
+}
+
 function getSelectedTimeEntryMode() {
     return normalizeTimeEntryMode(settings.get('timeEntryMode'));
 }
@@ -1445,11 +1836,16 @@ function syncTimerPopupOverlayPlacement() {
 function syncCameraBackgroundTimerPlacement() {
     const centerSlot = getEl('center-panel-timer-slot');
     const cubeSlot = getEl('cube-camera-timer-slot');
+    const graphSlot = getEl('graph-camera-timer-slot');
     const cubePanel = getEl('cube-panel');
-    if (!centerSlot || !cubeSlot || !cubePanel) return;
+    const graphPanel = getEl('graph-panel');
+    if (!centerSlot || !cubeSlot || !graphSlot || !cubePanel || !graphPanel) return;
 
-    const useCubeTimerSlot = wantsCameraBackground();
-    const targetSlot = useCubeTimerSlot ? cubeSlot : centerSlot;
+    const useCameraBackground = wantsCameraBackground();
+    const useGraphTimerSlot = useCameraBackground && battleManager.isJoined();
+    const targetSlot = useGraphTimerSlot
+        ? graphSlot
+        : (useCameraBackground ? cubeSlot : centerSlot);
 
     CAMERA_BACKGROUND_TIMER_NODE_IDS.forEach((id) => {
         const node = getEl(id);
@@ -1457,10 +1853,13 @@ function syncCameraBackgroundTimerPlacement() {
         targetSlot.appendChild(node);
     });
 
-    cubeSlot.hidden = !useCubeTimerSlot;
-    cubePanel.classList.toggle('camera-background-hosting-timer', useCubeTimerSlot);
-    document.body.classList.toggle('camera-background-active', useCubeTimerSlot);
+    cubeSlot.hidden = targetSlot !== cubeSlot;
+    graphSlot.hidden = targetSlot !== graphSlot;
+    cubePanel.classList.toggle('camera-background-hosting-timer', targetSlot === cubeSlot);
+    graphPanel.classList.toggle('camera-background-hosting-timer', targetSlot === graphSlot);
+    document.body.classList.toggle('camera-background-active', useCameraBackground);
     syncTimerPopupOverlayPlacement();
+    syncBattleAuxButtons();
 }
 
 function syncCameraBackgroundSettingControls() {
@@ -1497,6 +1896,7 @@ function syncCameraBackgroundToggleButtonState() {
     if (!btn || !icon) return;
 
     const shouldShow = shouldShowCameraBackgroundToggleButton();
+    document.body.classList.toggle('camera-background-toggle-visible', shouldShow);
     btn.hidden = !shouldShow;
     if (!shouldShow) return;
 
@@ -2049,10 +2449,11 @@ function updateManualTimeEntryUI() {
     const formattedEl = getEl('manual-time-formatted');
     const submitBtn = getEl('manual-time-submit');
     const hasValue = Number(quickActionsState.manualDigits || 0) > 0;
+    const submitBlocked = Boolean(battleManager.getStartBlockReason());
 
     if (hiddenInput) hiddenInput.value = quickActionsState.manualDigits;
     if (formattedEl) formattedEl.innerHTML = renderManualTimeMarkup(quickActionsState.manualDigits);
-    if (submitBtn) submitBtn.disabled = !hasValue;
+    if (submitBtn) submitBtn.disabled = !hasValue || submitBlocked;
     scheduleViewportLayoutSync();
 }
 
@@ -2221,6 +2622,14 @@ async function commitSolve(elapsed, penalty = null, { isManual = false } = {}) {
     _skipSolveAddedRefresh = true;
     const solve = sessionManager.addSolve(elapsed, currentScramble, isManual, penalty);
     _skipSolveAddedRefresh = false;
+    if (battleManager.isJoined()) {
+        try {
+            const nextBattleScramble = await generateScrambleForType(battleManager.getScrambleType());
+            await battleManager.handleLocalSolve(solve, { nextScramble: nextBattleScramble });
+        } catch (error) {
+            console.error('Failed to upload battle solve:', error);
+        }
+    }
     statsCache.append(solve);
     syncStatsCacheWithFilteredSolves();
     const currentStats = statsCache.getStats();
@@ -2231,7 +2640,19 @@ async function commitSolve(elapsed, penalty = null, { isManual = false } = {}) {
 
 async function submitManualTimeEntry({ closeEntry = false } = {}) {
     const digits = quickActionsState.manualDigits;
+    const blockReason = battleManager.getStartBlockReason();
     if (Number(digits || 0) <= 0) return;
+    if (blockReason) {
+        if (battleManager.isJoined()) {
+            renderBattleUi({
+                ...battleManager.getState(),
+                connectionState: 'error',
+                connectionMessage: String(blockReason),
+            });
+        }
+        updateManualTimeEntryUI();
+        return;
+    }
 
     if (isPersistentTypingEntryModeEnabled()) {
         const elapsed = getManualElapsedMs(digits);
@@ -2286,19 +2707,21 @@ function syncCameraBackgroundPanelWidth() {
     }
 
     const cubeSlot = getEl('cube-camera-timer-slot');
+    const graphSlot = getEl('graph-camera-timer-slot');
     const timerDisplay = getEl('timer-display');
     const timerDisplayWrapper = getEl('timer-display-wrapper');
     const timerInfo = getEl('timer-info');
     const manualEntry = getEl('manual-time-entry');
     const manualEntryDisplay = getEl('manual-time-entry-display');
     const manualFormatted = getEl('manual-time-formatted');
-    if (!cubeSlot || !timerDisplayWrapper) {
+    const activeTimerSlot = graphSlot && !graphSlot.hidden ? graphSlot : cubeSlot;
+    if (!activeTimerSlot || !timerDisplayWrapper) {
         applyCachedRootStyle('cameraPanelWidth', '--camera-panel-width', '');
         return;
     }
 
     const rootStyles = getComputedStyle(document.documentElement);
-    const slotStyles = getComputedStyle(cubeSlot);
+    const slotStyles = getComputedStyle(activeTimerSlot);
     const defaultPanelWidth = parseFloat(rootStyles.getPropertyValue('--right-panel-width')) || 300;
     const paddingLeft = parseFloat(slotStyles.paddingLeft) || 0;
     const paddingRight = parseFloat(slotStyles.paddingRight) || 0;
@@ -2446,7 +2869,13 @@ function syncDesktopScrambleBounds() {
         const controlGap = 16;
         const leftLimit = scrambleBarRect.left + paddingLeft;
         const rightLimit = scrambleBarRect.right - paddingRight;
-        const zenControls = ['btn-zen', 'btn-camera-background-toggle', 'btn-scramble-preview']
+        const zenControls = [
+            'btn-zen',
+            'btn-camera-background-toggle',
+            'btn-scramble-preview',
+            'btn-battle-graph',
+            'btn-battle-room-launch',
+        ]
             .map((id) => getEl(id))
             .filter((el) => (
                 el instanceof HTMLElement
@@ -2792,14 +3221,17 @@ function syncViewportLayout() {
     const rightPanel = getEl('right-panel');
     const zenButton = getEl('btn-zen');
     const cubeTimerSlot = getEl('cube-camera-timer-slot');
+    const graphTimerSlot = getEl('graph-camera-timer-slot');
 
     if (!timerDisplayWrapper) return;
 
     const state = timer.getState();
     const isZen = document.body.classList.contains('zen');
     const isSolving = document.body.classList.contains('solving');
+    const activeCameraTimerHost = [cubeTimerSlot, graphTimerSlot]
+        .find((slot) => slot?.contains(timerDisplayWrapper)) || null;
     const isCameraTimerHost = document.body.classList.contains('camera-background-active')
-        && cubeTimerSlot?.contains(timerDisplayWrapper);
+        && Boolean(activeCameraTimerHost);
     const isMobileTimerView = mobileViewportQuery.matches && document.body.dataset.mobilePanel === 'timer';
     const centerTimerEnabled = settings.get('centerTimer');
     const hideUIWhileSolving = settings.get('hideUIWhileSolving');
@@ -2826,7 +3258,7 @@ function syncViewportLayout() {
 
     if (shouldViewportCenterTimer) {
         if (!isMobileTimerView && isCameraTimerHost) {
-            const hostRect = getLayoutRect(cubeTimerSlot);
+            const hostRect = getLayoutRect(activeCameraTimerHost);
             if (hostRect) {
                 targetTimerCenterX = hostRect.left + hostRect.width / 2;
                 targetTimerCenterY = hostRect.top + hostRect.height / 2;
@@ -2986,6 +3418,7 @@ function syncMobilePanelState() {
         syncQuickActionsUI();
         syncInspectionCancelControl();
         syncPersistentManualEntryMode();
+        syncBattleAuxButtons();
         return;
     }
 
@@ -2996,6 +3429,7 @@ function syncMobilePanelState() {
     syncInspectionCancelControl();
 
     syncPersistentManualEntryMode();
+    syncBattleAuxButtons();
 }
 
 function isScramblePreviewModalOpen() {
@@ -3727,8 +4161,10 @@ async function init() {
             document.getElementById('scramble-bar'),
         ],
     );
+    timer.setStartGuard(() => battleManager.getStartBlockReason());
     initGraph(document.getElementById('graph-canvas'));
     syncScrambleTypeMenus();
+    initBattleControls();
 
     // Wire events
     timer.on('stopped', onSolveComplete);
@@ -4883,6 +5319,7 @@ function syncScrambleTypeMenus(type = getSelectedScrambleType()) {
     const activeType = getScrambleTypeMeta(type).id;
     const activePuzzleMeta = getScramblePuzzleMeta(activeType);
     const previewButton = getEl('btn-scramble-preview');
+    const battleCreateScrambleTypeSelect = getEl('battle-create-scramble-type');
     const buttonLabel = getScrambleTypeButtonLabel(activeType);
     const buttonDescription = getScrambleTypeButtonDescription(activeType);
 
@@ -4914,6 +5351,9 @@ function syncScrambleTypeMenus(type = getSelectedScrambleType()) {
     previewButton?.classList.toggle('pyraminx-preview-type', activePuzzleMeta.id === 'pyram');
     previewButton?.classList.toggle('clock-preview-type', activePuzzleMeta.id === 'clock');
     previewButton?.classList.toggle('megaminx-preview-type', activePuzzleMeta.id === 'minx');
+    if (battleCreateScrambleTypeSelect && document.activeElement !== battleCreateScrambleTypeSelect) {
+        battleCreateScrambleTypeSelect.value = activeType;
+    }
 }
 
 async function reloadScrambleForSelectedType() {
@@ -4934,6 +5374,7 @@ async function reloadScrambleForSelectedType() {
 
 async function applyActiveSessionScrambleType(nextType, { loadScramble = true } = {}) {
     if (document.getElementById('scramble-text')?.classList.contains('loading')) return false;
+    if (battleManager.isJoined()) return false;
 
     const activeSessionId = sessionManager.getActiveSessionId();
     if (activeSessionId) {
@@ -4964,6 +5405,22 @@ async function syncScrambleTypeWithActiveSession({ loadScramble = false } = {}) 
 
 async function loadNewScramble() {
     const el = document.getElementById('scramble-text');
+    if (battleManager.isJoined()) {
+        if (battleManager.isWaitingForOthers()) {
+            renderMutedScrambleMessage('Waiting for everyone to finish');
+            return '';
+        }
+
+        const battleScramble = battleManager.getCurrentScramble();
+        if (battleScramble) {
+            applyBattleScramble(battleScramble);
+            return battleScramble;
+        }
+
+        renderMutedScrambleMessage('Waiting for room scramble');
+        return '';
+    }
+
     let loadingTimer = window.setTimeout(() => {
         clearStructuredScrambleLayout(el);
         el.textContent = 'Generating...';
@@ -4994,6 +5451,21 @@ function syncInitialScrambleUI() {
 function clearStructuredScrambleLayout(el) {
     if (!el) return;
     delete el.dataset.scrambleLayout;
+}
+
+function renderMutedScrambleMessage(message) {
+    const el = getEl('scramble-text');
+    if (!el) return;
+
+    currentScramble = '';
+    setCurrentScramble('');
+    clearStructuredScrambleLayout(el);
+    el.innerHTML = `<span style="color: var(--text-muted); font-style: italic;">${escapeHtml(message)}</span>`;
+    el.classList.remove('loading');
+    el.classList.remove('is-previous-selected');
+    renderScramblePreviewDisplays('');
+    syncScrambleNavigationButtons();
+    scheduleViewportLayoutSync();
 }
 
 function isStandardMegaminxScramble(tokens) {
@@ -5103,7 +5575,7 @@ function updateScrambleUI(scrambleStr) {
     syncScrambleTypeMenus(getCurrentScrambleType());
 
     // Update nav button states
-    document.getElementById('btn-prev-scramble').disabled = !hasPrevScramble();
+    syncScrambleNavigationButtons();
     scheduleViewportLayoutSync();
 }
 
@@ -5217,6 +5689,11 @@ function initScrambleControls() {
 
         buttonEl?.addEventListener('click', (event) => {
             event.stopPropagation();
+            if (battleManager.isJoined() || isBattleEnvironmentActive || menuEl.classList.contains('battle-control-locked')) {
+                closeScrambleTypeMenus();
+                return;
+            }
+            if (buttonEl.disabled) return;
             if (textEl.classList.contains('loading')) return;
             const shouldOpen = !menuEl.classList.contains('open');
             closeCustomSelectMenus();
@@ -5298,6 +5775,7 @@ function initScrambleControls() {
 
     // 2. Edit
     function startEdit() {
+        if (battleManager.isJoined()) return;
         if (textEl.classList.contains('loading')) return;
         setScrambleActionsVisible(false);
         closeScrambleTypeMenus();
@@ -6981,6 +7459,7 @@ function onInspectionAlert(seconds) {
 function onTimerStateChange(state) {
     syncInspectionSpeechUnlockPromptVisibility();
     syncInspectionCancelControl(state);
+    void battleManager.handleTimerStateChange(state);
 
     const infoEl = document.getElementById('timer-info');
     const deltaEl = document.getElementById('timer-delta');
@@ -8430,6 +8909,251 @@ function initSessionControls() {
     };
 }
 
+function initBattleControls() {
+    const overlay = getEl('battle-overlay');
+    const createOverlay = getEl('battle-create-overlay');
+    const createOverlayCloseButton = getEl('battle-create-close');
+    const createOverlayConfirmButton = getEl('battle-create-confirm');
+    const graphOverlay = getEl('graph-overlay');
+    const closeButton = getEl('battle-close');
+    const roomButton = getEl('battle-room-action');
+    const settingsOpenButton = getEl('btn-open-online-battle');
+    const previewPanel = getEl('battle-preview-panel');
+    const roomLaunchButton = getEl('btn-battle-room-launch');
+    const graphButton = getEl('btn-battle-graph');
+    const nicknameInput = getEl('battle-nickname-input');
+    const roomInput = getEl('battle-room-input');
+    const createScrambleTypeSelect = getEl('battle-create-scramble-type');
+    const roomPattern = /^[a-z0-9](?:[a-z0-9_-]{2,31})$/i;
+
+    SCRAMBLE_TYPE_OPTIONS.forEach((option) => {
+        const optionEl = document.createElement('option');
+        optionEl.value = option.id;
+        optionEl.textContent = option.menuLabel;
+        createScrambleTypeSelect?.append(optionEl);
+    });
+
+    const executeBattleJoin = async ({ roomProbe = null, scrambleTypeOverride = null } = {}) => {
+        const nickname = nicknameInput?.value || '';
+        const roomId = roomInput?.value || '';
+        const scrambleType = scrambleTypeOverride || roomProbe?.roomInfo?.scrambleType || getBattleSelectedType();
+        beginBattleMode(scrambleType);
+        const initialScramble = roomProbe?.exists
+            ? roomProbe.roomInfo?.currentScramble
+            : await generateScrambleForType(scrambleType);
+        await battleManager.joinRoom({
+            nickname,
+            roomId,
+            scrambleType,
+            initialScramble,
+        });
+        battlePendingCreateRoomId = '';
+        closeBattleCreateOverlay();
+        syncBattleScrambleType(battleManager.getScrambleType());
+        void loadNewScramble();
+    };
+
+    settingsOpenButton?.addEventListener('click', () => {
+        closeSettingsPanel({ isSwitching: true });
+        openBattleOverlay();
+    });
+
+    closeButton?.addEventListener('click', () => {
+        closeBattleOverlay();
+    });
+
+    overlay?.addEventListener('click', (event) => {
+        if (event.target !== overlay) return;
+        closeBattleOverlay();
+    });
+
+    createOverlayCloseButton?.addEventListener('click', () => {
+        closeBattleCreateOverlay();
+    });
+
+    createOverlay?.addEventListener('click', (event) => {
+        if (event.target !== createOverlay) return;
+        closeBattleCreateOverlay();
+    });
+
+    graphOverlay?.addEventListener('click', (event) => {
+        if (event.target !== graphOverlay) return;
+        closeGraphOverlay();
+    });
+
+    previewPanel?.addEventListener('click', () => {
+        if (!battleManager.isJoined()) return;
+        previewPanel.blur();
+        openBattleOverlay();
+    });
+
+    roomLaunchButton?.addEventListener('click', () => {
+        if (!battleManager.isJoined()) return;
+        roomLaunchButton.blur();
+        openBattleOverlay();
+    });
+
+    graphButton?.addEventListener('click', () => {
+        if (battleGraphModalOpen) {
+            closeGraphOverlay();
+            return;
+        }
+        openGraphOverlay();
+    });
+
+    roomInput?.addEventListener('input', () => {
+        battlePendingCreateRoomId = '';
+        closeBattleCreateOverlay();
+        renderBattleUi();
+    });
+
+    roomButton?.addEventListener('click', async () => {
+        if (battleManager.isJoined()) {
+            battlePendingCreateRoomId = '';
+            await battleManager.leaveRoom();
+            return;
+        }
+
+        const nickname = getEl('battle-nickname-input')?.value || '';
+        const roomId = roomInput?.value || '';
+        const normalizedRoomId = normalizeBattleRoomId(roomId);
+
+        if (!nickname.trim()) {
+            renderBattleUi({
+                ...battleManager.getState(),
+                connectionState: 'error',
+                connectionMessage: 'Nickname is required.',
+            });
+            return;
+        }
+        if (!roomPattern.test(roomId.trim())) {
+            renderBattleUi({
+                ...battleManager.getState(),
+                connectionState: 'error',
+                connectionMessage: 'Room name must be 3-32 characters using letters, numbers, "_" or "-".',
+            });
+            return;
+        }
+
+        try {
+            const roomProbe = await battleManager.inspectRoom(roomId);
+            if (!roomProbe.exists && battlePendingCreateRoomId !== normalizedRoomId) {
+                battlePendingCreateRoomId = normalizedRoomId;
+                createScrambleTypeSelect && (createScrambleTypeSelect.value = getSelectedScrambleType());
+                openBattleCreateOverlay();
+                return;
+            }
+
+            await executeBattleJoin({ roomProbe });
+        } catch (error) {
+            if (!battleManager.isJoined()) {
+                await restoreAfterBattle();
+            }
+            battlePendingCreateRoomId = '';
+            renderBattleUi({
+                ...battleManager.getState(),
+                connectionState: 'error',
+                connectionMessage: error instanceof Error ? error.message : 'Unable to join the battle room.',
+            });
+        }
+    });
+
+    createOverlayConfirmButton?.addEventListener('click', async () => {
+        const roomId = roomInput?.value || '';
+        const nickname = nicknameInput?.value || '';
+        const normalizedRoomId = normalizeBattleRoomId(roomId);
+
+        if (!nickname.trim() || !roomPattern.test(roomId.trim()) || battlePendingCreateRoomId !== normalizedRoomId) {
+            closeBattleCreateOverlay();
+            renderBattleUi({
+                ...battleManager.getState(),
+                connectionState: 'error',
+                connectionMessage: 'Room details changed. Check the nickname and room, then try again.',
+            });
+            return;
+        }
+
+        createOverlayConfirmButton.disabled = true;
+        createScrambleTypeSelect && (createScrambleTypeSelect.disabled = true);
+        try {
+            await executeBattleJoin({
+                roomProbe: { exists: false, roomInfo: null },
+                scrambleTypeOverride: getBattleSelectedType(),
+            });
+        } catch (error) {
+            if (!battleManager.isJoined()) {
+                await restoreAfterBattle();
+            }
+            renderBattleUi({
+                ...battleManager.getState(),
+                connectionState: 'error',
+                connectionMessage: error instanceof Error ? error.message : 'Unable to create the battle room.',
+            });
+        } finally {
+            createOverlayConfirmButton.disabled = false;
+            createScrambleTypeSelect && (createScrambleTypeSelect.disabled = false);
+        }
+    });
+
+    battleManager.on('stateChange', (state) => {
+        renderBattleUi(state);
+        updateManualTimeEntryUI();
+        document.body.classList.toggle('battle-active', state.joined);
+        if (state.joined) {
+            battlePendingCreateRoomId = '';
+            closeBattleCreateOverlay();
+        }
+        syncBattleScrambleType(state.scrambleType || getSelectedScrambleType());
+        if (!state.joined && isBattleEnvironmentActive) {
+            void restoreAfterBattle();
+        }
+        syncCameraBackgroundTimerPlacement();
+    });
+
+    battleManager.on('scrambleChange', ({ scramble, scrambleType }) => {
+        syncBattleScrambleType(scrambleType || battleManager.getScrambleType());
+        applyBattleScramble(scramble);
+    });
+
+    battleManager.on('scrambleTypeChange', ({ scrambleType }) => {
+        syncBattleScrambleType(scrambleType || battleManager.getScrambleType());
+    });
+
+    timer.on('startBlocked', (reason) => {
+        if (!battleManager.isJoined()) return;
+        const state = battleManager.getState();
+        renderBattleUi({
+            ...state,
+            connectionState: 'error',
+            connectionMessage: String(reason || 'Battle start blocked.'),
+        });
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.code !== 'Escape') return;
+        if (createOverlay?.classList.contains('active')) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            closeBattleCreateOverlay();
+            return;
+        }
+        if (battleGraphModalOpen) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            closeGraphOverlay();
+            return;
+        }
+        if (overlay?.classList.contains('active')) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            closeBattleOverlay();
+        }
+    });
+
+    syncBattleAuxButtons();
+    renderBattleUi();
+}
+
 function refreshSessionList() {
     const sessions = sessionManager.getSessions();
     const activeId = sessionManager.getActiveSessionId();
@@ -8452,6 +9176,17 @@ function onSessionChanged() {
     refreshSessionList();
     rebuildStatsCache();
     refreshUI();
+    if (battleManager.isJoined()) {
+        const scramble = battleManager.isWaitingForOthers()
+            ? ''
+            : battleManager.getCurrentScramble();
+        if (scramble) {
+            updateScrambleUI(scramble);
+        } else {
+            void loadNewScramble();
+        }
+        return;
+    }
     void syncScrambleTypeWithActiveSession({ loadScramble: true }).then((didChange) => {
         if (didChange) return;
 
