@@ -187,7 +187,7 @@
 
 .battle-table th:nth-child(4),
 .battle-table td:nth-child(4) {
-    width: 94px;
+    width: 110px;
 }
 
 .battle-table th:nth-child(5),
@@ -327,7 +327,8 @@
 
 .battle-table-compact th:nth-child(3),
 .battle-table-compact td:nth-child(3) {
-    width: 86px;
+    width: 90px;
+    padding: 8px 0;
 }
 
 .battle-table-compact th:nth-child(4),
