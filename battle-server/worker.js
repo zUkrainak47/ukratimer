@@ -109,6 +109,7 @@ export class BattleRoom {
         this.last = { id: 0, scramble: '' };
         this.nextScramble = '';
         this.socketAccounts = new Map();
+        this.departedStats = new Map();
     }
 
     async fetch(request) {
@@ -253,16 +254,16 @@ export class BattleRoom {
                 throw new Error('This room is full.');
             }
 
+            const departed = this.departedStats.get(accountId);
             player = {
                 accountId,
                 nickname,
-                elo: 1000,
-                wins: 0,
-                previousElo: 1000,
-                previousWins: 0,
+                elo: departed?.elo ?? 1000,
+                wins: departed?.wins ?? 0,
                 status: STATUS.READY,
                 socket,
             };
+            this.departedStats.delete(accountId);
             this.players.push(player);
             if (!this.ownerAccountId) {
                 this.ownerAccountId = accountId;
@@ -278,7 +279,12 @@ export class BattleRoom {
 
         player.nickname = nickname;
         player.socket = socket;
-        player.status = STATUS.READY;
+        
+        const hasSolvedCurrent = this.solves.some(
+            (s) => s.accountId === accountId && s.solveId === this.current.id
+        );
+        player.status = hasSolvedCurrent ? STATUS.SOLVED : STATUS.READY;
+
         this.socketAccounts.set(socket, accountId);
 
         if (!this.current.scramble) {
@@ -300,10 +306,22 @@ export class BattleRoom {
 
     leaveRoom(accountId) {
         const previousLength = this.players.length;
+        const departingPlayer = this.getPlayer(accountId);
+        if (departingPlayer) {
+            this.departedStats.set(accountId, {
+                elo: departingPlayer.elo,
+                wins: departingPlayer.wins,
+            });
+
+            // Prevent indefinite memory leak if the room stays active indefinitely
+            if (this.departedStats.size > 50) {
+                const oldestKey = this.departedStats.keys().next().value;
+                this.departedStats.delete(oldestKey);
+            }
+        }
         this.players = this.players.filter((player) => player.accountId !== accountId);
         if (this.players.length === previousLength) return false;
 
-        this.solves = this.solves.filter((solve) => solve.accountId !== accountId);
         if (this.players.length === 0) {
             this.resetRoom();
             return true;
@@ -419,8 +437,6 @@ export class BattleRoom {
 
         this.solves = this.solves.filter((solve) => solve.solveId >= this.current.id - 5);
         this.players.forEach((player) => {
-            player.previousElo = player.elo;
-            player.previousWins = player.wins;
             player.status = STATUS.READY;
         });
     }
@@ -434,29 +450,37 @@ export class BattleRoom {
 
         const bestSolve = roundSolves[0];
         const lastSolve = roundSolves[roundSolves.length - 1];
-        const baseRatings = new Map(this.players.map((player) => [player.accountId, player.elo]));
+        
+        const getStatsObj = (accountId) => {
+            return this.getPlayer(accountId) || this.departedStats.get(accountId) || null;
+        };
+
+        const baseRatings = new Map(roundSolves.map((solve) => {
+            const stats = getStatsObj(solve.accountId);
+            return [solve.accountId, stats ? stats.elo : 1000];
+        }));
 
         roundSolves.forEach((solve, index) => {
-            const player = this.getPlayer(solve.accountId);
-            if (!player) return;
+            const statsObj = getStatsObj(solve.accountId);
+            if (!statsObj) return;
 
             const tiedForBest = compareSolveTimes(solve, bestSolve) === 0;
             const isNonTrivialWin = compareSolveTimes(bestSolve, lastSolve) !== 0;
             if (tiedForBest && isNonTrivialWin) {
-                player.wins += 1;
+                statsObj.wins += 1;
             }
 
             let eloDelta = 0;
             roundSolves.forEach((otherSolve, otherIndex) => {
                 if (index === otherIndex) return;
-                const otherPlayer = this.getPlayer(otherSolve.accountId);
-                if (!otherPlayer) return;
+                const otherStatsObj = getStatsObj(otherSolve.accountId);
+                if (!otherStatsObj) return;
 
                 const score = (compareSolveTimes(otherSolve, solve) + 1) / 2;
-                const expected = 1 / (1 + Math.pow(10, ((baseRatings.get(otherPlayer.accountId) || otherPlayer.elo) - (baseRatings.get(player.accountId) || player.elo)) / 400));
+                const expected = 1 / (1 + Math.pow(10, (baseRatings.get(otherSolve.accountId) - baseRatings.get(solve.accountId)) / 400));
                 eloDelta += Math.round((score - expected) * 32 / (roundSolves.length - 1));
             });
-            player.elo += eloDelta;
+            statsObj.elo += eloDelta;
         });
     }
 

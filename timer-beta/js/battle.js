@@ -843,6 +843,13 @@ class BattleManager extends EventEmitter {
             this._submittedRoundId = null;
         }
 
+        const hasSolvedCurrent = nextRoomState.solves.some(
+            (s) => s.accountId === this._accountId && s.solveId === nextRoomState.currentRoundId
+        );
+        if (hasSolvedCurrent) {
+            this._submittedRoundId = nextRoomState.currentRoundId;
+        }
+
         this._joined = true;
         this._setConnection('connected', `Joined room ${nextRoomState.roomId}.`);
         this._emitState();
