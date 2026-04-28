@@ -1,5 +1,5 @@
 .battle-modal-box {
-    width: min(880px, calc(100vw - 24px));
+    width: 86vw;
 }
 
 .battle-create-modal-box {
@@ -562,7 +562,7 @@ body.camera-background-active.battle-active #graph-panel {
 
     .battle-table-compact th:nth-child(4), 
     .battle-table-compact td:nth-child(4) {
-        width: 0;
+        width: 1%;
         padding: 9px 8px;
 }
 
