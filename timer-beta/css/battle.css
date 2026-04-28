@@ -171,6 +171,7 @@
 .battle-table th:nth-child(1),
 .battle-table td:nth-child(1) {
     width: 34px;
+    overflow: hidden;
 }
 
 .battle-table th:nth-child(2),
@@ -188,6 +189,7 @@
 .battle-table th:nth-child(4),
 .battle-table td:nth-child(4) {
     width: 110px;
+    overflow: hidden;
 }
 
 .battle-table th:nth-child(5),
@@ -234,6 +236,7 @@
 
 .battle-table tr.is-local-player td {
     background: var(--accent-subtle);
+    background-clip: padding-box;
 }
 
 .battle-table td.is-muted-time {
