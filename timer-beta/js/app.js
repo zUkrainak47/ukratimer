@@ -1252,12 +1252,15 @@ function syncScrambleNavigationButtons({ locked = battleManager.isJoined() || is
 
     if (editBtn) {
         editBtn.disabled = controlsLocked;
+        editBtn.hidden = controlsLocked;
     }
     if (prevBtn) {
         prevBtn.disabled = controlsLocked || !hasPrevScramble();
+        prevBtn.hidden = controlsLocked;
     }
     if (nextBtn) {
         nextBtn.disabled = controlsLocked;
+        nextBtn.hidden = controlsLocked;
     }
 }
 
@@ -5690,7 +5693,12 @@ function initScrambleControls() {
         closeScrambleTypeMenus();
         if (mobileViewportQuery.matches) {
             clearNewBestAlert();
-            containerEl.classList.toggle('scramble-actions-visible');
+            if (battleManager.isJoined() || isBattleEnvironmentActive) {
+                setScrambleActionsVisible(false);
+                copyCurrentScrambleToClipboard();
+            } else {
+                containerEl.classList.toggle('scramble-actions-visible');
+            }
         } else {
             copyCurrentScrambleToClipboard();
         }

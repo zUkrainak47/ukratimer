@@ -600,6 +600,12 @@ body.solving #btn-next-scramble {
     z-index: 70;
 }
 
+#btn-edit-scramble[hidden],
+#btn-prev-scramble[hidden],
+#btn-next-scramble[hidden] {
+    display: none !important;
+}
+
 #btn-edit-scramble {
     order: -2;
 }
