@@ -552,6 +552,7 @@ body.camera-background-active.battle-active #graph-panel {
     .battle-table th:nth-child(3),
     .battle-table td:nth-child(3) {
         width: 50px;
+        max-width: 51px;
     }
 
     .battle-table th:nth-child(4),
