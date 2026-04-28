@@ -207,6 +207,7 @@ function mapRoomInfo(roomInfo) {
                 solveId: Number(solve?.solveId) || 0,
                 timeMs: Number.isFinite(Number(solve?.timeMs)) ? Math.max(0, Math.round(Number(solve.timeMs))) : null,
                 penalty: solve?.penalty === '+2' || solve?.penalty === 'DNF' ? solve.penalty : null,
+                localTimestamp: Number(solve?.localTimestamp) || 0,
                 submittedAt: Number(solve?.submittedAt) || 0,
             }))
             : [],
@@ -286,8 +287,7 @@ class BattleManager extends EventEmitter {
         this._pendingRequests = new Map();
         this._joined = false;
         this._submittedRoundId = null;
-        this._lastSolvedRoundId = null;
-        this._lastSolvedLocalId = null;
+        this._lastSubmittedTimestamp = null;
         this._expectedClose = false;
         this._pingIntervalId = null;
         this._reconnecting = false;
@@ -454,8 +454,7 @@ class BattleManager extends EventEmitter {
         this._teardownSocket();
         this._joined = false;
         this._submittedRoundId = null;
-        this._lastSolvedRoundId = null;
-        this._lastSolvedLocalId = null;
+        this._lastSubmittedTimestamp = null;
         this._roomState = createInitialRoomState();
         this._setConnection('idle', '');
         this._emitState();
@@ -493,8 +492,7 @@ class BattleManager extends EventEmitter {
         this._teardownSocket();
         this._joined = false;
         this._submittedRoundId = null;
-        this._lastSolvedRoundId = null;
-        this._lastSolvedLocalId = null;
+        this._lastSubmittedTimestamp = null;
         this._roomState = createInitialRoomState();
     }
 
@@ -522,8 +520,7 @@ class BattleManager extends EventEmitter {
         if (!solve || this._roomState.currentRoundId <= 0) return;
 
         this._submittedRoundId = this._roomState.currentRoundId;
-        this._lastSolvedRoundId = this._roomState.currentRoundId;
-        this._lastSolvedLocalId = solve.id ?? null;
+        this._lastSubmittedTimestamp = Number(solve.timestamp) || 0;
         this._emitState();
 
         await this._request('solve', {
@@ -531,6 +528,7 @@ class BattleManager extends EventEmitter {
             solveId: this._roomState.currentRoundId,
             timeMs: Number.isFinite(Number(solve.time)) ? Math.max(0, Math.round(Number(solve.time))) : null,
             penalty: solve.penalty === '+2' || solve.penalty === 'DNF' ? solve.penalty : null,
+            localTimestamp: Number(solve.timestamp) || 0,
             nextScramble: String(nextScramble ?? '').trim(),
         }).catch((error) => {
             this._submittedRoundId = null;
@@ -551,12 +549,23 @@ class BattleManager extends EventEmitter {
         });
     }
 
-    getLastSolvedRoundId() {
-        return this._lastSolvedRoundId;
-    }
+    getLocalSolveRoundId(solveTimestamp) {
+        if (!this._joined || !solveTimestamp) return null;
+        const ts = Number(solveTimestamp);
+        if (!Number.isFinite(ts) || ts <= 0) return null;
 
-    getLastSolvedLocalId() {
-        return this._lastSolvedLocalId;
+        const accountId = this._accountId;
+        const match = this._roomState.solves.find(
+            (s) => s.accountId === accountId && s.localTimestamp === ts
+        );
+        if (match) return match.solveId;
+
+        // Fallback for race condition: user updates penalty before server confirms solve in room state.
+        if (this._submittedRoundId != null && this._submittedRoundId === this._roomState.currentRoundId && ts === this._lastSubmittedTimestamp) {
+            return this._submittedRoundId;
+        }
+
+        return null;
     }
 
     async setScrambleType(scrambleType, scramble) {
@@ -634,8 +643,7 @@ class BattleManager extends EventEmitter {
             } else {
                 this._joined = false;
                 this._submittedRoundId = null;
-                this._lastSolvedRoundId = null;
-                this._lastSolvedLocalId = null;
+                this._lastSubmittedTimestamp = null;
                 this._roomState = createInitialRoomState();
                 if (!wasExpected) {
                     this._setConnection('error', 'Battle connection closed.');
@@ -787,8 +795,7 @@ class BattleManager extends EventEmitter {
             } else {
                 this._joined = false;
                 this._submittedRoundId = null;
-                this._lastSolvedRoundId = null;
-                this._lastSolvedLocalId = null;
+                this._lastSubmittedTimestamp = null;
                 this._roomState = createInitialRoomState();
                 this._setConnection('error', 'Unable to reconnect. Please rejoin the room.');
                 this._emitState();

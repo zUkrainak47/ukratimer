@@ -31,6 +31,7 @@ function cloneSolve(solve) {
         solveId: solve.solveId,
         timeMs: solve.timeMs,
         penalty: solve.penalty,
+        localTimestamp: solve.localTimestamp,
         submittedAt: solve.submittedAt,
     };
 }
@@ -381,6 +382,7 @@ export class BattleRoom {
             solveId,
             timeMs,
             penalty,
+            localTimestamp: Number(message?.localTimestamp) || 0,
             submittedAt: Date.now(),
         };
 

@@ -1615,7 +1615,10 @@ async function restoreAfterBattle() {
     }
 
     syncBattleAuxButtons();
-    if (timer.getState() === TimerState.IDLE || timer.getState() === TimerState.STOPPED) {
+    syncScrambleNavigationButtons({ locked: false });
+
+    const state = timer.getState();
+    if (state !== 'running' && state !== 'holding' && state !== 'ready' && !isInspectionState(state)) {
         await loadNewScramble();
     }
 }
@@ -2218,9 +2221,8 @@ function toggleLastSolvePenaltyFromMainTimerShortcut(penalty) {
     }
 }
 
-function syncBattlePenalty(penalty) {
+function syncBattlePenalty(roundId, penalty) {
     if (!battleManager.isJoined()) return;
-    const roundId = battleManager.getLastSolvedRoundId();
     if (roundId == null) return;
     battleManager.updatePenalty(roundId, penalty);
 }
@@ -4261,8 +4263,9 @@ async function init() {
         dailyStreakStore.upsertSolve(solve);
         rebuildStatsCache();
 
-        if (battleManager.isJoined() && solve.id === battleManager.getLastSolvedLocalId()) {
-            syncBattlePenalty(solve.penalty);
+        const battleRoundId = battleManager.getLocalSolveRoundId(solve.timestamp);
+        if (battleRoundId != null) {
+            syncBattlePenalty(battleRoundId, solve.penalty);
         }
 
         refreshUI();
@@ -9114,13 +9117,14 @@ function initBattleControls() {
     battleManager.on('stateChange', (state) => {
         renderBattleUi(state);
         updateManualTimeEntryUI();
+        const wasBattleActive = document.body.classList.contains('battle-active');
         document.body.classList.toggle('battle-active', state.joined);
         if (state.joined) {
             battlePendingCreateRoomId = '';
             closeBattleCreateOverlay();
         }
         syncBattleScrambleType(state.scrambleType || getSelectedScrambleType());
-        if (!state.joined && isBattleEnvironmentActive) {
+        if (!state.joined && (isBattleEnvironmentActive || wasBattleActive)) {
             void restoreAfterBattle();
         }
         syncCameraBackgroundTimerPlacement();
