@@ -1,6 +1,6 @@
-import { load, save } from './storage.js?v=2026042803';
-import { normalizeTimeEntryMode, TIME_ENTRY_MODE_TIMER, TIME_ENTRY_MODE_TYPING } from './time-entry.js?v=2026042803';
-import { EventEmitter } from './utils.js?v=2026042803';
+import { load, save } from './storage.js?v=2026042804';
+import { normalizeTimeEntryMode, TIME_ENTRY_MODE_TIMER, TIME_ENTRY_MODE_TYPING } from './time-entry.js?v=2026042804';
+import { EventEmitter } from './utils.js?v=2026042804';
 
 export const THEME_DEFAULT_ID = 'default';
 export const THEME_OLED_ID = 'oled';

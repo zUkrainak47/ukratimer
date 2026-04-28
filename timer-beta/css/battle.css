@@ -1,5 +1,5 @@
 .battle-modal-box {
-    width: 86vw;
+    width: min(880px, calc(100vw - 24px));
 }
 
 .battle-create-modal-box {
@@ -576,5 +576,12 @@ body.camera-background-active.battle-active #graph-panel {
         min-width: 80vw;
         max-width: 80vw;
         max-height: calc(100vh - 16px);
+    }
+}
+
+@media (max-width: 1100px) and (orientation: landscape),
+(pointer: coarse) and (orientation: landscape) {
+    .battle-modal-box {
+        width: 86vw;
     }
 }
