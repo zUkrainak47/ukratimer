@@ -696,7 +696,7 @@ body.solving #btn-next-scramble {
             visibility 0s linear 0.3s;
     }
 
-    body.camera-background-toggle-visible #btn-scramble-preview:not([hidden]),
+    body.camera-background-active #btn-scramble-preview:not([hidden]),
     body.battle-active #btn-scramble-preview:not([hidden]),
     body.battle-active #btn-battle-graph:not([hidden]) {
         display: inline-flex;
@@ -711,7 +711,7 @@ body.solving #btn-next-scramble {
         right: calc(var(--space-md) + 36px);
     }
 
-    body.camera-background-toggle-visible:not(.battle-active) #btn-scramble-preview {
+    body.camera-background-active:not(.battle-active) #btn-scramble-preview {
         right: calc(var(--space-md) + 72px);
     }
 
@@ -723,7 +723,7 @@ body.solving #btn-next-scramble {
         right: calc(var(--space-md) + 72px);
     }
 
-    body.camera-background-toggle-visible:not(.solving) #btn-scramble-preview {
+    body.camera-background-active:not(.solving) #btn-scramble-preview {
         opacity: 0.72;
     }
 

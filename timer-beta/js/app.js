@@ -1456,6 +1456,15 @@ function normalizeBattleRoomId(value) {
     return String(value ?? '').trim().toLowerCase();
 }
 
+function isScramblePreviewPanelVisibleInCurrentLayout() {
+    const cubeCanvasContainer = getEl('cube-canvas-container');
+    const cubePanel = getEl('cube-panel');
+    if (!cubeCanvasContainer || !cubePanel) return false;
+    if (cubeCanvasContainer.hidden) return false;
+    return !(document.body.classList.contains('camera-background-active')
+        && cubePanel.classList.contains('camera-background-hosting-timer'));
+}
+
 function syncBattleAuxButtons() {
     const previewButton = getEl('btn-scramble-preview');
     const graphButton = getEl('btn-battle-graph');
@@ -1464,7 +1473,7 @@ function syncBattleAuxButtons() {
     const battleState = battleManager.getState();
     const isJoined = battleState.joined;
     const isCameraBackgroundActive = document.body.classList.contains('camera-background-active');
-    const showPreview = isJoined || shouldShowCameraBackgroundToggleButton();
+    const showPreview = !isScramblePreviewPanelVisibleInCurrentLayout();
     const showGraph = isJoined && isCameraBackgroundActive;
     const localElo = Number.isFinite(Number(battleState.localPlayer?.elo))
         ? Math.round(Number(battleState.localPlayer.elo))
