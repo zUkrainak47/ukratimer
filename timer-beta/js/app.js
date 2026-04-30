@@ -900,6 +900,7 @@ let scramblePreviewOverlayEl = null;
 let scramblePreviewModalCanvas = null;
 let scramblePreviewModalSizeFrame = 0;
 let scramblePreviewThemeRefreshTimeout = 0;
+let battleTableResizeObserver = null;
 let themeCustomizationCloseCleanupTimer = 0;
 let syncSettingsRowSeparators = () => { };
 let shortcutTooltipEl = null;
@@ -1280,6 +1281,7 @@ function openBattleOverlay() {
     if (!overlay) return;
     overlay.classList.add('active');
     overlay.setAttribute('aria-hidden', 'false');
+    requestAnimationFrame(syncBattleTableColumnVisibilityAll);
 }
 
 function closeBattleOverlay() {
@@ -1426,25 +1428,58 @@ function escapeHtml(value) {
         .replace(/'/g, '&#39;');
 }
 
+function syncBattleTableColumnVisibility(shell) {
+    if (!shell) return;
+    const width = shell.clientWidth || shell.getBoundingClientRect?.().width || 0;
+    const winThreshold = 460;
+    const meanThreshold = 545;
+
+    shell.classList.toggle('battle-table-show-win', width >= winThreshold);
+    shell.classList.toggle('battle-table-show-mean', width >= meanThreshold);
+}
+
+function syncBattleTableColumnVisibilityAll() {
+    document.querySelectorAll('.battle-table-shell').forEach(syncBattleTableColumnVisibility);
+}
+
+function initBattleTableColumnVisibility() {
+    syncBattleTableColumnVisibilityAll();
+    if (typeof ResizeObserver !== 'function') {
+        window.addEventListener('resize', syncBattleTableColumnVisibilityAll);
+        return;
+    }
+
+    battleTableResizeObserver = new ResizeObserver((entries) => {
+        entries.forEach((entry) => syncBattleTableColumnVisibility(entry.target));
+    });
+    document.querySelectorAll('.battle-table-shell').forEach((shell) => {
+        battleTableResizeObserver.observe(shell);
+    });
+}
+
 function renderBattleRows(targetId, rows = [], emptyMessage = 'Join a room to start battling.', { compact = false } = {}) {
     const tbody = getEl(targetId);
     if (!tbody) return;
-    const columnCount = compact ? 4 : 5;
+    const columnCount = compact ? 6 : 7;
 
     if (!rows.length) {
         tbody.innerHTML = `<tr><td colspan="${columnCount}" class="battle-empty-cell">${escapeHtml(emptyMessage)}</td></tr>`;
+        syncBattleTableColumnVisibility(tbody.closest('.battle-table-shell'));
         return;
     }
 
     tbody.innerHTML = rows.map((row) => `
         <tr class="${row.isLocal ? 'is-local-player' : ''}">
-            ${compact ? '' : `<td>${row.rank}</td>`}
-            <td class="battle-player-name" title="${escapeHtml(row.nickname)}"><span class="battle-player-name-text">${escapeHtml(row.nickname)}</span></td>
-            <td>${row.elo}</td>
-            <td><span class="battle-status-pill" data-battle-status="${row.status}">${row.statusLabel}</span></td>
-            <td class="${row.dimSolve ? 'is-muted-time' : ''}">${row.solveText}</td>
+            ${compact ? '' : `<td class="battle-table-rank">${row.rank}</td>`}
+            <td class="battle-table-player battle-player-name" title="${escapeHtml(row.nickname)}"><span class="battle-player-name-text">${escapeHtml(row.nickname)}</span></td>
+            <td class="battle-table-mean">${escapeHtml(row.meanTimeText || '-')}</td>
+            <td class="battle-table-elo">${row.elo}</td>
+            <td class="battle-table-win">${escapeHtml(row.winRateText || '0/0')}</td>
+            <td class="battle-table-status"><span class="battle-status-pill" data-battle-status="${row.status}">${row.statusLabel}</span></td>
+            <td class="battle-table-time ${row.dimSolve ? 'is-muted-time' : ''}">${row.solveText}</td>
         </tr>
     `).join('');
+    syncBattleTableColumnVisibility(tbody.closest('.battle-table-shell'));
 }
 
 function getBattleRoundTitle(state = battleManager.getState()) {
@@ -8961,6 +8996,8 @@ function initBattleControls() {
     const roomInput = getEl('battle-room-input');
     const createScrambleTypeSelect = getEl('battle-create-scramble-type');
     const roomPattern = /^[a-z0-9](?:[a-z0-9_-]{2,31})$/i;
+
+    initBattleTableColumnVisibility();
 
     SCRAMBLE_TYPE_OPTIONS.forEach((option) => {
         const optionEl = document.createElement('option');

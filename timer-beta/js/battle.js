@@ -198,6 +198,10 @@ function mapRoomInfo(roomInfo) {
                 nickname: normalizeNickname(player?.nickname || player?.accountId || 'Player'),
                 elo: Number.isFinite(Number(player?.elo)) ? Number(player.elo) : 1000,
                 wins: Number.isFinite(Number(player?.wins)) ? Number(player.wins) : 0,
+                solveCount: Number.isFinite(Number(player?.solveCount)) ? Math.max(0, Math.round(Number(player.solveCount))) : null,
+                meanTimeMs: Number.isFinite(Number(player?.meanTimeMs)) ? Math.max(0, Math.round(Number(player.meanTimeMs))) : null,
+                meanTimeSum: Number.isFinite(Number(player?.meanTimeSum)) ? Math.max(0, Math.round(Number(player.meanTimeSum))) : null,
+                meanTimeCount: Number.isFinite(Number(player?.meanTimeCount)) ? Math.max(0, Math.round(Number(player.meanTimeCount))) : null,
                 status: String(player?.status ?? BattlePresenceStatus.READY),
             }))
             : [],
@@ -239,6 +243,35 @@ export function formatBattleSolve(solve) {
     return solve.penalty === '+2' ? `${formatted}+` : formatted;
 }
 
+function getBattleSolveTimeValue(solve) {
+    if (!solve || solve.timeMs == null || solve.penalty === 'DNF') return null;
+    return solve.penalty === '+2' ? solve.timeMs + 2000 : solve.timeMs;
+}
+
+function getBattleMeanTimeText(solves) {
+    const timeValues = solves
+        .map(getBattleSolveTimeValue)
+        .filter((value) => Number.isFinite(value));
+
+    if (!timeValues.length) return '-';
+
+    const total = timeValues.reduce((sum, value) => sum + value, 0);
+    return formatTime(Math.round(total / timeValues.length));
+}
+
+function getBattlePlayerMeanTimeText(player, fallbackSolves) {
+    if (Number.isFinite(Number(player.meanTimeMs))) {
+        return formatTime(Math.max(0, Math.round(Number(player.meanTimeMs))));
+    }
+    if (Number.isFinite(Number(player.meanTimeSum)) && Number(player.meanTimeCount) > 0) {
+        return formatTime(Math.round(Number(player.meanTimeSum) / Number(player.meanTimeCount)));
+    }
+    if (Number.isFinite(Number(player.solveCount)) || Number.isFinite(Number(player.meanTimeCount))) {
+        return '-';
+    }
+    return getBattleMeanTimeText(fallbackSolves);
+}
+
 export function buildBattleRows(roomState, localAccountId = '') {
     const solveMap = getSolveMap(roomState);
     const players = [...roomState.players].sort((a, b) => {
@@ -252,17 +285,24 @@ export function buildBattleRows(roomState, localAccountId = '') {
 
     return players.map((player, index) => {
         const playerSolves = solveMap.get(player.accountId) || new Map();
+        const solveList = Array.from(playerSolves.values());
         const currentSolve = playerSolves.get(roomState.currentRoundId) || null;
         const previousSolve = playerSolves.get(roomState.lastRoundId) || null;
         const shownSolve = currentSolve || previousSolve;
         const shouldDimSolve = hasCurrentSolve && player.status !== BattlePresenceStatus.SOLVED && !currentSolve && previousSolve;
+        const solveCount = Number.isFinite(Number(player.solveCount))
+            ? Math.max(0, Math.round(Number(player.solveCount)))
+            : solveList.length;
+        const winCount = Math.max(0, Math.round(Number(player.wins) || 0));
 
         return {
             rank: index + 1,
             accountId: player.accountId,
             nickname: player.nickname,
             elo: player.elo,
-            wins: player.wins,
+            wins: winCount,
+            winRateText: `${winCount}/${solveCount}`,
+            meanTimeText: getBattlePlayerMeanTimeText(player, solveList),
             status: player.status,
             statusLabel: BATTLE_STATUS_LABELS[player.status] || player.status,
             solve: shownSolve,

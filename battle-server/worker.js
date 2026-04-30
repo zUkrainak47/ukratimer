@@ -48,6 +48,46 @@ function compareSolveTimes(a, b) {
     return valueA < valueB ? -1 : 1;
 }
 
+function getSolveMeanValue(solve) {
+    if (!solve || solve.timeMs == null || solve.penalty === 'DNF') return null;
+    return solve.timeMs + (solve.penalty === '+2' ? 2000 : 0);
+}
+
+function createPlayerStats(seed = {}) {
+    return {
+        elo: Number.isFinite(Number(seed.elo)) ? Number(seed.elo) : 1000,
+        wins: Number.isFinite(Number(seed.wins)) ? Math.max(0, Math.round(Number(seed.wins))) : 0,
+        solveCount: Number.isFinite(Number(seed.solveCount)) ? Math.max(0, Math.round(Number(seed.solveCount))) : 0,
+        meanTimeSum: Number.isFinite(Number(seed.meanTimeSum)) ? Math.max(0, Math.round(Number(seed.meanTimeSum))) : 0,
+        meanTimeCount: Number.isFinite(Number(seed.meanTimeCount)) ? Math.max(0, Math.round(Number(seed.meanTimeCount))) : 0,
+    };
+}
+
+function ensurePlayerStats(stats) {
+    if (!stats) return null;
+    const normalized = createPlayerStats(stats);
+    stats.elo = normalized.elo;
+    stats.wins = normalized.wins;
+    stats.solveCount = normalized.solveCount;
+    stats.meanTimeSum = normalized.meanTimeSum;
+    stats.meanTimeCount = normalized.meanTimeCount;
+    return stats;
+}
+
+function applySolveToPlayerStats(stats, solve, direction = 1) {
+    ensurePlayerStats(stats);
+    if (!stats || !solve) return;
+
+    const delta = direction >= 0 ? 1 : -1;
+    stats.solveCount = Math.max(0, Math.round(Number(stats.solveCount) || 0) + delta);
+
+    const meanValue = getSolveMeanValue(solve);
+    if (meanValue != null) {
+        stats.meanTimeCount = Math.max(0, Math.round(Number(stats.meanTimeCount) || 0) + delta);
+        stats.meanTimeSum = Math.max(0, Math.round(Number(stats.meanTimeSum) || 0) + (delta * meanValue));
+    }
+}
+
 function createJsonResponse(payload, status = 200) {
     return new Response(JSON.stringify(payload), {
         status,
@@ -262,11 +302,15 @@ export class BattleRoom {
             }
 
             const departed = this.departedStats.get(accountId);
+            const departedStats = createPlayerStats(departed);
             player = {
                 accountId,
                 nickname,
-                elo: departed?.elo ?? 1000,
-                wins: departed?.wins ?? 0,
+                elo: departedStats.elo,
+                wins: departedStats.wins,
+                solveCount: departedStats.solveCount,
+                meanTimeSum: departedStats.meanTimeSum,
+                meanTimeCount: departedStats.meanTimeCount,
                 status: STATUS.READY,
                 socket,
             };
@@ -276,12 +320,15 @@ export class BattleRoom {
                 this.ownerAccountId = accountId;
             }
         } else if (player.socket && player.socket !== socket) {
+            ensurePlayerStats(player);
             this.socketAccounts.delete(player.socket);
             try {
                 player.socket.close(1000, 'Replaced by a newer connection.');
             } catch {
                 // Ignore close failures on stale sockets.
             }
+        } else {
+            ensurePlayerStats(player);
         }
 
         player.nickname = nickname;
@@ -315,9 +362,13 @@ export class BattleRoom {
         const previousLength = this.players.length;
         const departingPlayer = this.getPlayer(accountId);
         if (departingPlayer) {
+            ensurePlayerStats(departingPlayer);
             this.departedStats.set(accountId, {
                 elo: departingPlayer.elo,
                 wins: departingPlayer.wins,
+                solveCount: departingPlayer.solveCount,
+                meanTimeSum: departingPlayer.meanTimeSum,
+                meanTimeCount: departingPlayer.meanTimeCount,
             });
 
             // Prevent indefinite memory leak if the room stays active indefinitely
@@ -390,10 +441,12 @@ export class BattleRoom {
             entry.accountId === accountId && entry.solveId === solveId
         ));
         if (existingIndex >= 0) {
+            applySolveToPlayerStats(player, this.solves[existingIndex], -1);
             this.solves.splice(existingIndex, 1, solve);
         } else {
             this.solves.push(solve);
         }
+        applySolveToPlayerStats(player, solve, 1);
 
         player.status = STATUS.SOLVED;
         player.socket = socket;
@@ -422,7 +475,9 @@ export class BattleRoom {
             throw new Error('Solve not found.');
         }
 
+        applySolveToPlayerStats(player, solve, -1);
         solve.penalty = penalty;
+        applySolveToPlayerStats(player, solve, 1);
 
         // If the solve belongs to the already-scored last round, recalculate.
         if (solveId === this.last.id && this.lastRoundScoreSnapshot.size > 0) {
@@ -494,7 +549,7 @@ export class BattleRoom {
 
         // Snapshot pre-scoring state so penalties can trigger recalculation later.
         const getStatsObj = (accountId) => {
-            return this.getPlayer(accountId) || this.departedStats.get(accountId) || null;
+            return ensurePlayerStats(this.getPlayer(accountId) || this.departedStats.get(accountId) || null);
         };
 
         this.lastRoundScoreSnapshot = new Map();
@@ -549,6 +604,7 @@ export class BattleRoom {
         this.current = { id: 1, scramble: '' };
         this.last = { id: 0, scramble: '' };
         this.nextScramble = '';
+        this.departedStats.clear();
         this.lastRoundScoreSnapshot = new Map();
     }
 
@@ -559,13 +615,22 @@ export class BattleRoom {
             scrambleType: this.scrambleType,
             current: { ...this.current },
             last: { ...this.last },
-            players: this.players.map((player) => ({
-                accountId: player.accountId,
-                nickname: player.nickname,
-                elo: player.elo,
-                wins: player.wins,
-                status: player.status,
-            })),
+            players: this.players.map((player) => {
+                ensurePlayerStats(player);
+                return {
+                    accountId: player.accountId,
+                    nickname: player.nickname,
+                    elo: player.elo,
+                    wins: player.wins,
+                    solveCount: player.solveCount,
+                    meanTimeMs: player.meanTimeCount > 0
+                        ? Math.round(player.meanTimeSum / player.meanTimeCount)
+                        : null,
+                    meanTimeSum: player.meanTimeSum,
+                    meanTimeCount: player.meanTimeCount,
+                    status: player.status,
+                };
+            }),
             solves: this.solves.map(cloneSolve),
         };
     }
