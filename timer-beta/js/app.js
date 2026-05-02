@@ -965,6 +965,8 @@ const cameraBackgroundState = {
     taskId: 0,
     displayLayoutKey: '',
 };
+const INSPECTION_SPEECH_LANG = 'en-US';
+const INSPECTION_SAFARI_PREFERRED_VOICE_KEYS = Object.freeze(['samantha', 'alex', 'ava', 'allison', 'aaron', 'daniel']);
 const inspectionSpeechUnlockState = {
     required: false,
     unlocked: false,
@@ -1121,11 +1123,59 @@ function isSafariBrowser() {
 
 function initInspectionSpeechUnlockState() {
     const speechSupported = 'speechSynthesis' in window;
+    if (speechSupported) {
+        window.speechSynthesis.getVoices();
+    }
     const requiresUnlock = speechSupported && isLikelyIOSDevice();
     inspectionSpeechUnlockState.required = requiresUnlock;
     inspectionSpeechUnlockState.unlocked = !requiresUnlock;
     inspectionSpeechUnlockState.inFlight = false;
     inspectionSpeechUnlockState.dismissed = false;
+}
+
+function isEnglishInspectionVoice(voice) {
+    if (typeof voice?.lang !== 'string') return false;
+    const lang = voice.lang.toLowerCase();
+    return lang === INSPECTION_SPEECH_LANG.toLowerCase()
+        || lang.startsWith('en-')
+        || lang === 'en';
+}
+
+function findInspectionVoiceByKey(voices, key) {
+    const needle = key.toLowerCase();
+    return voices.find((voice) => {
+        const voiceName = typeof voice?.name === 'string' ? voice.name.toLowerCase() : '';
+        const voiceUri = typeof voice?.voiceURI === 'string' ? voice.voiceURI.toLowerCase() : '';
+        return voiceName.includes(needle) || voiceUri.includes(needle);
+    }) || null;
+}
+
+function getInspectionSpeechVoice() {
+    if (!('speechSynthesis' in window)) return null;
+
+    const voices = window.speechSynthesis.getVoices();
+    if (!Array.isArray(voices) || voices.length === 0) return null;
+    const englishVoices = voices.filter((voice) => isEnglishInspectionVoice(voice));
+
+    if (isSafariBrowser()) {
+        for (const key of INSPECTION_SAFARI_PREFERRED_VOICE_KEYS) {
+            const preferredVoice = findInspectionVoiceByKey(englishVoices, key);
+            if (preferredVoice) return preferredVoice;
+        }
+    }
+
+    return englishVoices.find((voice) => typeof voice.lang === 'string' && voice.lang.toLowerCase() === INSPECTION_SPEECH_LANG.toLowerCase())
+        || englishVoices.find((voice) => typeof voice.lang === 'string' && voice.lang.toLowerCase().startsWith('en-'))
+        || englishVoices.find((voice) => typeof voice.lang === 'string' && voice.lang.toLowerCase() === 'en')
+        || null;
+}
+
+function createInspectionSpeechUtterance(text) {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = INSPECTION_SPEECH_LANG;
+    const voice = getInspectionSpeechVoice();
+    if (voice) utterance.voice = voice;
+    return utterance;
 }
 
 function shouldShowInspectionSpeechUnlockPrompt() {
@@ -1207,7 +1257,7 @@ function unlockInspectionSpeechFromGesture() {
 
         try {
             window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance('Voice alerts enabled');
+            const utterance = createInspectionSpeechUtterance('Voice alerts enabled');
             utterance.volume = 0;
             utterance.rate = 1;
             utterance.onstart = () => finish(true);
@@ -7512,7 +7562,7 @@ function speakInspectionAlert(seconds) {
     if (inspectionSpeechUnlockState.required && !inspectionSpeechUnlockState.unlocked) return;
 
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(`${seconds} seconds`);
+    const utterance = createInspectionSpeechUtterance(`${seconds} seconds`);
     utterance.rate = isSafariBrowser() ? 1.2 : 1.5;
     window.speechSynthesis.speak(utterance);
 }
