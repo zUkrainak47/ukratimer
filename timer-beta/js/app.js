@@ -100,6 +100,8 @@ const SIMPLE_THEME_SHARED_SECTION_IDS = new Set([
     'scramble-preview-clock',
 ]);
 const THEME_BACKGROUND_IMAGE_SECTION_ID = 'background-image';
+const BATTLE_PENDING_SOLVE_SCRAMBLE_RETRY_BASE_MS = 1000;
+const BATTLE_PENDING_SOLVE_SCRAMBLE_RETRY_MAX_MS = 10000;
 let battleRestoreScrambleType = null;
 let isBattleEnvironmentActive = false;
 let battleGraphModalOpen = false;
@@ -107,6 +109,10 @@ let battleGraphCanvasPlaceholder = null;
 let battleGraphControlsPlaceholder = null;
 let battleGraphCloseRestoreTimer = null;
 let battlePendingCreateRoomId = '';
+let battlePendingSolveUploadPromise = null;
+let battlePendingSolveScrambleRetryTimer = null;
+let battlePendingSolveScrambleRetryAttempt = 0;
+let battleDeferredSolveUiPreviousStats = null;
 let battleFormHydrated = false;
 
 function clampThemeChannel(value) {
@@ -1025,20 +1031,42 @@ const PYRAMINX_PREVIEW_BUTTON_TRIANGLE_DEFINITIONS = Object.freeze(createPreview
 
 // ──── History & Back Button ────
 
+let activeHistoryInterception = false;
+
+function getNonInterceptedHistoryState(state = window.history.state) {
+    if (!state || typeof state !== 'object') return null;
+
+    const nextState = { ...state };
+    delete nextState.isBackIntercepted;
+    return Object.keys(nextState).length ? nextState : null;
+}
+
+function clearStaleHistoryInterceptionState() {
+    if (!window.history.state?.isBackIntercepted || activeHistoryInterception) return;
+    window.history.replaceState(getNonInterceptedHistoryState(), '');
+}
+
 function pushHistoryState() {
-    // Only push if we're not already in a pushed state to avoid nested pushes for simple overlays
-    if (window.history.state?.isBackIntercepted) return;
+    // Only reuse markers created by this page instance; restored tabs can keep stale marker state.
+    if (activeHistoryInterception && window.history.state?.isBackIntercepted) return;
+    clearStaleHistoryInterceptionState();
     window.history.pushState({ isBackIntercepted: true }, '');
+    activeHistoryInterception = true;
 }
 
 function backToDismiss() {
-    if (window.history.state?.isBackIntercepted) {
+    if (activeHistoryInterception && window.history.state?.isBackIntercepted) {
+        activeHistoryInterception = false;
         window.history.back();
+        return;
     }
+    activeHistoryInterception = false;
+    clearStaleHistoryInterceptionState();
 }
 
 function handlePopState(event) {
     if (event.state?.isBackIntercepted) return;
+    activeHistoryInterception = false;
 
     // Check overlays in order of priority (most specific/blocking first)
     if (document.getElementById('confirm-overlay').classList.contains('active')) {
@@ -1102,6 +1130,7 @@ function handlePopState(event) {
     }
 }
 
+clearStaleHistoryInterceptionState();
 window.addEventListener('popstate', handlePopState);
 
 function isTouchPrimaryInput() {
@@ -1469,6 +1498,118 @@ function applyBattleScramble(scramble) {
     updateScrambleUI(nextScramble);
 }
 
+function syncBattleScrambleDisplay(state = battleManager.getState()) {
+    if (!state?.joined) return;
+    if (state.pendingSolveUpload) {
+        renderMutedScrambleMessage('Uploading battle solve');
+        return;
+    }
+    if (state.submittedRoundId === state.currentRoundId) {
+        renderMutedScrambleMessage('Waiting for everyone to finish');
+        return;
+    }
+
+    const battleScramble = String(state.currentScramble ?? '').trim();
+    if (battleScramble) {
+        applyBattleScramble(battleScramble);
+        return;
+    }
+
+    renderMutedScrambleMessage('Waiting for room scramble');
+}
+
+function clearPendingBattleSolveScrambleRetry({ resetAttempt = true } = {}) {
+    if (battlePendingSolveScrambleRetryTimer != null) {
+        window.clearTimeout(battlePendingSolveScrambleRetryTimer);
+        battlePendingSolveScrambleRetryTimer = null;
+    }
+    if (resetAttempt) {
+        battlePendingSolveScrambleRetryAttempt = 0;
+    }
+}
+
+function schedulePendingBattleSolveScrambleRetry() {
+    if (battlePendingSolveScrambleRetryTimer != null) return;
+    if (!battleManager.isJoined() || !battleManager.hasPendingSolveUpload()) return;
+    if (!battleManager.needsPendingSolveNextScramble()) return;
+
+    const delay = Math.min(
+        BATTLE_PENDING_SOLVE_SCRAMBLE_RETRY_BASE_MS * Math.pow(2, battlePendingSolveScrambleRetryAttempt),
+        BATTLE_PENDING_SOLVE_SCRAMBLE_RETRY_MAX_MS,
+    );
+    battlePendingSolveScrambleRetryAttempt += 1;
+    battlePendingSolveScrambleRetryTimer = window.setTimeout(() => {
+        battlePendingSolveScrambleRetryTimer = null;
+        void flushPendingBattleSolveUpload();
+    }, delay);
+}
+
+async function flushPendingBattleSolveUpload({ throwOnFailure = false } = {}) {
+    if (!battleManager.isJoined() || !battleManager.hasPendingSolveUpload()) {
+        clearPendingBattleSolveScrambleRetry();
+        return false;
+    }
+    if (battlePendingSolveUploadPromise) return battlePendingSolveUploadPromise;
+    clearPendingBattleSolveScrambleRetry({ resetAttempt: false });
+
+    battlePendingSolveUploadPromise = (async () => {
+        let nextBattleScramble;
+        if (battleManager.needsPendingSolveNextScramble()) {
+            try {
+                nextBattleScramble = await generateScrambleForType(battleManager.getScrambleType());
+            } catch (error) {
+                console.error('Failed to generate next battle scramble:', error);
+                schedulePendingBattleSolveScrambleRetry();
+                let pendingUploadError = null;
+                try {
+                    await battleManager.uploadPendingSolve();
+                } catch (uploadError) {
+                    pendingUploadError = uploadError;
+                    console.error('Failed to upload battle solve:', uploadError);
+                }
+                if (throwOnFailure) {
+                    throw pendingUploadError || error;
+                }
+                return false;
+            }
+        }
+
+        try {
+            await battleManager.uploadPendingSolve(
+                nextBattleScramble !== undefined ? { nextScramble: nextBattleScramble } : {}
+            );
+            clearPendingBattleSolveScrambleRetry();
+            return true;
+        } catch (error) {
+            console.error('Failed to upload battle solve:', error);
+            if (battleManager.needsPendingSolveNextScramble()) {
+                schedulePendingBattleSolveScrambleRetry();
+            }
+            if (throwOnFailure) {
+                throw error;
+            }
+            return false;
+        }
+    })().finally(() => {
+        battlePendingSolveUploadPromise = null;
+    });
+
+    return battlePendingSolveUploadPromise;
+}
+
+async function finalizeDeferredBattleSolveUiRefresh() {
+    if (!battleDeferredSolveUiPreviousStats) return;
+
+    const previousStats = battleDeferredSolveUiPreviousStats;
+    battleDeferredSolveUiPreviousStats = null;
+    syncStatsCacheWithFilteredSolves();
+    const currentStats = statsCache.getStats();
+    maybeShowNewBestAlert(previousStats, currentStats);
+    refreshSessionList();
+    refreshUI();
+    await loadNewScramble();
+}
+
 function escapeHtml(value) {
     return String(value ?? '')
         .replace(/&/g, '&amp;')
@@ -1521,7 +1662,7 @@ function renderBattleRows(targetId, rows = [], emptyMessage = 'Join a room to st
     tbody.innerHTML = rows.map((row) => `
         <tr class="${row.isLocal ? 'is-local-player' : ''}">
             ${compact ? '' : `<td class="battle-table-rank">${row.rank}</td>`}
-            <td class="battle-table-player battle-player-name" title="${escapeHtml(row.nickname)}"><span class="battle-player-name-text">${escapeHtml(row.nickname)}</span></td>
+            <td class="battle-table-player battle-player-name ${row.isDisconnected ? 'is-disconnected' : ''}" title="${escapeHtml(row.isDisconnected ? `${row.nickname} (disconnected)` : row.nickname)}"><span class="battle-player-name-text">${escapeHtml(row.nickname)}</span></td>
             <td class="battle-table-mean">${escapeHtml(row.meanTimeText || '-')}</td>
             <td class="battle-table-elo">${row.elo}</td>
             <td class="battle-table-win">${escapeHtml(row.winRateText || '0/0')}</td>
@@ -2319,9 +2460,8 @@ function toggleLastSolvePenaltyFromMainTimerShortcut(penalty) {
 }
 
 function syncBattlePenalty(roundId, penalty) {
-    if (!battleManager.isJoined()) return;
     if (roundId == null) return;
-    battleManager.updatePenalty(roundId, penalty);
+    void battleManager.updatePenalty(roundId, penalty);
 }
 
 function ensurePanelExpanded(panelId) {
@@ -2734,10 +2874,23 @@ async function commitSolve(elapsed, penalty = null, { isManual = false } = {}) {
     _skipSolveAddedRefresh = false;
     if (battleManager.isJoined()) {
         try {
-            const nextBattleScramble = await generateScrambleForType(battleManager.getScrambleType());
-            await battleManager.handleLocalSolve(solve, { nextScramble: nextBattleScramble });
+            if (battleManager.stageLocalSolve(solve)) {
+                const uploaded = await flushPendingBattleSolveUpload({ throwOnFailure: true });
+                if (!uploaded) {
+                    battleDeferredSolveUiPreviousStats = previousStats;
+                    if (!battleManager.hasPendingSolveUpload()) {
+                        void finalizeDeferredBattleSolveUiRefresh();
+                    }
+                    return;
+                }
+            }
         } catch (error) {
-            console.error('Failed to upload battle solve:', error);
+            console.error('Failed to submit battle solve:', error);
+            battleDeferredSolveUiPreviousStats = previousStats;
+            if (!battleManager.hasPendingSolveUpload()) {
+                void finalizeDeferredBattleSolveUiRefresh();
+            }
+            return;
         }
     }
     statsCache.append(solve);
@@ -4369,6 +4522,7 @@ async function init() {
     });
     sessionManager.on('solveDeleted', (solveIdOrIds) => {
         dailyStreakStore.deleteSolve(solveIdOrIds);
+        battleManager.handleLocalSolveDeleted(solveIdOrIds);
         if (window._isBulkAction) return;
         refreshSessionList();
         rebuildStatsCache();
@@ -4385,6 +4539,7 @@ async function init() {
     sessionManager.on('sessionDeleted', ({ solveIds } = {}) => {
         if (Array.isArray(solveIds) && solveIds.length > 0) {
             dailyStreakStore.deleteSolve(solveIds);
+            battleManager.handleLocalSolveDeleted(solveIds);
         }
         refreshSessionList();
         rebuildStatsCache();
@@ -5522,6 +5677,10 @@ async function syncScrambleTypeWithActiveSession({ loadScramble = false } = {}) 
 async function loadNewScramble() {
     const el = document.getElementById('scramble-text');
     if (battleManager.isJoined()) {
+        if (battleManager.hasPendingSolveUpload()) {
+            renderMutedScrambleMessage('Uploading battle solve');
+            return '';
+        }
         if (battleManager.isWaitingForOthers()) {
             renderMutedScrambleMessage('Waiting for everyone to finish');
             return '';
@@ -7343,8 +7502,11 @@ function handleBluetoothTimerEvent(event) {
 
 // ──── Timer Events ────
 async function onSolveComplete(elapsed, penalty = null) {
-    backToDismiss();
-    await commitSolve(elapsed, penalty, { isManual: isCurrentScrambleManual() });
+    try {
+        await commitSolve(elapsed, penalty, { isManual: isCurrentScrambleManual() });
+    } finally {
+        backToDismiss();
+    }
 }
 
 function onTimerStarted() {
@@ -9226,10 +9388,20 @@ function initBattleControls() {
         if (state.joined) {
             battlePendingCreateRoomId = '';
             closeBattleCreateOverlay();
-        }
-        syncBattleScrambleType(state.scrambleType || getSelectedScrambleType());
-        if (!state.joined && (isBattleEnvironmentActive || wasBattleActive)) {
+            if (state.connectionState === 'connected') {
+                void battleManager.handleTimerStateChange(timer.getState());
+                if (state.pendingSolveUpload) {
+                    void flushPendingBattleSolveUpload();
+                }
+            }
+            syncBattleScrambleType(state.scrambleType || getSelectedScrambleType());
+            syncBattleScrambleDisplay(state);
+            if (!state.pendingSolveUpload) {
+                void finalizeDeferredBattleSolveUiRefresh();
+            }
+        } else if (wasBattleActive) {
             void restoreAfterBattle();
+            void finalizeDeferredBattleSolveUiRefresh();
         }
         syncCameraBackgroundTimerPlacement();
     });

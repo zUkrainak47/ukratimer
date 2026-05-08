@@ -270,6 +270,10 @@
     white-space: nowrap;
 }
 
+.battle-player-name.is-disconnected .battle-player-name-text {
+    color: var(--text-tertiary);
+}
+
 .battle-empty-cell {
     color: var(--text-secondary);
     text-align: center;
