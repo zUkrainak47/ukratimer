@@ -23,6 +23,13 @@
     gap: 12px;
 }
 
+.battle-room-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+}
+
 .battle-room-summary {
     margin: 0;
     color: var(--text-secondary);
@@ -116,6 +123,10 @@
     color: var(--text-tertiary);
     background: var(--surface-ghost-muted);
     border-color: var(--divider-subtle);
+}
+
+.battle-room-toolbar .battle-copy-link {
+    min-width: 118px;
 }
 
 .battle-create-actions {
@@ -505,6 +516,14 @@ body.camera-background-active.battle-active #graph-panel {
     .battle-room-toolbar {
         align-items: stretch;
         flex-direction: column;
+    }
+
+    .battle-room-actions {
+        width: 100%;
+    }
+
+    .battle-room-actions .btn {
+        flex: 1 1 0;
     }
 
     .battle-room-toolbar .btn {

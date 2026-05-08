@@ -102,6 +102,8 @@ const SIMPLE_THEME_SHARED_SECTION_IDS = new Set([
 const THEME_BACKGROUND_IMAGE_SECTION_ID = 'background-image';
 const BATTLE_PENDING_SOLVE_SCRAMBLE_RETRY_BASE_MS = 1000;
 const BATTLE_PENDING_SOLVE_SCRAMBLE_RETRY_MAX_MS = 10000;
+const BATTLE_ROOM_LINK_PARAM = 'battle';
+const BATTLE_ROOM_ID_PATTERN = /^[a-z0-9](?:[a-z0-9_-]{2,31})$/i;
 let battleRestoreScrambleType = null;
 let isBattleEnvironmentActive = false;
 let battleGraphModalOpen = false;
@@ -114,6 +116,7 @@ let battlePendingSolveScrambleRetryTimer = null;
 let battlePendingSolveScrambleRetryAttempt = 0;
 let battleDeferredSolveUiPreviousStats = null;
 let battleFormHydrated = false;
+let battleCopyLinkFeedbackTimer = null;
 
 function clampThemeChannel(value) {
     return Math.max(0, Math.min(255, Math.round(Number(value) || 0)));
@@ -261,7 +264,7 @@ async function registerServiceWorker() {
     if (window.location?.protocol === 'file:') return;
 
     try {
-        const serviceWorkerUrl = new URL('../sw.js?v=2026050801', import.meta.url);
+        const serviceWorkerUrl = new URL('../sw.js?v=2026050802', import.meta.url);
         await navigator.serviceWorker.register(serviceWorkerUrl);
     } catch (error) {
         console.warn('Service worker registration failed:', error);
@@ -1682,6 +1685,94 @@ function normalizeBattleRoomId(value) {
     return String(value ?? '').trim().toLowerCase();
 }
 
+function normalizeBattleRoomLinkId(value) {
+    return String(value ?? '').trim();
+}
+
+function buildBattleRoomShareUrl(roomId) {
+    const normalizedRoomId = normalizeBattleRoomLinkId(roomId);
+    if (!BATTLE_ROOM_ID_PATTERN.test(normalizedRoomId)) return '';
+
+    const url = new URL(window.location.href);
+    url.search = '';
+    url.hash = `${BATTLE_ROOM_LINK_PARAM}=${encodeURIComponent(normalizedRoomId)}`;
+    return url.toString();
+}
+
+function getBattleRoomLinkIdFromUrl(urlValue = window.location.href) {
+    let url;
+    try {
+        url = new URL(urlValue, window.location.href);
+    } catch {
+        return '';
+    }
+
+    const hashValue = String(url.hash || '').replace(/^#/, '');
+    const hashParams = new URLSearchParams(hashValue.startsWith('?') ? hashValue.slice(1) : hashValue);
+    const candidate = normalizeBattleRoomLinkId(
+        hashParams.get(BATTLE_ROOM_LINK_PARAM)
+        || url.searchParams.get(BATTLE_ROOM_LINK_PARAM)
+        || ''
+    );
+
+    return BATTLE_ROOM_ID_PATTERN.test(candidate) ? candidate : '';
+}
+
+function setBattleCopyLinkFeedback(button, label, duration = 1200) {
+    if (!button) return;
+    if (battleCopyLinkFeedbackTimer != null) {
+        window.clearTimeout(battleCopyLinkFeedbackTimer);
+        battleCopyLinkFeedbackTimer = null;
+    }
+
+    button.dataset.feedbackActive = 'true';
+    button.textContent = label;
+    battleCopyLinkFeedbackTimer = window.setTimeout(() => {
+        battleCopyLinkFeedbackTimer = null;
+        delete button.dataset.feedbackActive;
+        button.textContent = 'Copy Link';
+    }, duration);
+}
+
+async function copyBattleRoomLink(button = getEl('battle-copy-link')) {
+    const shareUrl = buildBattleRoomShareUrl(battleManager.getRoomId());
+    if (!shareUrl) return;
+
+    try {
+        if (!navigator.clipboard?.writeText) throw new Error('Clipboard copy unavailable.');
+        await navigator.clipboard.writeText(shareUrl);
+        setBattleCopyLinkFeedback(button, 'Copied');
+    } catch {
+        await customPrompt('Clipboard copy was blocked. Copy the room link below.', shareUrl, 2000, 'Copy Battle Link');
+    }
+}
+
+function applyBattleRoomLinkFromUrl() {
+    const linkedRoomId = getBattleRoomLinkIdFromUrl();
+    if (!linkedRoomId) return false;
+
+    openBattleOverlay();
+    if (battleManager.isJoined()) return true;
+
+    const roomInput = getEl('battle-room-input');
+    const nicknameInput = getEl('battle-nickname-input');
+    const roomButton = getEl('battle-room-action');
+    if (roomInput) {
+        roomInput.value = linkedRoomId;
+    }
+    battlePendingCreateRoomId = '';
+    closeBattleCreateOverlay();
+
+    window.requestAnimationFrame(() => {
+        if (!nicknameInput?.value.trim()) {
+            nicknameInput?.focus();
+        } else {
+            roomButton?.focus();
+        }
+    });
+    return true;
+}
+
 function isScramblePreviewPanelVisibleInCurrentLayout() {
     const cubeCanvasContainer = getEl('cube-canvas-container');
     const cubePanel = getEl('cube-panel');
@@ -1777,6 +1868,7 @@ function renderBattleUi(state = battleManager.getState()) {
     const nicknameInput = getEl('battle-nickname-input');
     const roomInput = getEl('battle-room-input');
     const roomButton = getEl('battle-room-action');
+    const copyLinkButton = getEl('battle-copy-link');
     const statusEl = getEl('battle-connection-status');
     const preserveDraftInputs = !state.joined && state.connectionState === 'error';
     const shouldSyncInputs = (state.joined || !battleFormHydrated) && !preserveDraftInputs;
@@ -1815,6 +1907,14 @@ function renderBattleUi(state = battleManager.getState()) {
         roomButton.textContent = state.connectionState === 'connecting'
             ? 'Joining...'
             : (state.joined ? 'Leave Room' : 'Join Room');
+    }
+
+    if (copyLinkButton) {
+        copyLinkButton.hidden = !state.joined;
+        copyLinkButton.disabled = !state.joined;
+        if (copyLinkButton.dataset.feedbackActive !== 'true') {
+            copyLinkButton.textContent = 'Copy Link';
+        }
     }
 
     if (statusEl) {
@@ -9206,8 +9306,8 @@ function initBattleControls() {
     const graphButton = getEl('btn-battle-graph');
     const nicknameInput = getEl('battle-nickname-input');
     const roomInput = getEl('battle-room-input');
+    const copyLinkButton = getEl('battle-copy-link');
     const createScrambleTypeSelect = getEl('battle-create-scramble-type');
-    const roomPattern = /^[a-z0-9](?:[a-z0-9_-]{2,31})$/i;
 
     initBattleTableColumnVisibility();
 
@@ -9286,6 +9386,10 @@ function initBattleControls() {
         openGraphOverlay();
     });
 
+    copyLinkButton?.addEventListener('click', () => {
+        void copyBattleRoomLink(copyLinkButton);
+    });
+
     roomInput?.addEventListener('input', () => {
         battlePendingCreateRoomId = '';
         closeBattleCreateOverlay();
@@ -9311,7 +9415,7 @@ function initBattleControls() {
             });
             return;
         }
-        if (!roomPattern.test(roomId.trim())) {
+        if (!BATTLE_ROOM_ID_PATTERN.test(roomId.trim())) {
             renderBattleUi({
                 ...battleManager.getState(),
                 connectionState: 'error',
@@ -9348,7 +9452,7 @@ function initBattleControls() {
         const nickname = nicknameInput?.value || '';
         const normalizedRoomId = normalizeBattleRoomId(roomId);
 
-        if (!nickname.trim() || !roomPattern.test(roomId.trim()) || battlePendingCreateRoomId !== normalizedRoomId) {
+        if (!nickname.trim() || !BATTLE_ROOM_ID_PATTERN.test(roomId.trim()) || battlePendingCreateRoomId !== normalizedRoomId) {
             closeBattleCreateOverlay();
             renderBattleUi({
                 ...battleManager.getState(),
@@ -9448,6 +9552,10 @@ function initBattleControls() {
 
     syncBattleAuxButtons();
     renderBattleUi();
+    applyBattleRoomLinkFromUrl();
+    window.addEventListener('hashchange', () => {
+        applyBattleRoomLinkFromUrl();
+    });
 }
 
 function refreshSessionList() {
