@@ -102,6 +102,8 @@ const SIMPLE_THEME_SHARED_SECTION_IDS = new Set([
 const THEME_BACKGROUND_IMAGE_SECTION_ID = 'background-image';
 const BATTLE_PENDING_SOLVE_SCRAMBLE_RETRY_BASE_MS = 1000;
 const BATTLE_PENDING_SOLVE_SCRAMBLE_RETRY_MAX_MS = 10000;
+const BATTLE_TABLE_SHOW_WIN_MIN_WIDTH = 460;
+const BATTLE_TABLE_SHOW_MEAN_MIN_WIDTH = 545;
 const BATTLE_ROOM_LINK_PARAM = 'battle';
 const BATTLE_ROOM_ID_PATTERN = /^[a-z0-9](?:[a-z0-9_-]{2,31})$/i;
 let battleRestoreScrambleType = null;
@@ -1625,11 +1627,12 @@ function escapeHtml(value) {
 function syncBattleTableColumnVisibility(shell) {
     if (!shell) return;
     const width = shell.clientWidth || shell.getBoundingClientRect?.().width || 0;
-    const winThreshold = 460;
-    const meanThreshold = 545;
+    const showWin = width >= BATTLE_TABLE_SHOW_WIN_MIN_WIDTH;
+    const showMean = width >= BATTLE_TABLE_SHOW_MEAN_MIN_WIDTH;
 
-    shell.classList.toggle('battle-table-show-win', width >= winThreshold);
-    shell.classList.toggle('battle-table-show-mean', width >= meanThreshold);
+    shell.classList.toggle('battle-table-show-win', showWin);
+    shell.classList.toggle('battle-table-show-mean', showMean);
+    syncBattleEmptyRowColspan(shell, { showWin, showMean });
 }
 
 function syncBattleTableColumnVisibilityAll() {
@@ -1651,14 +1654,42 @@ function initBattleTableColumnVisibility() {
     });
 }
 
+function getBattleVisibleColumnCount({ compact = false, showWin = false, showMean = false } = {}) {
+    const baseColumnCount = compact ? 4 : 5;
+    return baseColumnCount + (showWin ? 1 : 0) + (showMean ? 1 : 0);
+}
+
+function getBattleTableColumnVisibility(shell) {
+    const width = shell?.clientWidth || shell?.getBoundingClientRect?.().width || 0;
+    return {
+        showWin: width >= BATTLE_TABLE_SHOW_WIN_MIN_WIDTH,
+        showMean: width >= BATTLE_TABLE_SHOW_MEAN_MIN_WIDTH,
+    };
+}
+
+function syncBattleEmptyRowColspan(shell, visibility = getBattleTableColumnVisibility(shell)) {
+    if (!shell) return;
+    const table = shell.querySelector('.battle-table');
+    const emptyCell = shell.querySelector('.battle-empty-cell');
+    if (!table || !emptyCell) return;
+
+    emptyCell.colSpan = getBattleVisibleColumnCount({
+        compact: table.classList.contains('battle-table-compact'),
+        showWin: visibility.showWin,
+        showMean: visibility.showMean,
+    });
+}
+
 function renderBattleRows(targetId, rows = [], emptyMessage = 'Join a room to start battling.', { compact = false } = {}) {
     const tbody = getEl(targetId);
     if (!tbody) return;
-    const columnCount = compact ? 6 : 7;
+    const shell = tbody.closest('.battle-table-shell');
+    const visibility = getBattleTableColumnVisibility(shell);
+    const columnCount = getBattleVisibleColumnCount({ compact, ...visibility });
 
     if (!rows.length) {
         tbody.innerHTML = `<tr><td colspan="${columnCount}" class="battle-empty-cell">${escapeHtml(emptyMessage)}</td></tr>`;
-        syncBattleTableColumnVisibility(tbody.closest('.battle-table-shell'));
+        syncBattleTableColumnVisibility(shell);
         return;
     }
 
@@ -1673,7 +1704,7 @@ function renderBattleRows(targetId, rows = [], emptyMessage = 'Join a room to st
             <td class="battle-table-time ${row.dimSolve ? 'is-muted-time' : ''}">${row.solveText}</td>
         </tr>
     `).join('');
-    syncBattleTableColumnVisibility(tbody.closest('.battle-table-shell'));
+    syncBattleTableColumnVisibility(shell);
 }
 
 function getBattleRoundTitle(state = battleManager.getState()) {
