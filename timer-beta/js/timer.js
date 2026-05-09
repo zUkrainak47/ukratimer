@@ -120,6 +120,10 @@ class Timer extends EventEmitter {
                 && e.target.id === 'manual-time-hidden-input';
             if (!isTypingInspectionSpace) return;
         }
+        if (this._shouldIgnoreKeyboardForInactiveMobilePanel()) {
+            this._resetKeyboardStartState({ cancelPendingStart: true });
+            return;
+        }
         if (this._hasBlockingOverlayOpen()) return;
         if (this._isManualTimeEntryActive() && !(this._isDesktopTypingEntryMode() && this._inspectionEnabled())) return;
 
@@ -240,6 +244,10 @@ class Timer extends EventEmitter {
                 && e.code === 'Space'
                 && e.target.id === 'manual-time-hidden-input';
             if (!isTypingInspectionSpace) return;
+        }
+        if (this._shouldIgnoreKeyboardForInactiveMobilePanel()) {
+            this._resetKeyboardStartState({ cancelPendingStart: true });
+            return;
         }
         const isStackmatKey = this._isStackmatKey(e);
 
@@ -800,6 +808,11 @@ class Timer extends EventEmitter {
     _isMobileTimerViewActive() {
         return document.body.classList.contains('mobile-viewport')
             && document.body.dataset.mobilePanel === 'timer';
+    }
+
+    _shouldIgnoreKeyboardForInactiveMobilePanel() {
+        return document.body.classList.contains('mobile-viewport')
+            && document.body.dataset.mobilePanel !== 'timer';
     }
 
     _shouldStartFromZenDocumentArea(target) {
