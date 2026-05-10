@@ -422,6 +422,8 @@ const DEFAULTS = {
     zenMode: false,
     cubeCollapsed: false,
     graphCollapsed: false,
+    cameraRightPanelSecondary: 'graph',
+    battleRightPanelSecondary: 'graph',
     graphView: { visibleCount: 0, yZoom: 1, xPan: 1, yPan: 0 },
     showDelta: false,
     deltaReference: '',

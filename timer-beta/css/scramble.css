@@ -697,6 +697,7 @@ body.solving #btn-next-scramble {
     }
 
     body.camera-background-active #btn-scramble-preview:not([hidden]),
+    body.camera-background-active #btn-battle-graph:not([hidden]),
     body.battle-active #btn-scramble-preview:not([hidden]),
     body.battle-active #btn-battle-graph:not([hidden]) {
         display: inline-flex;
@@ -715,7 +716,19 @@ body.solving #btn-next-scramble {
         right: calc(var(--space-md) + 72px);
     }
 
+    body.camera-background-active:not(.battle-active) #btn-battle-graph {
+        right: calc(var(--space-md) + 72px);
+    }
+
+    body.battle-active:not(.camera-background-toggle-visible) #btn-battle-graph {
+        right: calc(var(--space-md) + 36px);
+    }
+
     body.battle-active.camera-background-toggle-visible #btn-battle-graph {
+        right: calc(var(--space-md) + 72px);
+    }
+
+    body.battle-active.camera-background-toggle-visible.battle-swap-buttons-dual-visible #btn-battle-graph {
         right: calc(var(--space-md) + 108px);
     }
 
@@ -727,6 +740,7 @@ body.solving #btn-next-scramble {
         opacity: 0.72;
     }
 
+    body.camera-background-active:not(.solving) #btn-battle-graph,
     body.battle-active:not(.solving) #btn-battle-graph,
     body.battle-active:not(.solving) #btn-scramble-preview {
         opacity: 0.72;

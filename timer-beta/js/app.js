@@ -106,6 +106,8 @@ const BATTLE_TABLE_SHOW_WIN_MIN_WIDTH = 460;
 const BATTLE_TABLE_SHOW_MEAN_MIN_WIDTH = 545;
 const BATTLE_ROOM_LINK_PARAM = 'battle';
 const BATTLE_ROOM_ID_PATTERN = /^[a-z0-9](?:[a-z0-9_-]{2,31})$/i;
+const RIGHT_PANEL_SECONDARY_GRAPH = 'graph';
+const RIGHT_PANEL_SECONDARY_SCRAMBLE = 'scramble';
 let battleRestoreScrambleType = null;
 let isBattleEnvironmentActive = false;
 let battleGraphModalOpen = false;
@@ -1807,13 +1809,105 @@ function applyBattleRoomLinkFromUrl() {
     return true;
 }
 
+function normalizeRightPanelSecondary(value, fallback = RIGHT_PANEL_SECONDARY_GRAPH) {
+    return value === RIGHT_PANEL_SECONDARY_SCRAMBLE
+        ? RIGHT_PANEL_SECONDARY_SCRAMBLE
+        : fallback;
+}
+
+function getCameraRightPanelSecondary() {
+    return normalizeRightPanelSecondary(settings.get('cameraRightPanelSecondary'));
+}
+
+function getBattleRightPanelSecondary() {
+    return normalizeRightPanelSecondary(settings.get('battleRightPanelSecondary'));
+}
+
+function shouldUseCameraScrambleSecondary() {
+    return !mobileViewportQuery.matches
+        && wantsCameraBackground()
+        && !battleManager.isJoined()
+        && getCameraRightPanelSecondary() === RIGHT_PANEL_SECONDARY_SCRAMBLE;
+}
+
+function shouldUseBattleScrambleSecondary(state = battleManager.getState()) {
+    return !mobileViewportQuery.matches
+        && Boolean(state?.joined)
+        && !wantsCameraBackground()
+        && getBattleRightPanelSecondary() === RIGHT_PANEL_SECONDARY_SCRAMBLE;
+}
+
+function isGraphPanelVisibleInCurrentLayout() {
+    const graphPanel = getEl('graph-panel');
+    if (!graphPanel) return false;
+    if (document.body.classList.contains('camera-background-active')
+        && graphPanel.classList.contains('camera-background-hosting-timer')) {
+        return false;
+    }
+    return !graphPanel.classList.contains('secondary-scramble-preview-active');
+}
+
 function isScramblePreviewPanelVisibleInCurrentLayout() {
     const cubeCanvasContainer = getEl('cube-canvas-container');
-    const cubePanel = getEl('cube-panel');
-    if (!cubeCanvasContainer || !cubePanel) return false;
+    const hostPanel = cubeCanvasContainer?.closest('.panel');
+    if (!cubeCanvasContainer || !hostPanel) return false;
     if (cubeCanvasContainer.hidden) return false;
     return !(document.body.classList.contains('camera-background-active')
-        && cubePanel.classList.contains('camera-background-hosting-timer'));
+        && hostPanel.classList.contains('camera-background-hosting-timer'));
+}
+
+function shouldUseRightPanelScrambleSecondary(state = battleManager.getState()) {
+    return shouldUseCameraScrambleSecondary() || shouldUseBattleScrambleSecondary(state);
+}
+
+function syncRightPanelSecondaryContent(state = battleManager.getState()) {
+    const cubeBody = getEl('cube-body');
+    const cubeCanvasContainer = getEl('cube-canvas-container');
+    const graphPanel = getEl('graph-panel');
+    const graphBody = getEl('graph-body');
+    const graphCanvasContainer = getEl('graph-canvas-container');
+    const graphTitle = graphPanel?.querySelector('.graph-title');
+    if (!cubeBody || !cubeCanvasContainer || !graphPanel || !graphBody || !graphCanvasContainer) return;
+
+    const shouldShowScramblePreviewInGraph = shouldUseRightPanelScrambleSecondary(state);
+    if (shouldShowScramblePreviewInGraph) {
+        if (cubeCanvasContainer.parentElement !== graphBody) {
+            graphBody.insertBefore(cubeCanvasContainer, graphCanvasContainer);
+        }
+    } else if (cubeCanvasContainer.parentElement !== cubeBody) {
+        cubeBody.appendChild(cubeCanvasContainer);
+    }
+
+    graphPanel.classList.toggle('secondary-scramble-preview-active', shouldShowScramblePreviewInGraph);
+    if (graphTitle) {
+        graphTitle.textContent = shouldShowScramblePreviewInGraph ? 'Scramble Preview' : 'Time Trend';
+    }
+}
+
+function selectRightPanelSecondary(panelType) {
+    if (mobileViewportQuery.matches) return false;
+
+    const nextPanelType = normalizeRightPanelSecondary(panelType);
+    const isBattleSecondaryLayout = battleManager.isJoined() && !wantsCameraBackground();
+    const isCameraSecondaryLayout = wantsCameraBackground() && !battleManager.isJoined();
+
+    if (isBattleSecondaryLayout) {
+        settings.set('battleRightPanelSecondary', nextPanelType);
+        ensurePanelExpanded('graph-panel');
+        renderBattlePreviewPanel();
+        scheduleViewportLayoutSync();
+        return true;
+    }
+
+    if (isCameraSecondaryLayout) {
+        settings.set('cameraRightPanelSecondary', nextPanelType);
+        ensurePanelExpanded('graph-panel');
+        syncCameraBackgroundTimerPlacement();
+        scheduleViewportLayoutSync();
+        return true;
+    }
+
+    return false;
 }
 
 function syncBattleAuxButtons() {
@@ -1823,25 +1917,52 @@ function syncBattleAuxButtons() {
     const roomLaunchValue = getEl('battle-room-launch-value');
     const battleState = battleManager.getState();
     const isJoined = battleState.joined;
+    const isMobileLayout = mobileViewportQuery.matches;
     const isCameraBackgroundActive = document.body.classList.contains('camera-background-active');
-    const showPreview = !isScramblePreviewPanelVisibleInCurrentLayout();
-    const showGraph = isJoined && isCameraBackgroundActive;
+    const canSwapRightPanelContent = !isMobileLayout && (
+        (isCameraBackgroundActive && !isJoined)
+        || (isJoined && !isCameraBackgroundActive)
+    );
+    const showPreview = isMobileLayout
+        ? !isScramblePreviewPanelVisibleInCurrentLayout()
+        : (isCameraBackgroundActive || isJoined) && !isScramblePreviewPanelVisibleInCurrentLayout();
+    const showGraphPanelAction = !isMobileLayout
+        && !isGraphPanelVisibleInCurrentLayout()
+        && canSwapRightPanelContent;
+    const showGraphOverlayAction = !isMobileLayout && isJoined && isCameraBackgroundActive;
+    const showGraph = showGraphPanelAction || showGraphOverlayAction;
     const localElo = Number.isFinite(Number(battleState.localPlayer?.elo))
         ? Math.round(Number(battleState.localPlayer.elo))
         : 1000;
 
     if (previewButton) {
         previewButton.hidden = !showPreview;
+        const previewLabel = canSwapRightPanelContent
+            ? 'Show scramble preview panel'
+            : 'Open scramble preview';
+        previewButton.setAttribute('aria-label', previewLabel);
+        registerShortcutTooltip(previewButton, canSwapRightPanelContent ? [] : ['S'], 'bottom', previewLabel);
     }
     if (graphButton) {
         graphButton.hidden = !showGraph;
-        graphButton.setAttribute('aria-pressed', String(showGraph && battleGraphModalOpen));
+        graphButton.setAttribute('aria-pressed', String(showGraphOverlayAction && battleGraphModalOpen));
+        const graphLabel = showGraphOverlayAction
+            ? 'Open graph'
+            : 'Show graph panel';
+        graphButton.setAttribute('aria-label', graphLabel);
+        registerShortcutTooltip(graphButton, [], 'bottom', graphLabel);
     }
+    document.body.classList.toggle(
+        'battle-swap-buttons-dual-visible',
+        Boolean(isJoined && !isMobileLayout && !previewButton?.hidden && !graphButton?.hidden),
+    );
     if (roomLaunchButton) {
         roomLaunchButton.hidden = !isJoined;
-        roomLaunchButton.setAttribute('aria-label', isJoined
-            ? `Open online battle room. Current ELO ${localElo}.`
-            : 'Open online battle room');
+        const roomLabel = isJoined
+            ? `Online battle room. ELO = ${localElo}.`
+            : 'Online battle room';
+        roomLaunchButton.setAttribute('aria-label', roomLabel);
+        registerShortcutTooltip(roomLaunchButton, [], 'bottom', roomLabel);
     }
     if (roomLaunchValue) {
         roomLaunchValue.textContent = String(localElo);
@@ -1866,14 +1987,17 @@ function renderBattlePreviewPanel(state = battleManager.getState()) {
     const cubePanel = getEl('cube-panel');
     const cubeTitle = getEl('cube-panel-title');
     const cubeCanvasContainer = getEl('cube-canvas-container');
+    const cubeBody = getEl('cube-body');
     const battlePreview = getEl('battle-preview-panel');
 
-    if (!cubePanel || !cubeTitle || !cubeCanvasContainer || !battlePreview) return;
+    if (!cubePanel || !cubeTitle || !cubeCanvasContainer || !cubeBody || !battlePreview) return;
 
     const isBattle = state.joined;
+    syncRightPanelSecondaryContent(state);
+    const showBattleScrambleSecondary = shouldUseBattleScrambleSecondary(state);
     cubePanel.classList.toggle('battle-preview-active', isBattle);
     cubeTitle.textContent = isBattle ? getBattleRoundTitle(state) : 'Scramble Preview';
-    cubeCanvasContainer.hidden = isBattle;
+    cubeCanvasContainer.hidden = isBattle && !showBattleScrambleSecondary && cubeCanvasContainer.parentElement === cubeBody;
     battlePreview.hidden = !isBattle;
 
     if (!isBattle) {
@@ -2237,6 +2361,7 @@ function syncCameraBackgroundTimerPlacement() {
     cubePanel.classList.toggle('camera-background-hosting-timer', targetSlot === cubeSlot);
     graphPanel.classList.toggle('camera-background-hosting-timer', targetSlot === graphSlot);
     document.body.classList.toggle('camera-background-active', useCameraBackground);
+    syncRightPanelSecondaryContent();
     syncTimerPopupOverlayPlacement();
     syncBattleAuxButtons();
 }
@@ -3845,6 +3970,8 @@ function syncMobilePanelState() {
     document.body.classList.toggle('coarse-pointer', isCoarsePointer);
     document.body.classList.toggle('mobile-viewport', isMobileViewport);
     syncManualTimeInputMode();
+    syncCameraBackgroundTimerPlacement();
+    renderBattlePreviewPanel();
 
     if (!isMobileViewport) {
         if (quickActionsState.manualEntryActive) {
@@ -3858,6 +3985,7 @@ function syncMobilePanelState() {
         syncInspectionCancelControl();
         syncPersistentManualEntryMode();
         syncBattleAuxButtons();
+        scheduleViewportLayoutSync();
         return;
     }
 
@@ -4527,6 +4655,11 @@ function initScramblePreviewModal() {
     const closeBtn = getEl('scramble-preview-close');
 
     openBtn?.addEventListener('click', () => {
+        if (selectRightPanelSecondary(RIGHT_PANEL_SECONDARY_SCRAMBLE)) {
+            hideShortcutTooltip();
+            openBtn.blur();
+            return;
+        }
         openScramblePreviewModal();
         hideShortcutTooltip();
         openBtn.blur();
@@ -4749,6 +4882,17 @@ async function init() {
         }
         if (key === 'cameraBackgroundEnabled' || key === 'cameraBackgroundSuspended') {
             void syncCameraBackgroundMode();
+            renderBattlePreviewPanel();
+            scheduleViewportLayoutSync();
+        }
+        if (key === 'cameraRightPanelSecondary') {
+            syncCameraBackgroundTimerPlacement();
+            syncBattleAuxButtons();
+            scheduleViewportLayoutSync();
+        }
+        if (key === 'battleRightPanelSecondary') {
+            renderBattlePreviewPanel();
+            scheduleViewportLayoutSync();
         }
         if (key === 'centerTimer' || key === 'displayFont' || key === 'pillSize' || key === 'largeScrambleText') {
             scheduleViewportLayoutSync();
@@ -4760,6 +4904,8 @@ async function init() {
         syncPersistentManualEntryMode();
         void reconcileHardwareTimeEntryMode();
         void syncCameraBackgroundMode();
+        renderBattlePreviewPanel();
+        scheduleViewportLayoutSync();
     });
 
     // Init UI
@@ -9664,11 +9810,16 @@ function initBattleControls() {
 
     roomLaunchButton?.addEventListener('click', () => {
         if (!battleManager.isJoined()) return;
+        hideShortcutTooltip();
         roomLaunchButton.blur();
         openBattleOverlay();
     });
 
     graphButton?.addEventListener('click', () => {
+        if (selectRightPanelSecondary(RIGHT_PANEL_SECONDARY_GRAPH)) {
+            graphButton.blur();
+            return;
+        }
         if (battleGraphModalOpen) {
             closeGraphOverlay();
             return;
