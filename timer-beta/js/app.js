@@ -1092,6 +1092,21 @@ function handlePopState(event) {
         return;
     }
 
+    if (document.getElementById('battle-create-overlay')?.classList.contains('active')) {
+        closeBattleCreateOverlay();
+        return;
+    }
+
+    if (battleGraphModalOpen) {
+        closeGraphOverlay();
+        return;
+    }
+
+    if (document.getElementById('battle-overlay')?.classList.contains('active')) {
+        closeBattleOverlay();
+        return;
+    }
+
     if (isShortcutsOverlayOpen()) {
         closeKeyboardShortcutsOverlay({ isPopState: true });
         return;
