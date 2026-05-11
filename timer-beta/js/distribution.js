@@ -804,7 +804,11 @@ function renderChart(targetCanvas, width, height, { interactive = false, activeI
     if (maxCount >= 10 && Math.floor(maxCount / yStep) < 4) {
         yStep = niceStepAtMost(Math.floor(maxCount / 4))
     }
-    const displayMax = Math.ceil(maxCount / yStep) * yStep
+    const topTick = Math.ceil(maxCount / yStep) * yStep
+    const displayMax = Math.min(
+        (maxCount - (topTick - yStep)) <= yStep * 0.1 ? maxCount : topTick,
+        Math.max(maxCount, visibleCount),
+    )
     ctx.font = tickFont
     ctx.textBaseline = 'middle'
     ctx.strokeStyle = colors.grid
