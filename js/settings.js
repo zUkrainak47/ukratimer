@@ -1,6 +1,6 @@
-import { load, save } from './storage.js?v=2026050201';
-import { normalizeTimeEntryMode, TIME_ENTRY_MODE_TIMER, TIME_ENTRY_MODE_TYPING } from './time-entry.js?v=2026050201';
-import { EventEmitter } from './utils.js?v=2026050201';
+import { load, save } from './storage.js?v=2026051104';
+import { normalizeTimeEntryMode, TIME_ENTRY_MODE_TIMER, TIME_ENTRY_MODE_TYPING } from './time-entry.js?v=2026051104';
+import { EventEmitter } from './utils.js?v=2026051104';
 
 export const THEME_DEFAULT_ID = 'default';
 export const THEME_OLED_ID = 'oled';
@@ -422,6 +422,8 @@ const DEFAULTS = {
     zenMode: false,
     cubeCollapsed: false,
     graphCollapsed: false,
+    cameraRightPanelSecondary: 'graph',
+    battleRightPanelSecondary: 'graph',
     graphView: { visibleCount: 0, yZoom: 1, xPan: 1, yPan: 0 },
     showDelta: false,
     deltaReference: '',

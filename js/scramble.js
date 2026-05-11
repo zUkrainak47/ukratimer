@@ -1,5 +1,5 @@
-import { load, save } from './storage.js?v=2026050201';
-import { createSubsetScramble } from './subset-scramblers.js?v=2026050201';
+import { load, save } from './storage.js?v=2026051104';
+import { createSubsetScramble } from './subset-scramblers.js?v=2026051104';
 
 let randomScrambleForEvent;
 let _cubingInitPromise = null;
@@ -600,6 +600,10 @@ export async function getScramble() {
     const text = await generateNextScrambleForType(type);
     pushNewScramble(text, type, false);
     return text;
+}
+
+export async function generateScrambleForType(type) {
+    return generateNextScrambleForType(type);
 }
 
 export function getPrevScramble() {

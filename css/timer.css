@@ -695,17 +695,17 @@ body:not(.mobile-viewport) #inspection-cancel-wrap {
     font-weight: 600;
 }
 
-body.camera-background-active #cube-camera-timer-slot #timer-display-wrapper {
+body.camera-background-active :is(#cube-camera-timer-slot, #graph-camera-timer-slot) #timer-display-wrapper {
     --camera-host-delta-gap: 0.36em;
     max-width: 100%;
 }
 
-body.camera-background-active #cube-camera-timer-slot #timer-display {
+body.camera-background-active :is(#cube-camera-timer-slot, #graph-camera-timer-slot) #timer-display {
     max-width: 100%;
     line-height: 0.95;
 }
 
-body.camera-background-active #cube-camera-timer-slot #timer-delta {
+body.camera-background-active :is(#cube-camera-timer-slot, #graph-camera-timer-slot) #timer-delta {
     left: 50%;
     top: 100%;
     bottom: auto;
@@ -714,30 +714,30 @@ body.camera-background-active #cube-camera-timer-slot #timer-delta {
     transform: translateX(-50%);
 }
 
-body.camera-background-active #cube-camera-timer-slot #timer-delta::before {
+body.camera-background-active :is(#cube-camera-timer-slot, #graph-camera-timer-slot) #timer-delta::before {
     display: none;
 }
 
-body.camera-background-active #cube-camera-timer-slot #timer-info {
+body.camera-background-active :is(#cube-camera-timer-slot, #graph-camera-timer-slot) #timer-info {
     flex-direction: column;
     align-items: center;
     gap: var(--space-sm);
 }
 
-body.camera-background-active #cube-camera-timer-slot #timer-info > span {
+body.camera-background-active :is(#cube-camera-timer-slot, #graph-camera-timer-slot) #timer-info > span {
     justify-content: center;
     min-width: min(100%, 220px);
 }
 
-body.camera-background-active #cube-camera-timer-slot #timer-display-wrapper.delta-reserved {
+body.camera-background-active :is(#cube-camera-timer-slot, #graph-camera-timer-slot) #timer-display-wrapper.delta-reserved {
     margin-bottom: calc(var(--camera-host-delta-gap) + 0.12em);
 }
 
-body.camera-background-active #cube-camera-timer-slot #timer-display-wrapper.delta-reserved + #timer-info {
+body.camera-background-active :is(#cube-camera-timer-slot, #graph-camera-timer-slot) #timer-display-wrapper.delta-reserved + #timer-info {
     margin-top: var(--camera-host-delta-gap);
 }
 
-body.solving.camera-background-active #cube-camera-timer-slot #timer-delta {
+body.solving.camera-background-active :is(#cube-camera-timer-slot, #graph-camera-timer-slot) #timer-delta {
     opacity: 0 !important;
 }
 
@@ -824,7 +824,7 @@ body.pill-size-large #timer-info .stat-label {
     color: var(--text-secondary);
 }
 
-body.camera-background-active.pill-size-large #cube-camera-timer-slot #timer-info {
+body.camera-background-active.pill-size-large :is(#cube-camera-timer-slot, #graph-camera-timer-slot) #timer-info {
     flex-direction: column;
     align-items: center;
     gap: var(--space-sm);
@@ -832,7 +832,7 @@ body.camera-background-active.pill-size-large #cube-camera-timer-slot #timer-inf
     font-size: var(--text-sm);
 }
 
-body.camera-background-active.pill-size-large #cube-camera-timer-slot #timer-info > span {
+body.camera-background-active.pill-size-large :is(#cube-camera-timer-slot, #graph-camera-timer-slot) #timer-info > span {
     display: inline-flex;
     align-items: baseline;
     justify-content: center;
@@ -849,28 +849,28 @@ body.camera-background-active.pill-size-large #cube-camera-timer-slot #timer-inf
     transform: none;
 }
 
-body.camera-background-active.pill-size-large #cube-camera-timer-slot #timer-info > span:hover {
+body.camera-background-active.pill-size-large :is(#cube-camera-timer-slot, #graph-camera-timer-slot) #timer-info > span:hover {
     background: var(--pill-background-hover);
     border-color: var(--pill-border-hover);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
-body.camera-background-active.pill-size-large #cube-camera-timer-slot #timer-info .stat-label {
+body.camera-background-active.pill-size-large :is(#cube-camera-timer-slot, #graph-camera-timer-slot) #timer-info .stat-label {
     font-size: 0.61em;
     color: var(--text-secondary);
 }
 
-body.camera-background-active.typing-entry-mode:not(.coarse-pointer) #cube-camera-timer-slot #timer-display-wrapper.delta-reserved {
+body.camera-background-active.typing-entry-mode:not(.coarse-pointer) :is(#cube-camera-timer-slot, #graph-camera-timer-slot) #timer-display-wrapper.delta-reserved {
     margin-bottom: 0;
 }
 
-body.camera-background-active.typing-entry-mode:not(.coarse-pointer) #cube-camera-timer-slot #timer-display-wrapper.delta-reserved + #timer-info {
+body.camera-background-active.typing-entry-mode:not(.coarse-pointer) :is(#cube-camera-timer-slot, #graph-camera-timer-slot) #timer-display-wrapper.delta-reserved + #timer-info {
     margin-top: 0;
 }
 
-body.camera-background-active.typing-entry-mode:not(.coarse-pointer) #cube-camera-timer-slot #manual-time-entry,
-body.camera-background-active.typing-entry-mode:not(.coarse-pointer) #cube-camera-timer-slot #manual-time-formatted,
-body.camera-background-active.typing-entry-mode:not(.coarse-pointer) #cube-camera-timer-slot #manual-time-entry-display {
+body.camera-background-active.typing-entry-mode:not(.coarse-pointer) :is(#cube-camera-timer-slot, #graph-camera-timer-slot) #manual-time-entry,
+body.camera-background-active.typing-entry-mode:not(.coarse-pointer) :is(#cube-camera-timer-slot, #graph-camera-timer-slot) #manual-time-formatted,
+body.camera-background-active.typing-entry-mode:not(.coarse-pointer) :is(#cube-camera-timer-slot, #graph-camera-timer-slot) #manual-time-entry-display {
     line-height: 0.95;
 }
 

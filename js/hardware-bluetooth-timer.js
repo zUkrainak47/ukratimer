@@ -1,5 +1,5 @@
-import { createAes128 } from './crypto-aes128.js?v=2026050201';
-import { EventEmitter } from './utils.js?v=2026050201';
+import { createAes128 } from './crypto-aes128.js?v=2026051104';
+import { EventEmitter } from './utils.js?v=2026051104';
 
 const STORAGE_KEY_MAC_MAP = 'ukratimer-bluetooth-timer-mac-map-v1';
 
@@ -359,7 +359,7 @@ export class BluetoothTimerInput extends EventEmitter {
         return {
             cleanup: async ({ emitDisconnectState } = {}) => {
                 characteristic.removeEventListener('characteristicvaluechanged', onValue);
-                await characteristic.stopNotifications().catch(() => {});
+                await characteristic.stopNotifications().catch(() => { });
                 if (emitDisconnectState) {
                     this._emitTimerEvent({ state: BluetoothTimerState.DISCONNECT });
                 }
@@ -537,7 +537,7 @@ export class BluetoothTimerInput extends EventEmitter {
         return {
             cleanup: async ({ emitDisconnectState } = {}) => {
                 readCharacteristicRef.removeEventListener('characteristicvaluechanged', onValue);
-                await readCharacteristicRef.stopNotifications().catch(() => {});
+                await readCharacteristicRef.stopNotifications().catch(() => { });
                 if (emitDisconnectState) {
                     this._emitTimerEvent({ state: BluetoothTimerState.DISCONNECT });
                 }

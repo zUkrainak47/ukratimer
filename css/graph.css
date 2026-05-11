@@ -7,6 +7,20 @@
     flex: 0 0 auto;
 }
 
+#graph-panel.secondary-scramble-preview-active .graph-legend,
+#graph-panel.secondary-scramble-preview-active #graph-canvas-container,
+#graph-panel.secondary-scramble-preview-active #graph-controls {
+    display: none;
+}
+
+#graph-panel #cube-canvas-container {
+    display: none;
+}
+
+#graph-panel.secondary-scramble-preview-active #cube-canvas-container {
+    display: block;
+}
+
 /* Legend in header */
 .graph-legend {
     display: inline-flex;
@@ -27,6 +41,10 @@
 
 #graph-panel:not(.collapsed) .graph-title {
     display: none;
+}
+
+#graph-panel.secondary-scramble-preview-active:not(.collapsed) .graph-title {
+    display: inline;
 }
 
 #graph-panel.collapsed .graph-legend {

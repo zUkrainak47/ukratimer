@@ -1,6 +1,6 @@
-import { settings } from './settings.js?v=2026050201';
-import { isHardwareTimeEntryMode, TIME_ENTRY_MODE_TIMER, TIME_ENTRY_MODE_TYPING } from './time-entry.js?v=2026050201';
-import { EventEmitter, formatTime, truncateTimeDisplay } from './utils.js?v=2026050201';
+import { settings } from './settings.js?v=2026051104';
+import { isHardwareTimeEntryMode, TIME_ENTRY_MODE_TIMER, TIME_ENTRY_MODE_TYPING } from './time-entry.js?v=2026051104';
+import { EventEmitter, formatTime, truncateTimeDisplay } from './utils.js?v=2026051104';
 
 const State = {
     IDLE: 'idle',
@@ -51,6 +51,7 @@ class Timer extends EventEmitter {
         this._ghostClickGuardTimeout = null;
         this._typingInspectionTimeout = null;
         this._cachedViewport = { width: 0, height: 0 };
+        this._startGuard = null;
 
         this._onKeyDown = this._onKeyDown.bind(this);
         this._onKeyUp = this._onKeyUp.bind(this);
@@ -118,6 +119,10 @@ class Timer extends EventEmitter {
                 && e.code === 'Space'
                 && e.target.id === 'manual-time-hidden-input';
             if (!isTypingInspectionSpace) return;
+        }
+        if (this._shouldIgnoreKeyboardForInactiveMobilePanel()) {
+            this._resetKeyboardStartState({ cancelPendingStart: true });
+            return;
         }
         if (this._hasBlockingOverlayOpen()) return;
         if (this._isManualTimeEntryActive() && !(this._isDesktopTypingEntryMode() && this._inspectionEnabled())) return;
@@ -239,6 +244,10 @@ class Timer extends EventEmitter {
                 && e.code === 'Space'
                 && e.target.id === 'manual-time-hidden-input';
             if (!isTypingInspectionSpace) return;
+        }
+        if (this._shouldIgnoreKeyboardForInactiveMobilePanel()) {
+            this._resetKeyboardStartState({ cancelPendingStart: true });
+            return;
         }
         const isStackmatKey = this._isStackmatKey(e);
 
@@ -428,6 +437,8 @@ class Timer extends EventEmitter {
     }
 
     _handleStartPress() {
+        if (this._shouldBlockStart()) return;
+
         if (this.state === State.IDLE || this.state === State.STOPPED) {
             if (this._inspectionEnabled()) {
                 this._armInspection();
@@ -799,6 +810,11 @@ class Timer extends EventEmitter {
             && document.body.dataset.mobilePanel === 'timer';
     }
 
+    _shouldIgnoreKeyboardForInactiveMobilePanel() {
+        return document.body.classList.contains('mobile-viewport')
+            && document.body.dataset.mobilePanel !== 'timer';
+    }
+
     _shouldStartFromZenDocumentArea(target) {
         if (!document.body.classList.contains('zen')) return false;
         if (this.state !== State.IDLE && this.state !== State.STOPPED) return false;
@@ -1029,6 +1045,9 @@ class Timer extends EventEmitter {
     }
 
     startExternalInspection({ elapsedMs = 0 } = {}) {
+        if ((this.state === State.IDLE || this.state === State.STOPPED) && this._shouldBlockStart()) {
+            return false;
+        }
         if (!this._inspectionEnabled()) return false;
 
         if (!this._inspectionSnapshot) {
@@ -1089,6 +1108,7 @@ class Timer extends EventEmitter {
             this.syncExternalRunningTime(safeElapsed);
             return;
         }
+        if (this._shouldBlockStart()) return;
 
         const fromInspection = this._isInspectionTickingState(this.state);
 
@@ -1191,6 +1211,22 @@ class Timer extends EventEmitter {
 
     getState() {
         return this.state;
+    }
+
+    setStartGuard(fn) {
+        this._startGuard = typeof fn === 'function' ? fn : null;
+    }
+
+    _shouldBlockStart() {
+        const startGuardReason = this._getStartGuardReason();
+        if (!startGuardReason) return false;
+        this.emit('startBlocked', startGuardReason);
+        return true;
+    }
+
+    _getStartGuardReason() {
+        if (typeof this._startGuard !== 'function') return null;
+        return this._startGuard(this.state) || null;
     }
 
     _formatRunningDisplay(elapsed) {

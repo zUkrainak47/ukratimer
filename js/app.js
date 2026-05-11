@@ -1,19 +1,20 @@
-import { timer, State as TimerState } from './timer.js?v=2026050201';
-import { SCRAMBLE_TYPE_OPTIONS, getScramble, getCurrentScramble, getCurrentScrambleType, getPrevScramble, getNextScramble, getSelectedScrambleType, setCurrentScramble, setScrambleType, isCurrentScrambleManual, hasPrevScramble, isViewingPreviousScramble, preloadScrambleEngines, needsCubingWarmup, runCubingWarmup } from './scramble.js?v=2026050201';
-import { sessionManager } from './session.js?v=2026050201';
-import { settings, DEFAULTS, THEME_OPTIONS, THEME_COLOR_SECTIONS, THEME_DEFAULT_ID, THEME_OLED_ID, THEME_CUSTOM_IDS, composeThemeColor, decomposeThemeColor, getThemePresetColors, isCustomThemeId } from './settings.js?v=2026050201';
-import { parseGraphStatType, parseRollingStatType, rollingStatAt, StatsCache } from './stats.js?v=2026050201';
-import { formatTime, formatSolveTime, formatTimerDisplayTime, getEffectiveTime, formatDate, formatDateTime, parseTimeInputToMs, truncateTimeDisplay } from './utils.js?v=2026050201';
-import { initModal, showSolveDetail, showAverageDetail, closeModal, closeMoveSessionMenus, customConfirm, customPrompt, getModalSelectionContext, setModalStatNavigator, setModalStatButtons, armModalGhostClickGuard } from './modal.js?v=2026050201';
-import { applyMegaminxScramble, applyPyraminxScramble, applyScramble, applySquare1Scramble, applySkewbScramble, applyClockScramble, clearCubeDisplay, drawMegaminxFacePreview, drawSquare1, drawClock, initCubeDisplay, updateCubeDisplay, updateMegaminxDisplay, updatePyraminxDisplay, updateSquare1Display, updateSkewbDisplay, updateClockDisplay } from './cube-display.js?v=2026050201';
-import { initGraph, updateGraph, updateGraphData, setLineVisibility, getLineVisibility, applyAction, graphEvents, getGraphLineDefinitions } from './graph.js?v=2026050201';
-import { closeTimeDistributionModal, initTimeDistributionModal, isTimeDistributionModalOpen, refreshTimeDistributionData, refreshTimeDistributionTheme, showTimeDistributionModal } from './distribution.js?v=2026050201';
-import { exportAll, importAll, isCsTimerFormat, importCsTimer, exportCsTimer, importSessionCsv } from './storage.js?v=2026050201';
-import { connectGoogleDrive, exportBackupToGoogleDrive, getGoogleDriveBackupInfo, hasGoogleDriveSession, importBackupFromGoogleDrive, isGoogleDriveSyncConfigured, restoreGoogleDriveSession, signOutOfGoogleDrive } from './google-drive-sync.js?v=2026050201';
-import { dailyStreakStore, normalizeDailyStreakGoal } from './streaks.js?v=2026050201';
-import { bluetoothTimerInput, BluetoothTimerState } from './hardware-bluetooth-timer.js?v=2026050201';
-import { stackmatInput } from './hardware-stackmat.js?v=2026050201';
-import { isHardwareTimeEntryMode, isTypingTimeEntryMode, normalizeTimeEntryMode, TIME_ENTRY_MODE_BLUETOOTH, TIME_ENTRY_MODE_STACKMAT, TIME_ENTRY_MODE_TIMER } from './time-entry.js?v=2026050201';
+import { timer, State as TimerState } from './timer.js?v=2026051104';
+import { SCRAMBLE_TYPE_OPTIONS, generateScrambleForType, getScramble, getCurrentScramble, getCurrentScrambleType, getPrevScramble, getNextScramble, getSelectedScrambleType, setCurrentScramble, setScrambleType, isCurrentScrambleManual, hasPrevScramble, isViewingPreviousScramble, preloadScrambleEngines, needsCubingWarmup, runCubingWarmup } from './scramble.js?v=2026051104';
+import { sessionManager } from './session.js?v=2026051104';
+import { settings, DEFAULTS, THEME_OPTIONS, THEME_COLOR_SECTIONS, THEME_DEFAULT_ID, THEME_OLED_ID, THEME_CUSTOM_IDS, composeThemeColor, decomposeThemeColor, getThemePresetColors, isCustomThemeId } from './settings.js?v=2026051104';
+import { parseGraphStatType, parseRollingStatType, rollingStatAt, StatsCache } from './stats.js?v=2026051104';
+import { formatTime, formatSolveTime, formatTimerDisplayTime, getEffectiveTime, formatDate, formatDateTime, parseTimeInputToMs, truncateTimeDisplay } from './utils.js?v=2026051104';
+import { initModal, showSolveDetail, showAverageDetail, closeModal, closeMoveSessionMenus, customConfirm, customPrompt, getModalSelectionContext, setModalStatNavigator, setModalStatButtons, armModalGhostClickGuard } from './modal.js?v=2026051104';
+import { applyMegaminxScramble, applyPyraminxScramble, applyScramble, applySquare1Scramble, applySkewbScramble, applyClockScramble, clearCubeDisplay, drawMegaminxFacePreview, drawSquare1, drawClock, initCubeDisplay, updateCubeDisplay, updateMegaminxDisplay, updatePyraminxDisplay, updateSquare1Display, updateSkewbDisplay, updateClockDisplay } from './cube-display.js?v=2026051104';
+import { initGraph, updateGraph, updateGraphData, setLineVisibility, getLineVisibility, applyAction, graphEvents, getGraphLineDefinitions } from './graph.js?v=2026051104';
+import { closeTimeDistributionModal, initTimeDistributionModal, isTimeDistributionModalOpen, refreshTimeDistributionData, refreshTimeDistributionTheme, showTimeDistributionModal } from './distribution.js?v=2026051104';
+import { exportAll, importAll, isCsTimerFormat, importCsTimer, exportCsTimer, importSessionCsv } from './storage.js?v=2026051104';
+import { connectGoogleDrive, exportBackupToGoogleDrive, getGoogleDriveBackupInfo, hasGoogleDriveSession, importBackupFromGoogleDrive, isGoogleDriveSyncConfigured, restoreGoogleDriveSession, signOutOfGoogleDrive } from './google-drive-sync.js?v=2026051104';
+import { dailyStreakStore, normalizeDailyStreakGoal } from './streaks.js?v=2026051104';
+import { bluetoothTimerInput, BluetoothTimerState } from './hardware-bluetooth-timer.js?v=2026051104';
+import { stackmatInput } from './hardware-stackmat.js?v=2026051104';
+import { isHardwareTimeEntryMode, isTypingTimeEntryMode, normalizeTimeEntryMode, TIME_ENTRY_MODE_BLUETOOTH, TIME_ENTRY_MODE_STACKMAT, TIME_ENTRY_MODE_TIMER } from './time-entry.js?v=2026051104';
+import { battleManager } from './battle.js?v=2026051104';
 
 let currentScramble = '';
 let currentSortCol = null;
@@ -99,6 +100,27 @@ const SIMPLE_THEME_SHARED_SECTION_IDS = new Set([
     'scramble-preview-clock',
 ]);
 const THEME_BACKGROUND_IMAGE_SECTION_ID = 'background-image';
+const BATTLE_PENDING_SOLVE_SCRAMBLE_RETRY_BASE_MS = 1000;
+const BATTLE_PENDING_SOLVE_SCRAMBLE_RETRY_MAX_MS = 10000;
+const BATTLE_TABLE_SHOW_WIN_MIN_WIDTH = 460;
+const BATTLE_TABLE_SHOW_MEAN_MIN_WIDTH = 545;
+const BATTLE_ROOM_LINK_PARAM = 'battle';
+const BATTLE_ROOM_ID_PATTERN = /^[a-z0-9](?:[a-z0-9_-]{2,31})$/i;
+const RIGHT_PANEL_SECONDARY_GRAPH = 'graph';
+const RIGHT_PANEL_SECONDARY_SCRAMBLE = 'scramble';
+let battleRestoreScrambleType = null;
+let isBattleEnvironmentActive = false;
+let battleGraphModalOpen = false;
+let battleGraphCanvasPlaceholder = null;
+let battleGraphControlsPlaceholder = null;
+let battleGraphCloseRestoreTimer = null;
+let battlePendingCreateRoomId = '';
+let battlePendingSolveUploadPromise = null;
+let battlePendingSolveScrambleRetryTimer = null;
+let battlePendingSolveScrambleRetryAttempt = 0;
+let battleDeferredSolveUiPreviousStats = null;
+let battleFormHydrated = false;
+let battleCopyLinkFeedbackTimer = null;
 
 function clampThemeChannel(value) {
     return Math.max(0, Math.min(255, Math.round(Number(value) || 0)));
@@ -246,7 +268,7 @@ async function registerServiceWorker() {
     if (window.location?.protocol === 'file:') return;
 
     try {
-        const serviceWorkerUrl = new URL('../sw.js?v=2026050201', import.meta.url);
+        const serviceWorkerUrl = new URL('../sw.js?v=2026051104', import.meta.url);
         await navigator.serviceWorker.register(serviceWorkerUrl);
     } catch (error) {
         console.warn('Service worker registration failed:', error);
@@ -687,27 +709,28 @@ function failImportProgress(source = importProgressState.source) {
     hideImportProgress({ delayMs: 2200 });
 }
 const buttonShortcutTooltipBindings = [
-    { selector: '#btn-settings', binding: ['/'], placement: 'right' },
-    { selector: '#scramble-text', binding: ['C'] },
-    { selector: '#btn-copy-scramble', binding: ['C'] },
-    { selector: '#btn-prev-scramble', binding: [','] },
-    { selector: '#btn-next-scramble', binding: ['.'] },
-    { selector: '#btn-scramble-preview', binding: ['S'] },
-    { selector: '#btn-zen', binding: ['Z'] },
-    { selector: '#btn-graph-distribution', binding: ['T'] },
-    { selector: 'button[data-action="last25"]', binding: ['Shift', 'Enter'] },
-    { selector: 'button[data-action="reset"]', binding: ['Enter'] },
-    { selector: 'button[data-action="zoom-x-in"]', binding: ['Shift', 'ArrowLeft'] },
-    { selector: 'button[data-action="zoom-x-out"]', binding: ['Shift', 'ArrowRight'] },
-    { selector: 'button[data-action="pan-left"]', binding: ['ArrowLeft'] },
-    { selector: 'button[data-action="pan-right"]', binding: ['ArrowRight'] },
-    { selector: 'button[data-action="zoom-y-in"]', binding: ['Shift', 'ArrowUp'] },
-    { selector: 'button[data-action="zoom-y-out"]', binding: ['Shift', 'ArrowDown'] },
-    { selector: 'button[data-action="pan-up"]', binding: ['ArrowUp'] },
-    { selector: 'button[data-action="pan-down"]', binding: ['ArrowDown'] },
-    { selector: '#modal-btn-dnf', binding: ['-'] },
-    { selector: '#modal-btn-plus2', binding: ['+'] },
-    { selector: '#modal-btn-delete', binding: ['Backspace'] },
+    { selector: '#btn-settings', action: 'Settings', binding: ['/'], placement: 'right' },
+    { selector: '#scramble-text', action: 'Copy scramble', binding: ['C'] },
+    { selector: '#btn-copy-scramble', action: 'Copy scramble', binding: ['C'] },
+    { selector: '#btn-prev-scramble', action: 'Previous scramble', binding: [','] },
+    { selector: '#btn-next-scramble', action: 'Next scramble', binding: ['.'] },
+    { selector: '#btn-scramble-preview', action: 'Scramble preview', binding: ['S'] },
+    { selector: '#btn-zen', action: 'Zen mode', binding: ['Z'] },
+    { selector: '#timer-action-comment', action: 'Comment on last solve', binding: ['Tab'] },
+    { selector: '#btn-graph-distribution', action: 'Time distribution', binding: ['T'] },
+    { selector: 'button[data-action="last25"]', action: 'Show last 25 solves', binding: ['Shift', 'Enter'] },
+    { selector: 'button[data-action="reset"]', action: 'Reset view', binding: ['Enter'] },
+    { selector: 'button[data-action="zoom-x-in"]', action: 'Zoom in horizontally', binding: ['Shift', 'ArrowLeft'], placement: 'top' },
+    { selector: 'button[data-action="zoom-x-out"]', action: 'Zoom out horizontally', binding: ['Shift', 'ArrowRight'], placement: 'top' },
+    { selector: 'button[data-action="pan-left"]', action: 'Pan left', binding: ['ArrowLeft'], placement: 'top' },
+    { selector: 'button[data-action="pan-right"]', action: 'Pan right', binding: ['ArrowRight'], placement: 'top' },
+    { selector: 'button[data-action="zoom-y-in"]', action: 'Zoom in vertically', binding: ['Shift', 'ArrowUp'], placement: 'top' },
+    { selector: 'button[data-action="zoom-y-out"]', action: 'Zoom out vertically', binding: ['Shift', 'ArrowDown'], placement: 'top' },
+    { selector: 'button[data-action="pan-up"]', action: 'Pan up', binding: ['ArrowUp'], placement: 'top' },
+    { selector: 'button[data-action="pan-down"]', action: 'Pan down', binding: ['ArrowDown'], placement: 'top' },
+    { selector: '#modal-btn-dnf', action: 'DNF', binding: ['-'] },
+    { selector: '#modal-btn-plus2', action: '+2', binding: ['+'] },
+    { selector: '#modal-btn-delete', action: 'Delete', binding: ['Backspace'] },
 ];
 const keyboardShortcutGroups = [
     {
@@ -882,7 +905,7 @@ const ALT_SCRAMBLE_TYPE_SHORTCUTS = new Map([
     ['KeyC', 'clock'],
     ['KeyS', 'skewb'],
 ]);
-const blockingOverlayIds = ['modal-overlay', 'distribution-overlay', 'scramble-preview-overlay', 'confirm-overlay', 'prompt-overlay', 'shortcuts-overlay', 'chart-image-overlay', 'theme-customization-overlay'];
+const blockingOverlayIds = ['modal-overlay', 'distribution-overlay', 'scramble-preview-overlay', 'confirm-overlay', 'prompt-overlay', 'shortcuts-overlay', 'chart-image-overlay', 'theme-customization-overlay', 'battle-overlay', 'graph-overlay', 'battle-create-overlay'];
 const THEME_OPTION_LABELS = new Map(THEME_OPTIONS.map(({ value, label }) => [value, label]));
 let settingsOverlayEl = null;
 let shortcutsOverlayEl = null;
@@ -891,9 +914,12 @@ let scramblePreviewOverlayEl = null;
 let scramblePreviewModalCanvas = null;
 let scramblePreviewModalSizeFrame = 0;
 let scramblePreviewThemeRefreshTimeout = 0;
+let battleTableResizeObserver = null;
 let themeCustomizationCloseCleanupTimer = 0;
 let syncSettingsRowSeparators = () => { };
 let shortcutTooltipEl = null;
+let shortcutTitleTooltipObserver = null;
+let activeShortcutTooltipTarget = null;
 let viewportLayoutFrame = null;
 let instantTimerTabLayoutCleanupFrame = null;
 let desktopScrambleTransitionSyncFrame = null;
@@ -1015,20 +1041,42 @@ const PYRAMINX_PREVIEW_BUTTON_TRIANGLE_DEFINITIONS = Object.freeze(createPreview
 
 // ──── History & Back Button ────
 
+let activeHistoryInterception = false;
+
+function getNonInterceptedHistoryState(state = window.history.state) {
+    if (!state || typeof state !== 'object') return null;
+
+    const nextState = { ...state };
+    delete nextState.isBackIntercepted;
+    return Object.keys(nextState).length ? nextState : null;
+}
+
+function clearStaleHistoryInterceptionState() {
+    if (!window.history.state?.isBackIntercepted || activeHistoryInterception) return;
+    window.history.replaceState(getNonInterceptedHistoryState(), '');
+}
+
 function pushHistoryState() {
-    // Only push if we're not already in a pushed state to avoid nested pushes for simple overlays
-    if (window.history.state?.isBackIntercepted) return;
+    // Only reuse markers created by this page instance; restored tabs can keep stale marker state.
+    if (activeHistoryInterception && window.history.state?.isBackIntercepted) return;
+    clearStaleHistoryInterceptionState();
     window.history.pushState({ isBackIntercepted: true }, '');
+    activeHistoryInterception = true;
 }
 
 function backToDismiss() {
-    if (window.history.state?.isBackIntercepted) {
+    if (activeHistoryInterception && window.history.state?.isBackIntercepted) {
+        activeHistoryInterception = false;
         window.history.back();
+        return;
     }
+    activeHistoryInterception = false;
+    clearStaleHistoryInterceptionState();
 }
 
 function handlePopState(event) {
     if (event.state?.isBackIntercepted) return;
+    activeHistoryInterception = false;
 
     // Check overlays in order of priority (most specific/blocking first)
     if (document.getElementById('confirm-overlay').classList.contains('active')) {
@@ -1092,6 +1140,7 @@ function handlePopState(event) {
     }
 }
 
+clearStaleHistoryInterceptionState();
 window.addEventListener('popstate', handlePopState);
 
 function isTouchPrimaryInput() {
@@ -1273,6 +1322,801 @@ function getEl(id) {
         domCache.set(id, document.getElementById(id));
     }
     return domCache.get(id);
+}
+
+function getBattleManagedControlElements() {
+    return [
+        getEl('btn-scramble-type-desktop'),
+        getEl('btn-scramble-type-mobile'),
+        getEl('btn-edit-scramble'),
+        getEl('btn-prev-scramble'),
+        getEl('btn-next-scramble'),
+    ].filter(Boolean);
+}
+
+function syncScrambleNavigationButtons({ locked = battleManager.isJoined() || isBattleEnvironmentActive } = {}) {
+    const editBtn = getEl('btn-edit-scramble');
+    const prevBtn = getEl('btn-prev-scramble');
+    const nextBtn = getEl('btn-next-scramble');
+    const controlsLocked = Boolean(locked);
+
+    if (editBtn) {
+        editBtn.disabled = controlsLocked;
+        editBtn.hidden = controlsLocked;
+    }
+    if (prevBtn) {
+        prevBtn.disabled = controlsLocked || !hasPrevScramble();
+        prevBtn.hidden = controlsLocked;
+    }
+    if (nextBtn) {
+        nextBtn.disabled = controlsLocked;
+        nextBtn.hidden = controlsLocked;
+    }
+}
+
+function setBattleManagedControlsLocked(locked) {
+    getBattleManagedControlElements().forEach((element) => {
+        element.disabled = Boolean(locked);
+    });
+    syncScrambleNavigationButtons({ locked });
+    performBattleManagedControlLockVisuals(locked);
+    if (locked) {
+        closeScrambleTypeMenus();
+    }
+}
+
+function openBattleOverlay() {
+    const overlay = getEl('battle-overlay');
+    if (!overlay) return;
+    overlay.classList.add('active');
+    overlay.setAttribute('aria-hidden', 'false');
+    requestAnimationFrame(syncBattleTableColumnVisibilityAll);
+}
+
+function closeBattleOverlay() {
+    const overlay = getEl('battle-overlay');
+    if (!overlay) return;
+    overlay.classList.remove('active');
+    overlay.setAttribute('aria-hidden', 'true');
+    closeBattleCreateOverlay();
+}
+
+function openBattleCreateOverlay() {
+    const overlay = getEl('battle-create-overlay');
+    if (!overlay) return;
+    overlay.classList.add('active');
+    overlay.setAttribute('aria-hidden', 'false');
+}
+
+function closeBattleCreateOverlay() {
+    const overlay = getEl('battle-create-overlay');
+    if (!overlay) return;
+    overlay.classList.remove('active');
+    overlay.setAttribute('aria-hidden', 'true');
+    battlePendingCreateRoomId = '';
+}
+
+function ensureGraphOverlayModal() {
+    const overlay = getEl('graph-overlay');
+    if (!overlay) return null;
+
+    let modalBox = overlay.querySelector('.battle-graph-modal-box');
+    let legendSlot = overlay.querySelector('.battle-graph-modal-legend');
+    let modalBody = overlay.querySelector('.battle-graph-modal-body');
+
+    if (!modalBox || !legendSlot || !modalBody) {
+        overlay.replaceChildren();
+
+        modalBox = document.createElement('div');
+        modalBox.className = 'modal-box battle-graph-modal-box';
+
+        const header = document.createElement('div');
+        header.className = 'panel-header battle-graph-modal-header';
+
+        legendSlot = document.createElement('div');
+        legendSlot.className = 'battle-graph-modal-legend';
+        header.appendChild(legendSlot);
+
+        modalBody = document.createElement('div');
+        modalBody.className = 'modal-body battle-graph-modal-body';
+
+        modalBox.append(header, modalBody);
+        overlay.appendChild(modalBox);
+    }
+
+    return { overlay, modalBox, legendSlot, modalBody };
+}
+
+function restoreGraphOverlayContent() {
+    const graphBody = getEl('graph-body');
+    const graphCanvasContainer = getEl('graph-canvas-container');
+    const graphControls = getEl('graph-controls');
+    if (!graphBody || !graphCanvasContainer || !graphControls) return;
+
+    if (battleGraphCanvasPlaceholder?.parentNode) {
+        battleGraphCanvasPlaceholder.parentNode.insertBefore(graphCanvasContainer, battleGraphCanvasPlaceholder);
+        battleGraphCanvasPlaceholder.remove();
+        battleGraphCanvasPlaceholder = null;
+    } else if (graphCanvasContainer.parentElement !== graphBody) {
+        graphBody.appendChild(graphCanvasContainer);
+    }
+
+    if (battleGraphControlsPlaceholder?.parentNode) {
+        battleGraphControlsPlaceholder.parentNode.insertBefore(graphControls, battleGraphControlsPlaceholder);
+        battleGraphControlsPlaceholder.remove();
+        battleGraphControlsPlaceholder = null;
+    } else if (graphControls.parentElement !== graphBody) {
+        graphBody.appendChild(graphControls);
+    }
+}
+
+function openGraphOverlay() {
+    const graphPanel = getEl('graph-panel');
+    const graphBody = getEl('graph-body');
+    const graphCanvasContainer = getEl('graph-canvas-container');
+    const graphControls = getEl('graph-controls');
+    const graphLegend = graphPanel?.querySelector('.graph-legend');
+    const modal = ensureGraphOverlayModal();
+    if (!graphPanel || !graphBody || !graphCanvasContainer || !graphControls || !modal) return;
+    if (battleGraphCloseRestoreTimer != null) {
+        window.clearTimeout(battleGraphCloseRestoreTimer);
+        battleGraphCloseRestoreTimer = null;
+    }
+
+    if (!battleGraphCanvasPlaceholder) {
+        battleGraphCanvasPlaceholder = document.createComment('graph-canvas-container-placeholder');
+        graphCanvasContainer.parentElement?.insertBefore(battleGraphCanvasPlaceholder, graphCanvasContainer);
+    }
+    if (!battleGraphControlsPlaceholder) {
+        battleGraphControlsPlaceholder = document.createComment('graph-controls-placeholder');
+        graphControls.parentElement?.insertBefore(battleGraphControlsPlaceholder, graphControls);
+    }
+
+    modal.legendSlot.replaceChildren(graphLegend ? graphLegend.cloneNode(true) : document.createTextNode('Time Trend'));
+    modal.modalBody.append(graphCanvasContainer, graphControls);
+
+    battleGraphModalOpen = true;
+    document.body.classList.add('battle-graph-modal-open');
+    modal.overlay.classList.add('active');
+    modal.overlay.setAttribute('aria-hidden', 'false');
+    syncBattleAuxButtons();
+}
+
+function closeGraphOverlay() {
+    const overlay = getEl('graph-overlay');
+    if (!overlay) return;
+    battleGraphModalOpen = false;
+    document.body.classList.remove('battle-graph-modal-open');
+    overlay.classList.remove('active');
+    overlay.setAttribute('aria-hidden', 'true');
+    if (battleGraphCloseRestoreTimer != null) {
+        window.clearTimeout(battleGraphCloseRestoreTimer);
+    }
+    battleGraphCloseRestoreTimer = window.setTimeout(() => {
+        battleGraphCloseRestoreTimer = null;
+        if (battleGraphModalOpen) return;
+        restoreGraphOverlayContent();
+    }, 200);
+    syncBattleAuxButtons();
+}
+
+function applyBattleScramble(scramble) {
+    const nextScramble = String(scramble ?? '').trim();
+    if (!nextScramble) return;
+    currentScramble = nextScramble;
+    setCurrentScramble(nextScramble);
+    updateScrambleUI(nextScramble);
+}
+
+function syncBattleScrambleDisplay(state = battleManager.getState()) {
+    if (!state?.joined) return;
+    if (state.pendingSolveUpload) {
+        renderMutedScrambleMessage('Uploading battle solve');
+        return;
+    }
+    if (state.submittedRoundId === state.currentRoundId) {
+        renderMutedScrambleMessage('Waiting for everyone to finish');
+        return;
+    }
+
+    const battleScramble = String(state.currentScramble ?? '').trim();
+    if (battleScramble) {
+        applyBattleScramble(battleScramble);
+        return;
+    }
+
+    renderMutedScrambleMessage('Waiting for room scramble');
+}
+
+function clearPendingBattleSolveScrambleRetry({ resetAttempt = true } = {}) {
+    if (battlePendingSolveScrambleRetryTimer != null) {
+        window.clearTimeout(battlePendingSolveScrambleRetryTimer);
+        battlePendingSolveScrambleRetryTimer = null;
+    }
+    if (resetAttempt) {
+        battlePendingSolveScrambleRetryAttempt = 0;
+    }
+}
+
+function schedulePendingBattleSolveScrambleRetry() {
+    if (battlePendingSolveScrambleRetryTimer != null) return;
+    if (!battleManager.isJoined() || !battleManager.hasPendingSolveUpload()) return;
+    if (!battleManager.needsPendingSolveNextScramble()) return;
+
+    const delay = Math.min(
+        BATTLE_PENDING_SOLVE_SCRAMBLE_RETRY_BASE_MS * Math.pow(2, battlePendingSolveScrambleRetryAttempt),
+        BATTLE_PENDING_SOLVE_SCRAMBLE_RETRY_MAX_MS,
+    );
+    battlePendingSolveScrambleRetryAttempt += 1;
+    battlePendingSolveScrambleRetryTimer = window.setTimeout(() => {
+        battlePendingSolveScrambleRetryTimer = null;
+        void flushPendingBattleSolveUpload();
+    }, delay);
+}
+
+async function flushPendingBattleSolveUpload({ throwOnFailure = false } = {}) {
+    if (!battleManager.isJoined() || !battleManager.hasPendingSolveUpload()) {
+        clearPendingBattleSolveScrambleRetry();
+        return false;
+    }
+    if (battlePendingSolveUploadPromise) return battlePendingSolveUploadPromise;
+    clearPendingBattleSolveScrambleRetry({ resetAttempt: false });
+
+    battlePendingSolveUploadPromise = (async () => {
+        let nextBattleScramble;
+        if (battleManager.needsPendingSolveNextScramble()) {
+            try {
+                nextBattleScramble = await generateScrambleForType(battleManager.getScrambleType());
+            } catch (error) {
+                console.error('Failed to generate next battle scramble:', error);
+                schedulePendingBattleSolveScrambleRetry();
+                let pendingUploadError = null;
+                try {
+                    await battleManager.uploadPendingSolve();
+                } catch (uploadError) {
+                    pendingUploadError = uploadError;
+                    console.error('Failed to upload battle solve:', uploadError);
+                }
+                if (throwOnFailure) {
+                    throw pendingUploadError || error;
+                }
+                return false;
+            }
+        }
+
+        try {
+            await battleManager.uploadPendingSolve(
+                nextBattleScramble !== undefined ? { nextScramble: nextBattleScramble } : {}
+            );
+            clearPendingBattleSolveScrambleRetry();
+            return true;
+        } catch (error) {
+            console.error('Failed to upload battle solve:', error);
+            if (battleManager.needsPendingSolveNextScramble()) {
+                schedulePendingBattleSolveScrambleRetry();
+            }
+            if (throwOnFailure) {
+                throw error;
+            }
+            return false;
+        }
+    })().finally(() => {
+        battlePendingSolveUploadPromise = null;
+    });
+
+    return battlePendingSolveUploadPromise;
+}
+
+async function finalizeDeferredBattleSolveUiRefresh() {
+    if (!battleDeferredSolveUiPreviousStats) return;
+
+    const previousStats = battleDeferredSolveUiPreviousStats;
+    battleDeferredSolveUiPreviousStats = null;
+    syncStatsCacheWithFilteredSolves();
+    const currentStats = statsCache.getStats();
+    maybeShowNewBestAlert(previousStats, currentStats);
+    refreshSessionList();
+    refreshUI();
+    await loadNewScramble();
+}
+
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function syncBattleTableColumnVisibility(shell) {
+    if (!shell) return;
+    const width = shell.clientWidth || shell.getBoundingClientRect?.().width || 0;
+    const showWin = width >= BATTLE_TABLE_SHOW_WIN_MIN_WIDTH;
+    const showMean = width >= BATTLE_TABLE_SHOW_MEAN_MIN_WIDTH;
+
+    shell.classList.toggle('battle-table-show-win', showWin);
+    shell.classList.toggle('battle-table-show-mean', showMean);
+    syncBattleEmptyRowColspan(shell, { showWin, showMean });
+}
+
+function syncBattleTableColumnVisibilityAll() {
+    document.querySelectorAll('.battle-table-shell').forEach(syncBattleTableColumnVisibility);
+}
+
+function initBattleTableColumnVisibility() {
+    syncBattleTableColumnVisibilityAll();
+    if (typeof ResizeObserver !== 'function') {
+        window.addEventListener('resize', syncBattleTableColumnVisibilityAll);
+        return;
+    }
+
+    battleTableResizeObserver = new ResizeObserver((entries) => {
+        entries.forEach((entry) => syncBattleTableColumnVisibility(entry.target));
+    });
+    document.querySelectorAll('.battle-table-shell').forEach((shell) => {
+        battleTableResizeObserver.observe(shell);
+    });
+}
+
+function getBattleVisibleColumnCount({ compact = false, showWin = false, showMean = false } = {}) {
+    const baseColumnCount = compact ? 4 : 5;
+    return baseColumnCount + (showWin ? 1 : 0) + (showMean ? 1 : 0);
+}
+
+function getBattleTableColumnVisibility(shell) {
+    const width = shell?.clientWidth || shell?.getBoundingClientRect?.().width || 0;
+    return {
+        showWin: width >= BATTLE_TABLE_SHOW_WIN_MIN_WIDTH,
+        showMean: width >= BATTLE_TABLE_SHOW_MEAN_MIN_WIDTH,
+    };
+}
+
+function syncBattleEmptyRowColspan(shell, visibility = getBattleTableColumnVisibility(shell)) {
+    if (!shell) return;
+    const table = shell.querySelector('.battle-table');
+    const emptyCell = shell.querySelector('.battle-empty-cell');
+    if (!table || !emptyCell) return;
+
+    emptyCell.colSpan = getBattleVisibleColumnCount({
+        compact: table.classList.contains('battle-table-compact'),
+        showWin: visibility.showWin,
+        showMean: visibility.showMean,
+    });
+}
+
+function renderBattleRows(targetId, rows = [], emptyMessage = 'Join a room to start battling.', { compact = false } = {}) {
+    const tbody = getEl(targetId);
+    if (!tbody) return;
+    const shell = tbody.closest('.battle-table-shell');
+    const visibility = getBattleTableColumnVisibility(shell);
+    const columnCount = getBattleVisibleColumnCount({ compact, ...visibility });
+
+    if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="${columnCount}" class="battle-empty-cell">${escapeHtml(emptyMessage)}</td></tr>`;
+        syncBattleTableColumnVisibility(shell);
+        return;
+    }
+
+    tbody.innerHTML = rows.map((row) => `
+        <tr class="${row.isLocal ? 'is-local-player' : ''}">
+            ${compact ? '' : `<td class="battle-table-rank">${row.rank}</td>`}
+            <td class="battle-table-player battle-player-name ${row.isDisconnected ? 'is-disconnected' : ''}" title="${escapeHtml(row.isDisconnected ? `${row.nickname} (disconnected)` : row.nickname)}"><span class="battle-player-name-text">${escapeHtml(row.nickname)}</span></td>
+            <td class="battle-table-mean">${escapeHtml(row.meanTimeText || '-')}</td>
+            <td class="battle-table-elo">${row.elo}</td>
+            <td class="battle-table-win">${escapeHtml(row.winRateText || '0/0')}</td>
+            <td class="battle-table-status"><span class="battle-status-pill" data-battle-status="${row.status}">${row.statusLabel}</span></td>
+            <td class="battle-table-time ${row.dimSolve ? 'is-muted-time' : ''}">${row.solveText}</td>
+        </tr>
+    `).join('');
+    syncBattleTableColumnVisibility(shell);
+}
+
+function getBattleRoundTitle(state = battleManager.getState()) {
+    const scrambleType = state.scrambleType || '333';
+    return `${getScrambleTypeButtonDescription(scrambleType)} - Round ${Math.max(1, state.currentRoundId || 1)}`;
+}
+
+function normalizeBattleRoomId(value) {
+    return String(value ?? '').trim().toLowerCase();
+}
+
+function normalizeBattleRoomLinkId(value) {
+    return String(value ?? '').trim();
+}
+
+function buildBattleRoomShareUrl(roomId) {
+    const normalizedRoomId = normalizeBattleRoomLinkId(roomId);
+    if (!BATTLE_ROOM_ID_PATTERN.test(normalizedRoomId)) return '';
+
+    const url = new URL(window.location.href);
+    url.search = '';
+    url.hash = `${BATTLE_ROOM_LINK_PARAM}=${encodeURIComponent(normalizedRoomId)}`;
+    return url.toString();
+}
+
+function getBattleRoomLinkIdFromUrl(urlValue = window.location.href) {
+    let url;
+    try {
+        url = new URL(urlValue, window.location.href);
+    } catch {
+        return '';
+    }
+
+    const hashValue = String(url.hash || '').replace(/^#/, '');
+    const hashParams = new URLSearchParams(hashValue.startsWith('?') ? hashValue.slice(1) : hashValue);
+    const candidate = normalizeBattleRoomLinkId(
+        hashParams.get(BATTLE_ROOM_LINK_PARAM)
+        || url.searchParams.get(BATTLE_ROOM_LINK_PARAM)
+        || ''
+    );
+
+    return BATTLE_ROOM_ID_PATTERN.test(candidate) ? candidate : '';
+}
+
+function setBattleCopyLinkFeedback(button, label, duration = 1200) {
+    if (!button) return;
+    if (battleCopyLinkFeedbackTimer != null) {
+        window.clearTimeout(battleCopyLinkFeedbackTimer);
+        battleCopyLinkFeedbackTimer = null;
+    }
+
+    button.dataset.feedbackActive = 'true';
+    button.textContent = label;
+    battleCopyLinkFeedbackTimer = window.setTimeout(() => {
+        battleCopyLinkFeedbackTimer = null;
+        delete button.dataset.feedbackActive;
+        button.textContent = 'Copy Link';
+    }, duration);
+}
+
+async function copyBattleRoomLink(button = getEl('battle-copy-link')) {
+    const shareUrl = buildBattleRoomShareUrl(battleManager.getRoomId());
+    if (!shareUrl) return;
+
+    try {
+        if (!navigator.clipboard?.writeText) throw new Error('Clipboard copy unavailable.');
+        await navigator.clipboard.writeText(shareUrl);
+        setBattleCopyLinkFeedback(button, 'Copied');
+    } catch {
+        await customPrompt('Clipboard copy was blocked. Copy the room link below.', shareUrl, 2000, 'Copy Battle Link');
+    }
+}
+
+function applyBattleRoomLinkFromUrl() {
+    const linkedRoomId = getBattleRoomLinkIdFromUrl();
+    if (!linkedRoomId) return false;
+
+    openBattleOverlay();
+    if (battleManager.isJoined()) return true;
+
+    const roomInput = getEl('battle-room-input');
+    const nicknameInput = getEl('battle-nickname-input');
+    const roomButton = getEl('battle-room-action');
+    if (roomInput) {
+        roomInput.value = linkedRoomId;
+    }
+    battlePendingCreateRoomId = '';
+    closeBattleCreateOverlay();
+
+    window.requestAnimationFrame(() => {
+        if (!nicknameInput?.value.trim()) {
+            nicknameInput?.focus();
+        } else {
+            roomButton?.focus();
+        }
+    });
+    return true;
+}
+
+function normalizeRightPanelSecondary(value, fallback = RIGHT_PANEL_SECONDARY_GRAPH) {
+    return value === RIGHT_PANEL_SECONDARY_SCRAMBLE
+        ? RIGHT_PANEL_SECONDARY_SCRAMBLE
+        : fallback;
+}
+
+function getCameraRightPanelSecondary() {
+    return normalizeRightPanelSecondary(settings.get('cameraRightPanelSecondary'));
+}
+
+function getBattleRightPanelSecondary() {
+    return normalizeRightPanelSecondary(settings.get('battleRightPanelSecondary'));
+}
+
+function shouldUseCameraScrambleSecondary() {
+    return !mobileViewportQuery.matches
+        && wantsCameraBackground()
+        && !battleManager.isJoined()
+        && getCameraRightPanelSecondary() === RIGHT_PANEL_SECONDARY_SCRAMBLE;
+}
+
+function shouldUseBattleScrambleSecondary(state = battleManager.getState()) {
+    return !mobileViewportQuery.matches
+        && Boolean(state?.joined)
+        && !wantsCameraBackground()
+        && getBattleRightPanelSecondary() === RIGHT_PANEL_SECONDARY_SCRAMBLE;
+}
+
+function isGraphPanelVisibleInCurrentLayout() {
+    const graphPanel = getEl('graph-panel');
+    if (!graphPanel) return false;
+    if (document.body.classList.contains('camera-background-active')
+        && graphPanel.classList.contains('camera-background-hosting-timer')) {
+        return false;
+    }
+    return !graphPanel.classList.contains('secondary-scramble-preview-active');
+}
+
+function isScramblePreviewPanelVisibleInCurrentLayout() {
+    const cubeCanvasContainer = getEl('cube-canvas-container');
+    const hostPanel = cubeCanvasContainer?.closest('.panel');
+    if (!cubeCanvasContainer || !hostPanel) return false;
+    if (cubeCanvasContainer.hidden) return false;
+    return !(document.body.classList.contains('camera-background-active')
+        && hostPanel.classList.contains('camera-background-hosting-timer'));
+}
+
+function shouldUseRightPanelScrambleSecondary(state = battleManager.getState()) {
+    return shouldUseCameraScrambleSecondary() || shouldUseBattleScrambleSecondary(state);
+}
+
+function syncRightPanelSecondaryContent(state = battleManager.getState()) {
+    const cubeBody = getEl('cube-body');
+    const cubeCanvasContainer = getEl('cube-canvas-container');
+    const graphPanel = getEl('graph-panel');
+    const graphBody = getEl('graph-body');
+    const graphCanvasContainer = getEl('graph-canvas-container');
+    const graphTitle = graphPanel?.querySelector('.graph-title');
+    if (!cubeBody || !cubeCanvasContainer || !graphPanel || !graphBody || !graphCanvasContainer) return;
+
+    const shouldShowScramblePreviewInGraph = shouldUseRightPanelScrambleSecondary(state);
+    if (shouldShowScramblePreviewInGraph) {
+        if (cubeCanvasContainer.parentElement !== graphBody) {
+            graphBody.insertBefore(cubeCanvasContainer, graphCanvasContainer);
+        }
+    } else if (cubeCanvasContainer.parentElement !== cubeBody) {
+        cubeBody.appendChild(cubeCanvasContainer);
+    }
+
+    graphPanel.classList.toggle('secondary-scramble-preview-active', shouldShowScramblePreviewInGraph);
+    if (graphTitle) {
+        graphTitle.textContent = shouldShowScramblePreviewInGraph ? 'Scramble Preview' : 'Time Trend';
+    }
+}
+
+function selectRightPanelSecondary(panelType) {
+    if (mobileViewportQuery.matches) return false;
+
+    const nextPanelType = normalizeRightPanelSecondary(panelType);
+    const isBattleSecondaryLayout = battleManager.isJoined() && !wantsCameraBackground();
+    const isCameraSecondaryLayout = wantsCameraBackground() && !battleManager.isJoined();
+
+    if (isBattleSecondaryLayout) {
+        settings.set('battleRightPanelSecondary', nextPanelType);
+        ensurePanelExpanded('graph-panel');
+        renderBattlePreviewPanel();
+        scheduleViewportLayoutSync();
+        return true;
+    }
+
+    if (isCameraSecondaryLayout) {
+        settings.set('cameraRightPanelSecondary', nextPanelType);
+        ensurePanelExpanded('graph-panel');
+        syncCameraBackgroundTimerPlacement();
+        scheduleViewportLayoutSync();
+        return true;
+    }
+
+    return false;
+}
+
+function syncBattleAuxButtons() {
+    const previewButton = getEl('btn-scramble-preview');
+    const graphButton = getEl('btn-battle-graph');
+    const roomLaunchButton = getEl('btn-battle-room-launch');
+    const roomLaunchValue = getEl('battle-room-launch-value');
+    const battleState = battleManager.getState();
+    const isJoined = battleState.joined;
+    const isMobileLayout = mobileViewportQuery.matches;
+    const isCameraBackgroundActive = document.body.classList.contains('camera-background-active');
+    const canSwapRightPanelContent = !isMobileLayout && (
+        (isCameraBackgroundActive && !isJoined)
+        || (isJoined && !isCameraBackgroundActive)
+    );
+    const showPreview = isMobileLayout
+        ? !isScramblePreviewPanelVisibleInCurrentLayout()
+        : (isCameraBackgroundActive || isJoined) && !isScramblePreviewPanelVisibleInCurrentLayout();
+    const showGraphPanelAction = !isMobileLayout
+        && !isGraphPanelVisibleInCurrentLayout()
+        && canSwapRightPanelContent;
+    const showGraphOverlayAction = !isMobileLayout && isJoined && isCameraBackgroundActive;
+    const showGraph = showGraphPanelAction || showGraphOverlayAction;
+    const localElo = Number.isFinite(Number(battleState.localPlayer?.elo))
+        ? Math.round(Number(battleState.localPlayer.elo))
+        : 1000;
+
+    if (previewButton) {
+        previewButton.hidden = !showPreview;
+        const previewLabel = canSwapRightPanelContent
+            ? 'Show scramble preview panel'
+            : 'Open scramble preview';
+        previewButton.setAttribute('aria-label', previewLabel);
+        registerShortcutTooltip(previewButton, canSwapRightPanelContent ? [] : ['S'], 'bottom', previewLabel);
+    }
+    if (graphButton) {
+        graphButton.hidden = !showGraph;
+        graphButton.setAttribute('aria-pressed', String(showGraphOverlayAction && battleGraphModalOpen));
+        const graphLabel = showGraphOverlayAction
+            ? 'Open graph'
+            : 'Show graph panel';
+        graphButton.setAttribute('aria-label', graphLabel);
+        registerShortcutTooltip(graphButton, [], 'bottom', graphLabel);
+    }
+    document.body.classList.toggle(
+        'battle-swap-buttons-dual-visible',
+        Boolean(isJoined && !isMobileLayout && !previewButton?.hidden && !graphButton?.hidden),
+    );
+    if (roomLaunchButton) {
+        roomLaunchButton.hidden = !isJoined;
+        const roomLabel = isJoined
+            ? `Online battle room. ELO = ${localElo}.`
+            : 'Online battle room';
+        roomLaunchButton.setAttribute('aria-label', roomLabel);
+        registerShortcutTooltip(roomLaunchButton, [], 'bottom', roomLabel);
+    }
+    if (roomLaunchValue) {
+        roomLaunchValue.textContent = String(localElo);
+    }
+
+    if (!showGraph && battleGraphModalOpen) {
+        closeGraphOverlay();
+    }
+}
+
+function performBattleManagedControlLockVisuals(locked) {
+    ['scramble-type-menu-desktop', 'scramble-type-menu-mobile'].forEach((id) => {
+        const menu = getEl(id);
+        if (!menu) return;
+        menu.classList.toggle('battle-control-locked', Boolean(locked));
+        menu.toggleAttribute('inert', Boolean(locked));
+        menu.setAttribute('aria-disabled', String(Boolean(locked)));
+    });
+}
+
+function renderBattlePreviewPanel(state = battleManager.getState()) {
+    const cubePanel = getEl('cube-panel');
+    const cubeTitle = getEl('cube-panel-title');
+    const cubeCanvasContainer = getEl('cube-canvas-container');
+    const cubeBody = getEl('cube-body');
+    const battlePreview = getEl('battle-preview-panel');
+
+    if (!cubePanel || !cubeTitle || !cubeCanvasContainer || !cubeBody || !battlePreview) return;
+
+    const isBattle = state.joined;
+    syncRightPanelSecondaryContent(state);
+    const showBattleScrambleSecondary = shouldUseBattleScrambleSecondary(state);
+    cubePanel.classList.toggle('battle-preview-active', isBattle);
+    cubeTitle.textContent = isBattle ? getBattleRoundTitle(state) : 'Scramble Preview';
+    cubeCanvasContainer.hidden = isBattle && !showBattleScrambleSecondary && cubeCanvasContainer.parentElement === cubeBody;
+    battlePreview.hidden = !isBattle;
+
+    if (!isBattle) {
+        syncBattleAuxButtons();
+        return;
+    }
+
+    renderBattleRows('battle-preview-body', state.rows, 'Waiting for players to join.', { compact: true });
+    syncBattleAuxButtons();
+}
+
+function syncBattleScrambleType(type = battleManager.getScrambleType()) {
+    const nextType = String(type ?? '333').trim().toLowerCase() || '333';
+    setScrambleType(nextType);
+    syncScrambleTypeMenus(nextType);
+}
+
+function getBattleSelectedType() {
+    return getEl('battle-create-scramble-type')?.value || battleManager.getScrambleType() || getSelectedScrambleType();
+}
+
+function renderBattleUi(state = battleManager.getState()) {
+    const titleEl = getEl('battle-title');
+    const summaryEl = getEl('battle-room-summary');
+    const formGrid = getEl('battle-form-grid');
+    const nicknameInput = getEl('battle-nickname-input');
+    const roomInput = getEl('battle-room-input');
+    const roomButton = getEl('battle-room-action');
+    const copyLinkButton = getEl('battle-copy-link');
+    const statusEl = getEl('battle-connection-status');
+    const preserveDraftInputs = !state.joined && state.connectionState === 'error';
+    const shouldSyncInputs = (state.joined || !battleFormHydrated) && !preserveDraftInputs;
+
+    if (titleEl) {
+        titleEl.textContent = state.joined ? getBattleRoundTitle(state) : 'Online Battle';
+    }
+
+    if (nicknameInput && document.activeElement !== nicknameInput && shouldSyncInputs) {
+        nicknameInput.value = state.nickname || '';
+    }
+    if (roomInput && document.activeElement !== roomInput && shouldSyncInputs) {
+        roomInput.value = state.roomId || '';
+    }
+    if (shouldSyncInputs) {
+        battleFormHydrated = true;
+    }
+
+    if (summaryEl) {
+        summaryEl.textContent = state.joined
+            ? `Room ${state.roomId}`
+            : 'Join an existing room or enter a new room name.';
+    }
+
+    if (formGrid) {
+        formGrid.hidden = state.joined;
+        formGrid.style.display = state.joined ? 'none' : '';
+    }
+
+    const inputsDisabled = state.connectionState === 'connecting' || state.joined;
+    nicknameInput && (nicknameInput.disabled = inputsDisabled);
+    roomInput && (roomInput.disabled = inputsDisabled);
+
+    if (roomButton) {
+        roomButton.disabled = state.connectionState === 'connecting';
+        roomButton.textContent = state.connectionState === 'connecting'
+            ? 'Joining...'
+            : (state.joined ? 'Leave Room' : 'Join Room');
+    }
+
+    if (copyLinkButton) {
+        copyLinkButton.hidden = !state.joined;
+        copyLinkButton.disabled = !state.joined;
+        if (copyLinkButton.dataset.feedbackActive !== 'true') {
+            copyLinkButton.textContent = 'Copy Link';
+        }
+    }
+
+    if (statusEl) {
+        const hasError = state.connectionState === 'error' && state.connectionMessage;
+        const isReconnecting = state.connectionState === 'reconnecting' && state.connectionMessage;
+        const showStatus = hasError || isReconnecting;
+        statusEl.hidden = !showStatus;
+        statusEl.textContent = showStatus ? state.connectionMessage : '';
+        statusEl.classList.toggle('is-error', Boolean(hasError));
+        statusEl.classList.toggle('is-reconnecting', Boolean(isReconnecting));
+    }
+
+    renderBattleRows('battle-players-body', state.rows);
+    renderBattlePreviewPanel(state);
+}
+
+function beginBattleMode(initialType = getSelectedScrambleType()) {
+    if (!isBattleEnvironmentActive) {
+        battleRestoreScrambleType = getSelectedScrambleType();
+    }
+    isBattleEnvironmentActive = true;
+    setBattleManagedControlsLocked(true);
+    syncBattleScrambleType(initialType);
+}
+
+async function restoreAfterBattle() {
+    setBattleManagedControlsLocked(false);
+    isBattleEnvironmentActive = false;
+    battlePendingCreateRoomId = '';
+
+    if (battleRestoreScrambleType) {
+        const restoreType = battleRestoreScrambleType;
+        battleRestoreScrambleType = null;
+        setScrambleType(restoreType);
+        syncScrambleTypeMenus(restoreType);
+    }
+
+    syncBattleAuxButtons();
+    syncScrambleNavigationButtons({ locked: false });
+
+    const state = timer.getState();
+    if (state !== 'running' && state !== 'holding' && state !== 'ready' && !isInspectionState(state)) {
+        await loadNewScramble();
+    }
 }
 
 function getSelectedTimeEntryMode() {
@@ -1495,11 +2339,16 @@ function syncTimerPopupOverlayPlacement() {
 function syncCameraBackgroundTimerPlacement() {
     const centerSlot = getEl('center-panel-timer-slot');
     const cubeSlot = getEl('cube-camera-timer-slot');
+    const graphSlot = getEl('graph-camera-timer-slot');
     const cubePanel = getEl('cube-panel');
-    if (!centerSlot || !cubeSlot || !cubePanel) return;
+    const graphPanel = getEl('graph-panel');
+    if (!centerSlot || !cubeSlot || !graphSlot || !cubePanel || !graphPanel) return;
 
-    const useCubeTimerSlot = wantsCameraBackground();
-    const targetSlot = useCubeTimerSlot ? cubeSlot : centerSlot;
+    const useCameraBackground = wantsCameraBackground();
+    const useGraphTimerSlot = useCameraBackground && battleManager.isJoined();
+    const targetSlot = useGraphTimerSlot
+        ? graphSlot
+        : (useCameraBackground ? cubeSlot : centerSlot);
 
     CAMERA_BACKGROUND_TIMER_NODE_IDS.forEach((id) => {
         const node = getEl(id);
@@ -1507,10 +2356,14 @@ function syncCameraBackgroundTimerPlacement() {
         targetSlot.appendChild(node);
     });
 
-    cubeSlot.hidden = !useCubeTimerSlot;
-    cubePanel.classList.toggle('camera-background-hosting-timer', useCubeTimerSlot);
-    document.body.classList.toggle('camera-background-active', useCubeTimerSlot);
+    cubeSlot.hidden = targetSlot !== cubeSlot;
+    graphSlot.hidden = targetSlot !== graphSlot;
+    cubePanel.classList.toggle('camera-background-hosting-timer', targetSlot === cubeSlot);
+    graphPanel.classList.toggle('camera-background-hosting-timer', targetSlot === graphSlot);
+    document.body.classList.toggle('camera-background-active', useCameraBackground);
+    syncRightPanelSecondaryContent();
     syncTimerPopupOverlayPlacement();
+    syncBattleAuxButtons();
 }
 
 function syncCameraBackgroundSettingControls() {
@@ -1547,8 +2400,12 @@ function syncCameraBackgroundToggleButtonState() {
     if (!btn || !icon) return;
 
     const shouldShow = shouldShowCameraBackgroundToggleButton();
+    document.body.classList.toggle('camera-background-toggle-visible', shouldShow);
     btn.hidden = !shouldShow;
-    if (!shouldShow) return;
+    if (!shouldShow) {
+        if (activeShortcutTooltipTarget === btn) hideShortcutTooltip();
+        return;
+    }
 
     const isActive = wantsCameraBackground();
     const label = isActive ? 'Turn camera background off' : 'Turn camera background on';
@@ -1557,6 +2414,7 @@ function syncCameraBackgroundToggleButtonState() {
     btn.setAttribute('aria-label', label);
     btn.setAttribute('title', label);
     btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    registerShortcutTooltip(btn, null, 'bottom', label);
 
     icon.classList.toggle('icon-mask-camera-video', isActive);
     icon.classList.toggle('icon-mask-camera-video-off', !isActive);
@@ -1864,6 +2722,11 @@ function toggleLastSolvePenaltyFromMainTimerShortcut(penalty) {
     }
 }
 
+function syncBattlePenalty(roundId, penalty) {
+    if (roundId == null) return;
+    void battleManager.updatePenalty(roundId, penalty);
+}
+
 function ensurePanelExpanded(panelId) {
     const panel = getEl(panelId);
     const body = panel?.querySelector('.collapsible-body');
@@ -2099,10 +2962,11 @@ function updateManualTimeEntryUI() {
     const formattedEl = getEl('manual-time-formatted');
     const submitBtn = getEl('manual-time-submit');
     const hasValue = Number(quickActionsState.manualDigits || 0) > 0;
+    const submitBlocked = Boolean(battleManager.getStartBlockReason());
 
     if (hiddenInput) hiddenInput.value = quickActionsState.manualDigits;
     if (formattedEl) formattedEl.innerHTML = renderManualTimeMarkup(quickActionsState.manualDigits);
-    if (submitBtn) submitBtn.disabled = !hasValue;
+    if (submitBtn) submitBtn.disabled = !hasValue || submitBlocked;
     scheduleViewportLayoutSync();
 }
 
@@ -2271,6 +3135,27 @@ async function commitSolve(elapsed, penalty = null, { isManual = false } = {}) {
     _skipSolveAddedRefresh = true;
     const solve = sessionManager.addSolve(elapsed, currentScramble, isManual, penalty);
     _skipSolveAddedRefresh = false;
+    if (battleManager.isJoined()) {
+        try {
+            if (battleManager.stageLocalSolve(solve)) {
+                const uploaded = await flushPendingBattleSolveUpload({ throwOnFailure: true });
+                if (!uploaded) {
+                    battleDeferredSolveUiPreviousStats = previousStats;
+                    if (!battleManager.hasPendingSolveUpload()) {
+                        void finalizeDeferredBattleSolveUiRefresh();
+                    }
+                    return;
+                }
+            }
+        } catch (error) {
+            console.error('Failed to submit battle solve:', error);
+            battleDeferredSolveUiPreviousStats = previousStats;
+            if (!battleManager.hasPendingSolveUpload()) {
+                void finalizeDeferredBattleSolveUiRefresh();
+            }
+            return;
+        }
+    }
     statsCache.append(solve);
     syncStatsCacheWithFilteredSolves();
     const currentStats = statsCache.getStats();
@@ -2281,7 +3166,19 @@ async function commitSolve(elapsed, penalty = null, { isManual = false } = {}) {
 
 async function submitManualTimeEntry({ closeEntry = false } = {}) {
     const digits = quickActionsState.manualDigits;
+    const blockReason = battleManager.getStartBlockReason();
     if (Number(digits || 0) <= 0) return;
+    if (blockReason) {
+        if (battleManager.isJoined()) {
+            renderBattleUi({
+                ...battleManager.getState(),
+                connectionState: 'error',
+                connectionMessage: String(blockReason),
+            });
+        }
+        updateManualTimeEntryUI();
+        return;
+    }
 
     if (isPersistentTypingEntryModeEnabled()) {
         const elapsed = getManualElapsedMs(digits);
@@ -2336,19 +3233,21 @@ function syncCameraBackgroundPanelWidth() {
     }
 
     const cubeSlot = getEl('cube-camera-timer-slot');
+    const graphSlot = getEl('graph-camera-timer-slot');
     const timerDisplay = getEl('timer-display');
     const timerDisplayWrapper = getEl('timer-display-wrapper');
     const timerInfo = getEl('timer-info');
     const manualEntry = getEl('manual-time-entry');
     const manualEntryDisplay = getEl('manual-time-entry-display');
     const manualFormatted = getEl('manual-time-formatted');
-    if (!cubeSlot || !timerDisplayWrapper) {
+    const activeTimerSlot = graphSlot && !graphSlot.hidden ? graphSlot : cubeSlot;
+    if (!activeTimerSlot || !timerDisplayWrapper) {
         applyCachedRootStyle('cameraPanelWidth', '--camera-panel-width', '');
         return;
     }
 
     const rootStyles = getComputedStyle(document.documentElement);
-    const slotStyles = getComputedStyle(cubeSlot);
+    const slotStyles = getComputedStyle(activeTimerSlot);
     const defaultPanelWidth = parseFloat(rootStyles.getPropertyValue('--right-panel-width')) || 300;
     const paddingLeft = parseFloat(slotStyles.paddingLeft) || 0;
     const paddingRight = parseFloat(slotStyles.paddingRight) || 0;
@@ -2472,6 +3371,31 @@ function syncDesktopPanelScale() {
     root.style.setProperty('--desktop-panel-scale', scale.toFixed(4));
 }
 
+function getVisibleLayoutRectById(id) {
+    const el = getEl(id);
+    if (!(el instanceof HTMLElement)) return null;
+    if (el.hidden) return null;
+
+    const styles = getComputedStyle(el);
+    if (styles.display === 'none' || styles.visibility === 'hidden') return null;
+
+    const rect = el.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return null;
+    return rect;
+}
+
+function getDesktopScrambleTrailingActionOverhang() {
+    const actions = [
+        { id: 'btn-prev-scramble', offset: 24 },
+        { id: 'btn-next-scramble', offset: 64 },
+    ];
+
+    return actions.reduce((maxOverhang, { id, offset }) => {
+        const rect = getVisibleLayoutRectById(id);
+        return rect ? Math.max(maxOverhang, offset + rect.width) : maxOverhang;
+    }, 0);
+}
+
 function syncDesktopScrambleBounds() {
     const scrambleContainer = getEl('scramble-container');
     const scrambleBar = getEl('scramble-bar');
@@ -2489,39 +3413,48 @@ function syncDesktopScrambleBounds() {
     const scrambleBarInnerWidth = Math.max(0, scrambleBar.clientWidth - paddingLeft - paddingRight);
     const isZen = document.body.classList.contains('zen');
     let nextWidth = Math.min(scrambleBarInnerWidth, Math.round(window.innerWidth * 0.8));
+    const scrambleBarRect = scrambleBar.getBoundingClientRect();
+    const centerX = scrambleBarRect.left + (scrambleBarRect.width / 2);
+    const controlGap = 16;
+    const minimumTopRightButtonCount = 2;
+    const topRightButtonSlotPitch = 36;
+    const leftLimit = scrambleBarRect.left + paddingLeft;
+    const rightLimit = scrambleBarRect.right - paddingRight;
+    const topControls = [
+        'btn-zen',
+        'btn-camera-background-toggle',
+        'btn-scramble-preview',
+        'btn-battle-graph',
+        'btn-battle-room-launch',
+    ];
+    let leftContentLimit = leftLimit;
+    let rightContentLimit = rightLimit;
+    const visibleRightControlRects = [];
+
+    topControls.forEach((id) => {
+        const controlRect = getVisibleLayoutRectById(id);
+        if (!controlRect) return;
+
+        if (controlRect.right <= centerX) {
+            leftContentLimit = Math.max(leftContentLimit, controlRect.right + controlGap);
+            return;
+        }
+
+        if (controlRect.left >= centerX) {
+            visibleRightControlRects.push(controlRect);
+            rightContentLimit = Math.min(rightContentLimit, controlRect.left - controlGap);
+        }
+    });
+
+    const missingTopRightButtons = Math.max(0, minimumTopRightButtonCount - visibleRightControlRects.length);
+    if (missingTopRightButtons > 0) {
+        rightContentLimit = Math.min(
+            rightContentLimit,
+            rightContentLimit - (missingTopRightButtons * topRightButtonSlotPitch),
+        );
+    }
 
     if (isZen) {
-        const scrambleBarRect = scrambleBar.getBoundingClientRect();
-        const centerX = scrambleBarRect.left + (scrambleBarRect.width / 2);
-        const controlGap = 16;
-        const leftLimit = scrambleBarRect.left + paddingLeft;
-        const rightLimit = scrambleBarRect.right - paddingRight;
-        const zenControls = ['btn-zen', 'btn-camera-background-toggle', 'btn-scramble-preview']
-            .map((id) => getEl(id))
-            .filter((el) => (
-                el instanceof HTMLElement
-                && !el.hidden
-                && getComputedStyle(el).display !== 'none'
-                && getComputedStyle(el).visibility !== 'hidden'
-            ));
-
-        let leftContentLimit = leftLimit;
-        let rightContentLimit = rightLimit;
-
-        zenControls.forEach((controlEl) => {
-            const controlRect = controlEl.getBoundingClientRect();
-            if (controlRect.width <= 0 || controlRect.height <= 0) return;
-
-            if (controlRect.right <= centerX) {
-                leftContentLimit = Math.max(leftContentLimit, controlRect.right + controlGap);
-                return;
-            }
-
-            if (controlRect.left >= centerX) {
-                rightContentLimit = Math.min(rightContentLimit, controlRect.left - controlGap);
-            }
-        });
-
         const halfWidthLimit = Math.max(
             0,
             Math.min(centerX - leftContentLimit, rightContentLimit - centerX),
@@ -2541,6 +3474,16 @@ function syncDesktopScrambleBounds() {
                 Math.max(0, rightRect.left - leftRect.right - (panelMargin * 2)),
             );
         }
+
+        const trailingActionOverhang = getDesktopScrambleTrailingActionOverhang();
+        const halfWidthLimit = Math.max(
+            0,
+            Math.min(
+                centerX - leftContentLimit,
+                rightContentLimit - centerX - trailingActionOverhang,
+            ),
+        );
+        nextWidth = Math.min(nextWidth, Math.floor(halfWidthLimit * 2));
     }
 
     const nextWidthPx = Math.round(nextWidth);
@@ -2842,14 +3785,17 @@ function syncViewportLayout() {
     const rightPanel = getEl('right-panel');
     const zenButton = getEl('btn-zen');
     const cubeTimerSlot = getEl('cube-camera-timer-slot');
+    const graphTimerSlot = getEl('graph-camera-timer-slot');
 
     if (!timerDisplayWrapper) return;
 
     const state = timer.getState();
     const isZen = document.body.classList.contains('zen');
     const isSolving = document.body.classList.contains('solving');
+    const activeCameraTimerHost = [cubeTimerSlot, graphTimerSlot]
+        .find((slot) => slot?.contains(timerDisplayWrapper)) || null;
     const isCameraTimerHost = document.body.classList.contains('camera-background-active')
-        && cubeTimerSlot?.contains(timerDisplayWrapper);
+        && Boolean(activeCameraTimerHost);
     const isMobileTimerView = mobileViewportQuery.matches && document.body.dataset.mobilePanel === 'timer';
     const centerTimerEnabled = settings.get('centerTimer');
     const hideUIWhileSolving = settings.get('hideUIWhileSolving');
@@ -2876,7 +3822,7 @@ function syncViewportLayout() {
 
     if (shouldViewportCenterTimer) {
         if (!isMobileTimerView && isCameraTimerHost) {
-            const hostRect = getLayoutRect(cubeTimerSlot);
+            const hostRect = getLayoutRect(activeCameraTimerHost);
             if (hostRect) {
                 targetTimerCenterX = hostRect.left + hostRect.width / 2;
                 targetTimerCenterY = hostRect.top + hostRect.height / 2;
@@ -3024,6 +3970,8 @@ function syncMobilePanelState() {
     document.body.classList.toggle('coarse-pointer', isCoarsePointer);
     document.body.classList.toggle('mobile-viewport', isMobileViewport);
     syncManualTimeInputMode();
+    syncCameraBackgroundTimerPlacement();
+    renderBattlePreviewPanel();
 
     if (!isMobileViewport) {
         if (quickActionsState.manualEntryActive) {
@@ -3036,6 +3984,8 @@ function syncMobilePanelState() {
         syncQuickActionsUI();
         syncInspectionCancelControl();
         syncPersistentManualEntryMode();
+        syncBattleAuxButtons();
+        scheduleViewportLayoutSync();
         return;
     }
 
@@ -3046,6 +3996,7 @@ function syncMobilePanelState() {
     syncInspectionCancelControl();
 
     syncPersistentManualEntryMode();
+    syncBattleAuxButtons();
 }
 
 function isScramblePreviewModalOpen() {
@@ -3704,7 +4655,13 @@ function initScramblePreviewModal() {
     const closeBtn = getEl('scramble-preview-close');
 
     openBtn?.addEventListener('click', () => {
+        if (selectRightPanelSecondary(RIGHT_PANEL_SECONDARY_SCRAMBLE)) {
+            hideShortcutTooltip();
+            openBtn.blur();
+            return;
+        }
         openScramblePreviewModal();
+        hideShortcutTooltip();
         openBtn.blur();
     });
 
@@ -3777,8 +4734,10 @@ async function init() {
             document.getElementById('scramble-bar'),
         ],
     );
+    timer.setStartGuard(() => battleManager.getStartBlockReason());
     initGraph(document.getElementById('graph-canvas'));
     syncScrambleTypeMenus();
+    initBattleControls();
 
     // Wire events
     timer.on('stopped', onSolveComplete);
@@ -3863,10 +4822,17 @@ async function init() {
     sessionManager.on('solveUpdated', (solve) => {
         dailyStreakStore.upsertSolve(solve);
         rebuildStatsCache();
+
+        const battleRoundId = battleManager.getLocalSolveRoundId(solve.timestamp);
+        if (battleRoundId != null) {
+            syncBattlePenalty(battleRoundId, solve.penalty);
+        }
+
         refreshUI();
     });
     sessionManager.on('solveDeleted', (solveIdOrIds) => {
         dailyStreakStore.deleteSolve(solveIdOrIds);
+        battleManager.handleLocalSolveDeleted(solveIdOrIds);
         if (window._isBulkAction) return;
         refreshSessionList();
         rebuildStatsCache();
@@ -3883,6 +4849,7 @@ async function init() {
     sessionManager.on('sessionDeleted', ({ solveIds } = {}) => {
         if (Array.isArray(solveIds) && solveIds.length > 0) {
             dailyStreakStore.deleteSolve(solveIds);
+            battleManager.handleLocalSolveDeleted(solveIds);
         }
         refreshSessionList();
         rebuildStatsCache();
@@ -3915,6 +4882,17 @@ async function init() {
         }
         if (key === 'cameraBackgroundEnabled' || key === 'cameraBackgroundSuspended') {
             void syncCameraBackgroundMode();
+            renderBattlePreviewPanel();
+            scheduleViewportLayoutSync();
+        }
+        if (key === 'cameraRightPanelSecondary') {
+            syncCameraBackgroundTimerPlacement();
+            syncBattleAuxButtons();
+            scheduleViewportLayoutSync();
+        }
+        if (key === 'battleRightPanelSecondary') {
+            renderBattlePreviewPanel();
+            scheduleViewportLayoutSync();
         }
         if (key === 'centerTimer' || key === 'displayFont' || key === 'pillSize' || key === 'largeScrambleText') {
             scheduleViewportLayoutSync();
@@ -3926,6 +4904,8 @@ async function init() {
         syncPersistentManualEntryMode();
         void reconcileHardwareTimeEntryMode();
         void syncCameraBackgroundMode();
+        renderBattlePreviewPanel();
+        scheduleViewportLayoutSync();
     });
 
     // Init UI
@@ -4933,6 +5913,7 @@ function syncScrambleTypeMenus(type = getSelectedScrambleType()) {
     const activeType = getScrambleTypeMeta(type).id;
     const activePuzzleMeta = getScramblePuzzleMeta(activeType);
     const previewButton = getEl('btn-scramble-preview');
+    const battleCreateScrambleTypeSelect = getEl('battle-create-scramble-type');
     const buttonLabel = getScrambleTypeButtonLabel(activeType);
     const buttonDescription = getScrambleTypeButtonDescription(activeType);
 
@@ -4964,6 +5945,9 @@ function syncScrambleTypeMenus(type = getSelectedScrambleType()) {
     previewButton?.classList.toggle('pyraminx-preview-type', activePuzzleMeta.id === 'pyram');
     previewButton?.classList.toggle('clock-preview-type', activePuzzleMeta.id === 'clock');
     previewButton?.classList.toggle('megaminx-preview-type', activePuzzleMeta.id === 'minx');
+    if (battleCreateScrambleTypeSelect && document.activeElement !== battleCreateScrambleTypeSelect) {
+        battleCreateScrambleTypeSelect.value = activeType;
+    }
 }
 
 async function reloadScrambleForSelectedType() {
@@ -4984,6 +5968,7 @@ async function reloadScrambleForSelectedType() {
 
 async function applyActiveSessionScrambleType(nextType, { loadScramble = true } = {}) {
     if (document.getElementById('scramble-text')?.classList.contains('loading')) return false;
+    if (battleManager.isJoined()) return false;
 
     const activeSessionId = sessionManager.getActiveSessionId();
     if (activeSessionId) {
@@ -5014,6 +5999,26 @@ async function syncScrambleTypeWithActiveSession({ loadScramble = false } = {}) 
 
 async function loadNewScramble() {
     const el = document.getElementById('scramble-text');
+    if (battleManager.isJoined()) {
+        if (battleManager.hasPendingSolveUpload()) {
+            renderMutedScrambleMessage('Uploading battle solve');
+            return '';
+        }
+        if (battleManager.isWaitingForOthers()) {
+            renderMutedScrambleMessage('Waiting for everyone to finish');
+            return '';
+        }
+
+        const battleScramble = battleManager.getCurrentScramble();
+        if (battleScramble) {
+            applyBattleScramble(battleScramble);
+            return battleScramble;
+        }
+
+        renderMutedScrambleMessage('Waiting for room scramble');
+        return '';
+    }
+
     let loadingTimer = window.setTimeout(() => {
         clearStructuredScrambleLayout(el);
         el.textContent = 'Generating...';
@@ -5044,6 +6049,21 @@ function syncInitialScrambleUI() {
 function clearStructuredScrambleLayout(el) {
     if (!el) return;
     delete el.dataset.scrambleLayout;
+}
+
+function renderMutedScrambleMessage(message) {
+    const el = getEl('scramble-text');
+    if (!el) return;
+
+    currentScramble = '';
+    setCurrentScramble('');
+    clearStructuredScrambleLayout(el);
+    el.innerHTML = `<span style="color: var(--text-muted); font-style: italic;">${escapeHtml(message)}</span>`;
+    el.classList.remove('loading');
+    el.classList.remove('is-previous-selected');
+    renderScramblePreviewDisplays('');
+    syncScrambleNavigationButtons();
+    scheduleViewportLayoutSync();
 }
 
 function isStandardMegaminxScramble(tokens) {
@@ -5153,7 +6173,7 @@ function updateScrambleUI(scrambleStr) {
     syncScrambleTypeMenus(getCurrentScrambleType());
 
     // Update nav button states
-    document.getElementById('btn-prev-scramble').disabled = !hasPrevScramble();
+    syncScrambleNavigationButtons();
     scheduleViewportLayoutSync();
 }
 
@@ -5249,7 +6269,12 @@ function initScrambleControls() {
         closeScrambleTypeMenus();
         if (mobileViewportQuery.matches) {
             clearNewBestAlert();
-            containerEl.classList.toggle('scramble-actions-visible');
+            if (battleManager.isJoined() || isBattleEnvironmentActive) {
+                setScrambleActionsVisible(false);
+                copyCurrentScrambleToClipboard();
+            } else {
+                containerEl.classList.toggle('scramble-actions-visible');
+            }
         } else {
             copyCurrentScrambleToClipboard();
         }
@@ -5267,6 +6292,11 @@ function initScrambleControls() {
 
         buttonEl?.addEventListener('click', (event) => {
             event.stopPropagation();
+            if (battleManager.isJoined() || isBattleEnvironmentActive || menuEl.classList.contains('battle-control-locked')) {
+                closeScrambleTypeMenus();
+                return;
+            }
+            if (buttonEl.disabled) return;
             if (textEl.classList.contains('loading')) return;
             const shouldOpen = !menuEl.classList.contains('open');
             closeCustomSelectMenus();
@@ -5348,6 +6378,7 @@ function initScrambleControls() {
 
     // 2. Edit
     function startEdit() {
+        if (battleManager.isJoined()) return;
         if (textEl.classList.contains('loading')) return;
         setScrambleActionsVisible(false);
         closeScrambleTypeMenus();
@@ -5524,7 +6555,7 @@ function isSlashShortcut(event) {
     return event.code === 'Slash' || event.key === '/' || event.key === '?';
 }
 
-function formatShortcutTooltip(binding) {
+function formatShortcutTooltipKey(token) {
     const tokenMap = {
         Shift: '⇧',
         Backspace: '⌫',
@@ -5537,15 +6568,20 @@ function formatShortcutTooltip(binding) {
         Control: 'Ctrl',
         Ctrl: 'Ctrl',
         Meta: 'Ctrl',
-        Alt: 'Ctrl',
-        Option: 'Ctrl',
+        Alt: 'Alt',
+        Option: 'Alt',
         Equal: '+',
         NumpadAdd: '+',
         Minus: '-',
         NumpadSubtract: '-',
     };
 
-    return binding.map(token => tokenMap[token] || token).join('');
+    return tokenMap[token] || String(token ?? '');
+}
+
+function normalizeShortcutTooltipBinding(binding) {
+    if (!Array.isArray(binding)) return [];
+    return binding.map(formatShortcutTooltipKey).filter(Boolean);
 }
 
 function isNarrowFinePointerLayout() {
@@ -5567,7 +6603,24 @@ function positionShortcutTooltip(target) {
     const rect = target.getBoundingClientRect();
     const gap = 10;
     const margin = 8;
+    const arrowInset = 11;
     const placement = getShortcutTooltipPlacement(target);
+    const setArrowX = (targetCenterX, tooltipCenterX, tooltipWidth) => {
+        const tooltipLeft = tooltipCenterX - (tooltipWidth / 2);
+        const arrowX = Math.min(
+            Math.max(targetCenterX - tooltipLeft, arrowInset),
+            Math.max(arrowInset, tooltipWidth - arrowInset),
+        );
+        shortcutTooltipEl.style.setProperty('--shortcut-tooltip-arrow-x', `${arrowX}px`);
+    };
+    const setArrowY = (targetCenterY, tooltipCenterY, tooltipHeight) => {
+        const tooltipTop = tooltipCenterY - (tooltipHeight / 2);
+        const arrowY = Math.min(
+            Math.max(targetCenterY - tooltipTop, arrowInset),
+            Math.max(arrowInset, tooltipHeight - arrowInset),
+        );
+        shortcutTooltipEl.style.setProperty('--shortcut-tooltip-arrow-y', `${arrowY}px`);
+    };
 
     if (placement === 'right') {
         shortcutTooltipEl.style.left = `${rect.right + gap}px`;
@@ -5585,6 +6638,8 @@ function positionShortcutTooltip(target) {
 
         shortcutTooltipEl.style.left = `${clampedLeft}px`;
         shortcutTooltipEl.style.top = `${clampedTop}px`;
+        shortcutTooltipEl.style.setProperty('--shortcut-tooltip-arrow-x', '50%');
+        setArrowY(centeredTop, clampedTop, tooltipRect.height);
         return;
     }
 
@@ -5602,6 +6657,8 @@ function positionShortcutTooltip(target) {
 
         shortcutTooltipEl.style.left = `${clampedLeft}px`;
         shortcutTooltipEl.style.top = `${Math.max(preferredTop, minTop)}px`;
+        setArrowX(centeredLeft, clampedLeft, tooltipRect.width);
+        shortcutTooltipEl.style.setProperty('--shortcut-tooltip-arrow-y', '50%');
         return;
     }
 
@@ -5618,16 +6675,64 @@ function positionShortcutTooltip(target) {
 
     shortcutTooltipEl.style.left = `${clampedLeft}px`;
     shortcutTooltipEl.style.top = `${Math.min(preferredTop, maxTop)}px`;
+    setArrowX(centeredLeft, clampedLeft, tooltipRect.width);
+    shortcutTooltipEl.style.setProperty('--shortcut-tooltip-arrow-y', '50%');
+}
+
+function renderShortcutTooltipContent(target) {
+    if (!shortcutTooltipEl || !target) return false;
+
+    const action = String(target.dataset.shortcutTooltipAction || '').trim();
+    let shortcutKeys = [];
+    try {
+        shortcutKeys = JSON.parse(target.dataset.shortcutTooltipKeys || '[]');
+    } catch {
+        shortcutKeys = [];
+    }
+    if (!Array.isArray(shortcutKeys)) shortcutKeys = [];
+
+    shortcutTooltipEl.replaceChildren();
+
+    if (action) {
+        const actionEl = document.createElement('div');
+        actionEl.className = 'shortcut-tooltip-action';
+        actionEl.textContent = action;
+        shortcutTooltipEl.appendChild(actionEl);
+    }
+
+    if (shortcutKeys.length) {
+        const shortcutEl = document.createElement('div');
+        shortcutEl.className = 'shortcut-tooltip-shortcut';
+        shortcutKeys.forEach((key) => {
+            const keyEl = document.createElement('kbd');
+            keyEl.textContent = key;
+            shortcutEl.appendChild(keyEl);
+        });
+        shortcutTooltipEl.appendChild(shortcutEl);
+    }
+
+    return Boolean(action || shortcutKeys.length);
+}
+
+function shouldShowShortcutTooltip(target) {
+    if (!(target instanceof HTMLElement)) return false;
+    if (target.id === 'scramble-text') {
+        return !mobileViewportQuery.matches || battleManager.isJoined() || isBattleEnvironmentActive;
+    }
+
+    return true;
 }
 
 function showShortcutTooltip(target) {
     if (!areShortcutTooltipsAvailable()) return;
-    if (!shortcutTooltipEl || !target?.dataset.shortcutTooltip) return;
+    if (!shortcutTooltipEl || !target?.dataset.shortcutTooltipAction) return;
+    if (!shouldShowShortcutTooltip(target)) return;
 
     const wasActive = shortcutTooltipEl.classList.contains('active');
+    activeShortcutTooltipTarget = target;
     shortcutTooltipEl.classList.toggle('shortcut-tooltip-below-pills', target?.id === 'scramble-text');
     shortcutTooltipEl.dataset.placement = getShortcutTooltipPlacement(target);
-    shortcutTooltipEl.textContent = target.dataset.shortcutTooltip;
+    if (!renderShortcutTooltipContent(target)) return;
 
     if (!wasActive) {
         shortcutTooltipEl.classList.add('no-transition');
@@ -5642,26 +6747,125 @@ function showShortcutTooltip(target) {
 
 function hideShortcutTooltip() {
     if (!shortcutTooltipEl) return;
+    activeShortcutTooltipTarget = null;
     shortcutTooltipEl.classList.remove('active');
 }
 
-function registerShortcutTooltip(element, binding, placement = 'bottom') {
+function shouldHideShortcutTooltipForOpenedMenu(element) {
+    if (!(element instanceof HTMLElement)) return false;
+    if (!element.matches('[aria-haspopup="menu"], [aria-haspopup="listbox"]')) return false;
+
+    return element.getAttribute('aria-expanded') === 'true'
+        || Boolean(element.closest('.custom-select-menu.open, .scramble-type-menu.open'));
+}
+
+function getShortcutTooltipAction(element, explicitAction = '') {
+    if (!element) return '';
+
+    const rawAction = explicitAction
+        || element.getAttribute('title')
+        || element.dataset.shortcutTooltipAction
+        || element.getAttribute('aria-label')
+        || element.textContent;
+    return String(rawAction || '').trim();
+}
+
+function bindShortcutTooltipEvents(element) {
+    if (!element || element.dataset.shortcutTooltipBound === 'true') return;
+
+    element.dataset.shortcutTooltipBound = 'true';
+    element.addEventListener('mouseenter', () => showShortcutTooltip(element));
+    element.addEventListener('mouseleave', hideShortcutTooltip);
+    element.addEventListener('focus', () => showShortcutTooltip(element));
+    element.addEventListener('blur', () => {
+        queueMicrotask(() => {
+            if (!document.contains(element)) return;
+            if (element.matches(':hover')) return;
+            hideShortcutTooltip();
+        });
+    });
+    element.addEventListener('click', () => {
+        queueMicrotask(() => {
+            if (!document.contains(element)) return;
+            if (activeShortcutTooltipTarget !== element) return;
+            if (shouldHideShortcutTooltipForOpenedMenu(element)) {
+                hideShortcutTooltip();
+            }
+        });
+    });
+}
+
+function registerShortcutTooltip(element, binding = null, placement = 'bottom', action = '') {
     if (!element) return;
 
-    const shortcut = formatShortcutTooltip(binding);
-    if (!shortcut) return;
+    const tooltipAction = getShortcutTooltipAction(element, action);
+    const shortcutKeys = normalizeShortcutTooltipBinding(binding);
+    if (!tooltipAction && !shortcutKeys.length) return;
 
     if (element.title && !element.getAttribute('aria-label')) {
         element.setAttribute('aria-label', element.title);
     }
 
-    element.dataset.shortcutTooltip = shortcut;
+    element.dataset.shortcutTooltipAction = tooltipAction;
+    element.dataset.shortcutTooltipKeys = JSON.stringify(shortcutKeys);
     element.dataset.shortcutTooltipPlacement = placement;
     element.removeAttribute('title');
-    element.addEventListener('mouseenter', () => showShortcutTooltip(element));
-    element.addEventListener('mouseleave', hideShortcutTooltip);
-    element.addEventListener('focus', () => showShortcutTooltip(element));
-    element.addEventListener('blur', hideShortcutTooltip);
+    bindShortcutTooltipEvents(element);
+
+    if (activeShortcutTooltipTarget === element && shortcutTooltipEl?.classList.contains('active')) {
+        if (element.matches(':hover, :focus-visible, :focus')) {
+            showShortcutTooltip(element);
+        } else {
+            hideShortcutTooltip();
+        }
+    }
+}
+
+function isDropdownTitleTooltipButton(element) {
+    return element instanceof Element
+        && Boolean(element.closest([
+            '.custom-select-menu',
+            '.custom-select-dropdown',
+            '.scramble-type-menu',
+            '.scramble-type-dropdown',
+            '[aria-haspopup="menu"]',
+            '[aria-haspopup="listbox"]',
+        ].join(', ')));
+}
+
+function registerTitleTooltipIfNeeded(element) {
+    if (!(element instanceof HTMLElement)) return;
+    if (!element.matches('button[title]')) return;
+    if (isDropdownTitleTooltipButton(element)) return;
+
+    registerShortcutTooltip(element, null, element.dataset.shortcutTooltipPlacement || 'bottom');
+}
+
+function initTitleButtonTooltips() {
+    document.querySelectorAll('button[title]').forEach(registerTitleTooltipIfNeeded);
+
+    if (shortcutTitleTooltipObserver || typeof MutationObserver !== 'function') return;
+
+    shortcutTitleTooltipObserver = new MutationObserver((mutationList) => {
+        mutationList.forEach((mutation) => {
+            if (mutation.type === 'attributes') {
+                registerTitleTooltipIfNeeded(mutation.target);
+                return;
+            }
+
+            mutation.addedNodes.forEach((node) => {
+                if (!(node instanceof Element)) return;
+                if (node.matches('button[title]')) registerTitleTooltipIfNeeded(node);
+                node.querySelectorAll?.('button[title]').forEach(registerTitleTooltipIfNeeded);
+            });
+        });
+    });
+    shortcutTitleTooltipObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['title'],
+        childList: true,
+        subtree: true,
+    });
 }
 
 function initShortcutTooltips() {
@@ -5673,15 +6877,15 @@ function initShortcutTooltips() {
         document.body.appendChild(shortcutTooltipEl);
     }
 
-    buttonShortcutTooltipBindings.forEach(({ selector, binding, placement }) => {
+    buttonShortcutTooltipBindings.forEach(({ selector, action, binding, placement }) => {
         document.querySelectorAll(selector).forEach(element => {
-            registerShortcutTooltip(element, binding, placement);
+            registerShortcutTooltip(element, binding, placement, action);
         });
     });
+    initTitleButtonTooltips();
 
     window.addEventListener('resize', hideShortcutTooltip);
     document.addEventListener('scroll', hideShortcutTooltip, true);
-    document.addEventListener('pointerdown', hideShortcutTooltip, true);
 }
 
 function normalizeSummaryStatToken(token) {
@@ -5929,13 +7133,13 @@ function syncModalStatNavigation() {
     document.querySelectorAll('#modal-stat-nav button[data-stat-type]').forEach((button) => {
         const type = button.dataset.statType;
         if (type === 'time') {
-            registerShortcutTooltip(button, ['Shift', '`']);
+            registerShortcutTooltip(button, ['Shift', '`'], 'bottom', 'Single');
             return;
         }
 
         const slot = slots.find((entry) => entry.statType === type);
         if (!slot) return;
-        registerShortcutTooltip(button, ['Shift', slot.shortcutDisplay]);
+        registerShortcutTooltip(button, ['Shift', slot.shortcutDisplay], 'bottom', slot.statType);
     });
 }
 
@@ -5964,6 +7168,20 @@ function toggleDeltaDisplayShortcut() {
 
 function isShortcutsOverlayOpen() {
     return shortcutsOverlayEl?.classList.contains('active');
+}
+
+function isMobilePanelShortcutAllowed(panel) {
+    return !mobileViewportQuery.matches || document.body.dataset.mobilePanel === panel;
+}
+
+function isMobileAnyPanelShortcutAllowed(panels) {
+    return !mobileViewportQuery.matches || panels.includes(document.body.dataset.mobilePanel);
+}
+
+function switchToMobileStatsPanelForShortcut() {
+    if (mobileViewportQuery.matches && document.body.dataset.mobilePanel !== 'stats') {
+        setActiveMobilePanel('stats');
+    }
 }
 
 function isThemeCustomizationOpen() {
@@ -6154,6 +7372,7 @@ function initKeyboardShortcuts() {
         if (!isPersistentTypingEntryModeEnabled() || isManualTimeInputFocused()) return;
         if (hasBlockingOverlayOpen() || isSettingsPanelBlocking()) return;
         if (timer.getState() !== 'idle' && timer.getState() !== 'stopped') return;
+        if (!isMobilePanelShortcutAllowed('timer')) return;
         if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
 
         e.preventDefault();
@@ -6197,6 +7416,7 @@ function initKeyboardShortcuts() {
             if (timer.getState() !== 'idle' && timer.getState() !== 'stopped') return;
 
             e.preventDefault();
+            switchToMobileStatsPanelForShortcut();
             closeCustomSelectMenus();
             closeScrambleTypeMenus();
             toggleSearchMenu(true);
@@ -6265,6 +7485,7 @@ function initKeyboardShortcuts() {
             if (timer.getState() !== 'idle' && timer.getState() !== 'stopped') return;
 
             e.preventDefault();
+            switchToMobileStatsPanelForShortcut();
             selectAllCurrentTableSolves();
             return;
         }
@@ -6290,6 +7511,8 @@ function initKeyboardShortcuts() {
 
         if (altSessionShortcutOffset || altScrambleTypeShortcut) {
             if (isSolveModalActive) return;
+            if (altSessionShortcutOffset && !isMobileAnyPanelShortcutAllowed(['timer', 'stats'])) return;
+            if (altScrambleTypeShortcut && !isMobilePanelShortcutAllowed('timer')) return;
 
             e.preventDefault();
             closeCustomSelectMenus();
@@ -6306,7 +7529,10 @@ function initKeyboardShortcuts() {
             }
         }
 
-        if (isPersistentTypingEntryModeEnabled() && !isSolveModalActive && !isManualTimeInputFocused()) {
+        if (isPersistentTypingEntryModeEnabled()
+            && !isSolveModalActive
+            && !isManualTimeInputFocused()
+            && isMobilePanelShortcutAllowed('timer')) {
             if (e.key === 'Escape') {
                 e.preventDefault();
                 if (!isManualTimeEntryActive()) {
@@ -6334,13 +7560,18 @@ function initKeyboardShortcuts() {
 
         const shortcutStatType = getShiftStatShortcutType(e);
         if (shortcutStatType) {
+            if (!isMobileAnyPanelShortcutAllowed(['timer', 'stats'])) return;
             e.preventDefault();
             openShortcutStatDetail(shortcutStatType);
             return;
         }
 
+        const timerPanelShortcutAllowed = isMobilePanelShortcutAllowed('timer');
+        const trendPanelShortcutAllowed = isMobilePanelShortcutAllowed('trend');
+
         switch (e.code) {
             case 'Tab':
+                if (!timerPanelShortcutAllowed) return;
                 e.preventDefault();
                 if (isSolveModalActive || isSettingsPanelBlocking()) return;
 
@@ -6350,12 +7581,14 @@ function initKeyboardShortcuts() {
                 promptForSolveComment(lastSolve);
                 break;
             case 'KeyC':
+                if (!timerPanelShortcutAllowed) return;
                 e.preventDefault();
                 closeScrambleTypeMenus();
                 copyCurrentScrambleToClipboard();
                 break;
             case 'Backspace':
             case 'Delete':
+                if (!isSolveModalActive && !timerPanelShortcutAllowed) return;
                 if (isSolveModalActive) {
                     const btn = document.getElementById('modal-btn-delete');
                     if (btn && btn.offsetParent !== null) btn.click();
@@ -6370,12 +7603,14 @@ function initKeyboardShortcuts() {
                 }
                 break;
             case 'KeyD':
+                if (!timerPanelShortcutAllowed) return;
                 if (isSolveModalActive) return;
                 e.preventDefault();
                 toggleDeltaDisplayShortcut();
                 break;
             case 'Equal':
             case 'NumpadAdd':
+                if (!isSolveModalActive && !timerPanelShortcutAllowed) return;
                 if (isSolveModalActive) {
                     const btn = document.getElementById('modal-btn-plus2');
                     if (btn && btn.offsetParent !== null) btn.click();
@@ -6385,6 +7620,7 @@ function initKeyboardShortcuts() {
                 break;
             case 'Minus':
             case 'NumpadSubtract':
+                if (!isSolveModalActive && !timerPanelShortcutAllowed) return;
                 if (isSolveModalActive) {
                     const btn = document.getElementById('modal-btn-dnf');
                     if (btn && btn.offsetParent !== null) btn.click();
@@ -6394,7 +7630,7 @@ function initKeyboardShortcuts() {
                 break;
             case 'KeyZ':
                 if (isSolveModalActive) return;
-                if (mobileViewportQuery.matches && !isMobileTimerPanelActive()) return;
+                if (!timerPanelShortcutAllowed) return;
                 toggleZenMode();
                 break;
             case 'KeyT':
@@ -6409,6 +7645,7 @@ function initKeyboardShortcuts() {
                 });
                 break;
             case 'KeyS':
+                if (!timerPanelShortcutAllowed) return;
                 e.preventDefault();
                 if (isScramblePreviewModalOpen()) {
                     closeScramblePreviewModal();
@@ -6418,40 +7655,47 @@ function initKeyboardShortcuts() {
                 openScramblePreviewModal();
                 break;
             case 'Period':
+                if (!timerPanelShortcutAllowed) return;
                 if (isSolveModalActive) return;
                 document.getElementById('btn-next-scramble').click();
                 break;
             case 'Comma':
+                if (!timerPanelShortcutAllowed) return;
                 if (isSolveModalActive) return;
                 if (!document.getElementById('btn-prev-scramble').disabled) {
                     document.getElementById('btn-prev-scramble').click();
                 }
                 break;
             case 'ArrowLeft':
+                if (!trendPanelShortcutAllowed) return;
                 if (isSolveModalActive) return;
                 e.preventDefault();
                 if (e.shiftKey) applyAction('zoom-x-in');
                 else applyAction('pan-left');
                 break;
             case 'ArrowRight':
+                if (!trendPanelShortcutAllowed) return;
                 if (isSolveModalActive) return;
                 e.preventDefault();
                 if (e.shiftKey) applyAction('zoom-x-out');
                 else applyAction('pan-right');
                 break;
             case 'ArrowUp':
+                if (!trendPanelShortcutAllowed) return;
                 if (isSolveModalActive) return;
                 e.preventDefault();
                 if (e.shiftKey) applyAction('zoom-y-in');
                 else applyAction('pan-up');
                 break;
             case 'ArrowDown':
+                if (!trendPanelShortcutAllowed) return;
                 if (isSolveModalActive) return;
                 e.preventDefault();
                 if (e.shiftKey) applyAction('zoom-y-out');
                 else applyAction('pan-down');
                 break;
             case 'Enter':
+                if (!trendPanelShortcutAllowed) return;
                 if (isSolveModalActive) return;
                 e.preventDefault();
                 if (e.shiftKey) applyAction('last25');
@@ -6794,8 +8038,11 @@ function handleBluetoothTimerEvent(event) {
 
 // ──── Timer Events ────
 async function onSolveComplete(elapsed, penalty = null) {
-    backToDismiss();
-    await commitSolve(elapsed, penalty, { isManual: isCurrentScrambleManual() });
+    try {
+        await commitSolve(elapsed, penalty, { isManual: isCurrentScrambleManual() });
+    } finally {
+        backToDismiss();
+    }
 }
 
 function onTimerStarted() {
@@ -7031,6 +8278,7 @@ function onInspectionAlert(seconds) {
 function onTimerStateChange(state) {
     syncInspectionSpeechUnlockPromptVisibility();
     syncInspectionCancelControl(state);
+    void battleManager.handleTimerStateChange(state);
 
     const infoEl = document.getElementById('timer-info');
     const deltaEl = document.getElementById('timer-delta');
@@ -8281,7 +9529,7 @@ function renderSolvesTable(solves, stats) {
     // Cache for virtualized rendering
     _tableSortedIndices = indices;
     _tableSolves = solves;
-    
+
     updateSearchBulkActionUI();
 
     // ── Virtual scroll: only render visible rows ──
@@ -8433,7 +9681,7 @@ function renderSolvesTable(solves, stats) {
                 selectionAnchorSolveId = selectedSolveIds.has(solveId) ? solveId : null;
             }
             updateSearchBulkActionUI();
-            
+
             // Re-render
             const tbodyInstance = document.getElementById('solves-tbody');
             const scrollBefore = tbodyInstance.scrollTop;
@@ -8480,6 +9728,277 @@ function initSessionControls() {
     };
 }
 
+function initBattleControls() {
+    const overlay = getEl('battle-overlay');
+    const createOverlay = getEl('battle-create-overlay');
+    const createOverlayCloseButton = getEl('battle-create-close');
+    const createOverlayConfirmButton = getEl('battle-create-confirm');
+    const graphOverlay = getEl('graph-overlay');
+    const closeButton = getEl('battle-close');
+    const roomButton = getEl('battle-room-action');
+    const settingsOpenButton = getEl('btn-open-online-battle');
+    const previewPanel = getEl('battle-preview-panel');
+    const roomLaunchButton = getEl('btn-battle-room-launch');
+    const graphButton = getEl('btn-battle-graph');
+    const nicknameInput = getEl('battle-nickname-input');
+    const roomInput = getEl('battle-room-input');
+    const copyLinkButton = getEl('battle-copy-link');
+    const createScrambleTypeSelect = getEl('battle-create-scramble-type');
+
+    initBattleTableColumnVisibility();
+
+    SCRAMBLE_TYPE_OPTIONS.forEach((option) => {
+        const optionEl = document.createElement('option');
+        optionEl.value = option.id;
+        optionEl.textContent = option.menuLabel;
+        createScrambleTypeSelect?.append(optionEl);
+    });
+
+    const executeBattleJoin = async ({ roomProbe = null, scrambleTypeOverride = null } = {}) => {
+        const nickname = nicknameInput?.value || '';
+        const roomId = roomInput?.value || '';
+        const scrambleType = scrambleTypeOverride || roomProbe?.roomInfo?.scrambleType || getBattleSelectedType();
+        beginBattleMode(scrambleType);
+        const initialScramble = roomProbe?.exists
+            ? roomProbe.roomInfo?.currentScramble
+            : await generateScrambleForType(scrambleType);
+        await battleManager.joinRoom({
+            nickname,
+            roomId,
+            scrambleType,
+            initialScramble,
+        });
+        battlePendingCreateRoomId = '';
+        closeBattleCreateOverlay();
+        syncBattleScrambleType(battleManager.getScrambleType());
+        void loadNewScramble();
+    };
+
+    settingsOpenButton?.addEventListener('click', () => {
+        closeSettingsPanel({ isSwitching: true });
+        openBattleOverlay();
+    });
+
+    closeButton?.addEventListener('click', () => {
+        closeBattleOverlay();
+    });
+
+    overlay?.addEventListener('click', (event) => {
+        if (event.target !== overlay) return;
+        closeBattleOverlay();
+    });
+
+    createOverlayCloseButton?.addEventListener('click', () => {
+        closeBattleCreateOverlay();
+    });
+
+    createOverlay?.addEventListener('click', (event) => {
+        if (event.target !== createOverlay) return;
+        closeBattleCreateOverlay();
+    });
+
+    graphOverlay?.addEventListener('click', (event) => {
+        if (event.target !== graphOverlay) return;
+        closeGraphOverlay();
+    });
+
+    previewPanel?.addEventListener('click', () => {
+        if (!battleManager.isJoined()) return;
+        previewPanel.blur();
+        openBattleOverlay();
+    });
+
+    roomLaunchButton?.addEventListener('click', () => {
+        if (!battleManager.isJoined()) return;
+        hideShortcutTooltip();
+        roomLaunchButton.blur();
+        openBattleOverlay();
+    });
+
+    graphButton?.addEventListener('click', () => {
+        if (selectRightPanelSecondary(RIGHT_PANEL_SECONDARY_GRAPH)) {
+            graphButton.blur();
+            return;
+        }
+        if (battleGraphModalOpen) {
+            closeGraphOverlay();
+            return;
+        }
+        openGraphOverlay();
+    });
+
+    copyLinkButton?.addEventListener('click', () => {
+        void copyBattleRoomLink(copyLinkButton);
+    });
+
+    roomInput?.addEventListener('input', () => {
+        battlePendingCreateRoomId = '';
+        closeBattleCreateOverlay();
+        renderBattleUi();
+    });
+
+    roomButton?.addEventListener('click', async () => {
+        if (battleManager.isJoined()) {
+            battlePendingCreateRoomId = '';
+            await battleManager.leaveRoom();
+            return;
+        }
+
+        const nickname = getEl('battle-nickname-input')?.value || '';
+        const roomId = roomInput?.value || '';
+        const normalizedRoomId = normalizeBattleRoomId(roomId);
+
+        if (!nickname.trim()) {
+            renderBattleUi({
+                ...battleManager.getState(),
+                connectionState: 'error',
+                connectionMessage: 'Nickname is required.',
+            });
+            return;
+        }
+        if (!BATTLE_ROOM_ID_PATTERN.test(roomId.trim())) {
+            renderBattleUi({
+                ...battleManager.getState(),
+                connectionState: 'error',
+                connectionMessage: 'Room name must be 3-32 characters using letters, numbers, "_" or "-".',
+            });
+            return;
+        }
+
+        try {
+            const roomProbe = await battleManager.inspectRoom(roomId);
+            if (!roomProbe.exists && battlePendingCreateRoomId !== normalizedRoomId) {
+                battlePendingCreateRoomId = normalizedRoomId;
+                createScrambleTypeSelect && (createScrambleTypeSelect.value = getSelectedScrambleType());
+                openBattleCreateOverlay();
+                return;
+            }
+
+            await executeBattleJoin({ roomProbe });
+        } catch (error) {
+            if (!battleManager.isJoined()) {
+                await restoreAfterBattle();
+            }
+            battlePendingCreateRoomId = '';
+            renderBattleUi({
+                ...battleManager.getState(),
+                connectionState: 'error',
+                connectionMessage: error instanceof Error ? error.message : 'Unable to join the battle room.',
+            });
+        }
+    });
+
+    createOverlayConfirmButton?.addEventListener('click', async () => {
+        const roomId = roomInput?.value || '';
+        const nickname = nicknameInput?.value || '';
+        const normalizedRoomId = normalizeBattleRoomId(roomId);
+
+        if (!nickname.trim() || !BATTLE_ROOM_ID_PATTERN.test(roomId.trim()) || battlePendingCreateRoomId !== normalizedRoomId) {
+            closeBattleCreateOverlay();
+            renderBattleUi({
+                ...battleManager.getState(),
+                connectionState: 'error',
+                connectionMessage: 'Room details changed. Check the nickname and room, then try again.',
+            });
+            return;
+        }
+
+        createOverlayConfirmButton.disabled = true;
+        createScrambleTypeSelect && (createScrambleTypeSelect.disabled = true);
+        try {
+            await executeBattleJoin({
+                roomProbe: { exists: false, roomInfo: null },
+                scrambleTypeOverride: getBattleSelectedType(),
+            });
+        } catch (error) {
+            if (!battleManager.isJoined()) {
+                await restoreAfterBattle();
+            }
+            renderBattleUi({
+                ...battleManager.getState(),
+                connectionState: 'error',
+                connectionMessage: error instanceof Error ? error.message : 'Unable to create the battle room.',
+            });
+        } finally {
+            createOverlayConfirmButton.disabled = false;
+            createScrambleTypeSelect && (createScrambleTypeSelect.disabled = false);
+        }
+    });
+
+    battleManager.on('stateChange', (state) => {
+        renderBattleUi(state);
+        updateManualTimeEntryUI();
+        const wasBattleActive = document.body.classList.contains('battle-active');
+        document.body.classList.toggle('battle-active', state.joined);
+        if (state.joined) {
+            battlePendingCreateRoomId = '';
+            closeBattleCreateOverlay();
+            if (state.connectionState === 'connected') {
+                void battleManager.handleTimerStateChange(timer.getState());
+                if (state.pendingSolveUpload) {
+                    void flushPendingBattleSolveUpload();
+                }
+            }
+            syncBattleScrambleType(state.scrambleType || getSelectedScrambleType());
+            syncBattleScrambleDisplay(state);
+            if (!state.pendingSolveUpload) {
+                void finalizeDeferredBattleSolveUiRefresh();
+            }
+        } else if (wasBattleActive) {
+            void restoreAfterBattle();
+            void finalizeDeferredBattleSolveUiRefresh();
+        }
+        syncCameraBackgroundTimerPlacement();
+    });
+
+    battleManager.on('scrambleChange', ({ scramble, scrambleType }) => {
+        syncBattleScrambleType(scrambleType || battleManager.getScrambleType());
+        applyBattleScramble(scramble);
+    });
+
+    battleManager.on('scrambleTypeChange', ({ scrambleType }) => {
+        syncBattleScrambleType(scrambleType || battleManager.getScrambleType());
+    });
+
+    timer.on('startBlocked', (reason) => {
+        if (!battleManager.isJoined()) return;
+        const state = battleManager.getState();
+        renderBattleUi({
+            ...state,
+            connectionState: 'error',
+            connectionMessage: String(reason || 'Battle start blocked.'),
+        });
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.code !== 'Escape') return;
+        if (createOverlay?.classList.contains('active')) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            closeBattleCreateOverlay();
+            return;
+        }
+        if (battleGraphModalOpen) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            closeGraphOverlay();
+            return;
+        }
+        if (overlay?.classList.contains('active')) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            closeBattleOverlay();
+        }
+    });
+
+    syncBattleAuxButtons();
+    renderBattleUi();
+    applyBattleRoomLinkFromUrl();
+    window.addEventListener('hashchange', () => {
+        applyBattleRoomLinkFromUrl();
+    });
+}
+
 function refreshSessionList() {
     const sessions = sessionManager.getSessions();
     const activeId = sessionManager.getActiveSessionId();
@@ -8502,6 +10021,17 @@ function onSessionChanged() {
     refreshSessionList();
     rebuildStatsCache();
     refreshUI();
+    if (battleManager.isJoined()) {
+        const scramble = battleManager.isWaitingForOthers()
+            ? ''
+            : battleManager.getCurrentScramble();
+        if (scramble) {
+            updateScrambleUI(scramble);
+        } else {
+            void loadNewScramble();
+        }
+        return;
+    }
     void syncScrambleTypeWithActiveSession({ loadScramble: true }).then((didChange) => {
         if (didChange) return;
 
@@ -8732,7 +10262,7 @@ function updateSearchBulkActionUI() {
     const activeSessionId = sessionManager.getActiveSessionId();
     const hasMoveTargets = sessionManager.getSessions().some((session) => session.id !== activeSessionId);
     const bulkActionActive = bulkActionProgressState.active;
-    
+
     if (countEl) {
         if (isSearchActive) {
             countEl.textContent = `${selectedSolveIds.size} selected, ${matchCount} matches`;
@@ -8740,7 +10270,7 @@ function updateSearchBulkActionUI() {
             countEl.textContent = `${selectedSolveIds.size} selected`;
         }
     }
-    
+
     const hasSelection = selectedSolveIds.size > 0;
     if (moveSelect instanceof HTMLSelectElement) {
         moveSelect.disabled = bulkActionActive || !hasSelection || !hasMoveTargets;
@@ -8931,10 +10461,10 @@ function initSearchMenu() {
             }
         };
     }
-    
+
     // Bulk move setup
     const moveSelect = document.getElementById('search-bulk-move-select');
-    
+
     if (moveSelect) {
         syncSearchBulkMoveOptions();
 
@@ -11492,7 +13022,10 @@ function initSettingsPanel() {
         googleDriveAccountBtn.textContent = connected
             ? 'Google Account Connected'
             : 'Connect Google Account';
-        googleDriveAccountBtn.title = '';
+        googleDriveAccountBtn.removeAttribute('title');
+        delete googleDriveAccountBtn.dataset.shortcutTooltipAction;
+        delete googleDriveAccountBtn.dataset.shortcutTooltipKeys;
+        delete googleDriveAccountBtn.dataset.shortcutTooltipPlacement;
     };
 
     const syncGoogleDriveButtons = () => {

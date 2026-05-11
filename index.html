@@ -15,49 +15,58 @@
   <!-- Add your Google OAuth Web Client ID below to enable Drive backups. -->
   <meta name="google-drive-client-id"
     content="210179775275-e62l646u4b8157hqs7j2ovt6ap608bjo.apps.googleusercontent.com">
+  <!-- Optional websocket endpoint base for online battle, for example wss://example.com/battle -->
+  <meta name="battle-server-url" content="https://ukratimer-battle.zukrainak47.workers.dev">
+  <!-- <meta name="battle-server-url" content="http://localhost:8081/battle"> -->
   <title>UkraTimer</title>
 
-  <link rel="manifest" href="manifest.webmanifest?v=2026050201">
-  <link rel="apple-touch-icon" href="resources/pwa-icon-180.png?v=2026050201">
+  <link rel="manifest" href="manifest.webmanifest?v=2026051104">
+  <link rel="apple-touch-icon" href="resources/pwa-icon-180.png?v=2026051104">
 
   <!-- Fonts -->
-  <link rel="preload" href="resources/fonts/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2?v=2026050201" as="font"
+  <link rel="preload" href="resources/fonts/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2?v=2026051104" as="font"
     type="font/woff2" crossorigin>
   <link rel="preload"
-    href="resources/fonts/tDbv2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPxDcwgknk-4.woff2?v=2026050201"
+    href="resources/fonts/tDbv2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPxDcwgknk-4.woff2?v=2026051104"
     as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="css/fonts.css?v=2026050201">
+  <link rel="stylesheet" href="css/fonts.css?v=2026051104">
 
   <!-- Favicon -->
-  <link rel="icon" href="resources/pwa-icon.svg?v=2026050201" type="image/svg+xml">
+  <link rel="icon" href="resources/pwa-icon.svg?v=2026051104" type="image/svg+xml">
 
   <!-- Preload SVG icon assets to avoid first-open lag -->
-  <link rel="preload" href="resources/comment-off.svg?v=2026050201" as="image" type="image/svg+xml">
-  <link rel="preload" href="resources/comment.svg?v=2026050201" as="image" type="image/svg+xml">
-  <link rel="preload" href="resources/calendar-date-off.svg?v=2026050201" as="image" type="image/svg+xml">
-  <link rel="preload" href="resources/calendar-date.svg?v=2026050201" as="image" type="image/svg+xml">
-  <link rel="preload" href="resources/clock.svg?v=2026050201" as="image" type="image/svg+xml">
-  <link rel="preload" href="resources/legend.svg?v=2026050201" as="image" type="image/svg+xml">
-  <link rel="preload" href="resources/hashtag.svg?v=2026050201" as="image" type="image/svg+xml">
-  <link rel="preload" href="resources/hashtag-full.svg?v=2026050201" as="image" type="image/svg+xml">
-  <link rel="preload" href="resources/settings.svg?v=2026050201" as="image" type="image/svg+xml">
-  <link rel="preload" href="resources/distribution.svg?v=2026050201" as="image" type="image/svg+xml">
-  <link rel="preload" href="resources/trash.svg?v=2026050201" as="image" type="image/svg+xml">
-  <link rel="preload" href="resources/search.svg?v=2026050201" as="image" type="image/svg+xml">
-  <link rel="preload" href="resources/camera-video.svg?v=2026050201" as="image" type="image/svg+xml">
-  <link rel="preload" href="resources/camera-video-off.svg?v=2026050201" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/comment-off.svg?v=2026051104" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/comment.svg?v=2026051104" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/calendar-date-off.svg?v=2026051104" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/calendar-date.svg?v=2026051104" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/clock.svg?v=2026051104" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/legend.svg?v=2026051104" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/hashtag.svg?v=2026051104" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/hashtag-full.svg?v=2026051104" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/settings.svg?v=2026051104" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/distribution.svg?v=2026051104" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/trash.svg?v=2026051104" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/search.svg?v=2026051104" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/camera-video.svg?v=2026051104" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/camera-video-off.svg?v=2026051104" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/compress.svg?v=2026051104" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/expand.svg?v=2026051104" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/distribution-cumulative.svg?v=2026051104" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/distribution-normal.svg?v=2026051104" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/trending-down.svg?v=2026051104" as="image" type="image/svg+xml">
 
   <!-- Styles -->
-  <link rel="stylesheet" href="css/variables.css?v=2026050201">
-  <link rel="stylesheet" href="css/base.css?v=2026050201">
-  <link rel="stylesheet" href="css/layout.css?v=2026050201">
-  <link rel="stylesheet" href="css/scramble.css?v=2026050201">
-  <link rel="stylesheet" href="css/timer.css?v=2026050201">
-  <link rel="stylesheet" href="css/stats.css?v=2026050201">
-  <link rel="stylesheet" href="css/cube.css?v=2026050201">
-  <link rel="stylesheet" href="css/graph.css?v=2026050201">
-  <link rel="stylesheet" href="css/modal.css?v=2026050201">
-  <link rel="stylesheet" href="css/settings.css?v=2026050201">
+  <link rel="stylesheet" href="css/variables.css?v=2026051104">
+  <link rel="stylesheet" href="css/base.css?v=2026051104">
+  <link rel="stylesheet" href="css/layout.css?v=2026051104">
+  <link rel="stylesheet" href="css/scramble.css?v=2026051104">
+  <link rel="stylesheet" href="css/timer.css?v=2026051104">
+  <link rel="stylesheet" href="css/stats.css?v=2026051104">
+  <link rel="stylesheet" href="css/cube.css?v=2026051104">
+  <link rel="stylesheet" href="css/graph.css?v=2026051104">
+  <link rel="stylesheet" href="css/modal.css?v=2026051104">
+  <link rel="stylesheet" href="css/battle.css?v=2026051104">
+  <link rel="stylesheet" href="css/settings.css?v=2026051104">
 </head>
 
 <body>
@@ -97,12 +106,19 @@
             aria-label="Mobile sessions"></div>
           <select id="mobile-session-select" tabindex="-1" aria-hidden="true"></select>
         </div>
+        <button id="btn-battle-room-launch" class="btn-icon" type="button" hidden aria-label="Open online battle room">
+          <span id="battle-room-launch-value" aria-hidden="true">1000</span>
+        </button>
         <button id="btn-scramble-preview" class="btn-icon" title="Scramble preview" aria-label="Open scramble preview">
           <canvas class="scramble-preview-face-icon" aria-hidden="true"></canvas>
         </button>
         <button id="btn-camera-background-toggle" class="btn-icon" type="button" hidden
           aria-label="Turn camera background off" aria-pressed="true">
           <span id="icon-camera-background-toggle" class="icon-mask icon-mask-camera-video" aria-hidden="true"></span>
+        </button>
+        <button id="btn-battle-graph" class="btn-icon" type="button" hidden aria-label="Open graph" title="Open graph"
+          aria-pressed="false">
+          <span class="icon-mask icon-mask-trending-down" aria-hidden="true"></span>
         </button>
         <div id="scramble-type-menu-mobile" class="scramble-type-menu" data-no-timer-start>
           <button id="btn-scramble-type-mobile" class="btn-icon scramble-type-btn" type="button"
@@ -164,173 +180,179 @@
     <div id="left-panel">
       <div id="stats-panel" class="panel">
         <div class="panel-shell">
-        <div id="stats-sidebar">
-          <div class="panel-header" id="session-header">
-            <div id="session-bar">
-              <div class="session-select-wrapper custom-select-menu" id="session-select-menu" data-no-timer-start>
-                <button id="btn-session-select" class="custom-select-btn" type="button" aria-haspopup="listbox"
-                  aria-expanded="false" aria-controls="session-select-dropdown">
+          <div id="stats-sidebar">
+            <div class="panel-header" id="session-header">
+              <div id="session-bar">
+                <div class="session-select-wrapper custom-select-menu" id="session-select-menu" data-no-timer-start>
+                  <button id="btn-session-select" class="custom-select-btn" type="button" aria-haspopup="listbox"
+                    aria-expanded="false" aria-controls="session-select-dropdown">
+                    <span class="custom-select-label"></span>
+                    <span class="custom-select-caret" aria-hidden="true">▾</span>
+                  </button>
+                  <div id="session-select-dropdown" class="custom-select-dropdown" role="listbox" aria-label="Sessions">
+                  </div>
+                  <select id="session-select" tabindex="-1" aria-hidden="true"></select>
+                </div>
+                <div class="session-actions">
+                  <button id="btn-new-session" title="New session" class="btn-icon-small">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                      stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="12" y1="5" x2="12" y2="19"></line>
+                      <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                  </button>
+                  <button id="btn-rename-session" title="Rename session" class="btn-icon-small">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                      stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                  </button>
+                  <button id="btn-delete-session" title="Delete session" class="btn-icon-small btn-danger">
+                    <span class="icon-mask icon-mask-trash" aria-hidden="true"></span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Stats filter -->
+            <div id="stats-filter-bar">
+              <div class="stats-filter-select-wrapper custom-select-menu" id="stats-filter-menu" data-no-timer-start>
+                <button id="btn-stats-filter-select" class="custom-select-btn" type="button" aria-haspopup="listbox"
+                  aria-expanded="false" aria-controls="stats-filter-dropdown">
                   <span class="custom-select-label"></span>
                   <span class="custom-select-caret" aria-hidden="true">▾</span>
                 </button>
-                <div id="session-select-dropdown" class="custom-select-dropdown" role="listbox" aria-label="Sessions">
-                </div>
-                <select id="session-select" tabindex="-1" aria-hidden="true"></select>
+                <div id="stats-filter-dropdown" class="custom-select-dropdown" role="listbox"
+                  aria-label="Stats filter options"></div>
+                <select id="stats-filter-select" tabindex="-1" aria-hidden="true">
+                  <option value="all">All</option>
+                  <option value="today">Today</option>
+                  <option value="week">This week</option>
+                  <option value="month">This month</option>
+                  <option value="custom">Custom</option>
+                </select>
               </div>
-              <div class="session-actions">
-                <button id="btn-new-session" title="New session" class="btn-icon-small">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="12" y1="5" x2="12" y2="19"></line>
-                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                  </svg>
-                </button>
-                <button id="btn-rename-session" title="Rename session" class="btn-icon-small">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                  </svg>
-                </button>
-                <button id="btn-delete-session" title="Delete session" class="btn-icon-small btn-danger">
+              <input id="custom-filter-input" type="text" placeholder="e.g. 1d 12h or 100"
+                aria-label="Custom stats filter" style="display:none;" maxlength="20">
+            </div>
+
+            <!-- Summary stats -->
+            <div id="stats-summary">
+              <table>
+                <thead>
+                  <tr>
+                    <th></th>
+                    <th>current</th>
+                    <th>best</th>
+                  </tr>
+                </thead>
+                <tbody id="stats-summary-body">
+                  <tr>
+                    <td>time</td>
+                    <td>-</td>
+                    <td>-</td>
+                  </tr>
+                  <tr>
+                    <td>mo3</td>
+                    <td>-</td>
+                    <td>-</td>
+                  </tr>
+                  <tr>
+                    <td>ao5</td>
+                    <td>-</td>
+                    <td>-</td>
+                  </tr>
+                  <tr>
+                    <td>ao12</td>
+                    <td>-</td>
+                    <td>-</td>
+                  </tr>
+                  <tr>
+                    <td>ao100</td>
+                    <td>-</td>
+                    <td>-</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Search UI -->
+            <div id="stats-search-menu" hidden>
+              <div class="stats-search-filters">
+                <div class="stats-search-filter-group">
+                  <input type="text" id="search-filter-index-min" class="search-filter-input" placeholder="Min index"
+                    inputmode="numeric">
+                  <span class="search-filter-sep">-</span>
+                  <input type="text" id="search-filter-index-max" class="search-filter-input" placeholder="Max index"
+                    inputmode="numeric">
+                </div>
+                <div class="stats-search-filter-group">
+                  <input type="text" id="search-filter-time-min" class="search-filter-input" placeholder="Min time">
+                  <span class="search-filter-sep">-</span>
+                  <input type="text" id="search-filter-time-max" class="search-filter-input" placeholder="Max time">
+                </div>
+              </div>
+              <div class="stats-search-toolbar stats-search-count-row" style="padding-top: 0; padding-bottom: 2px;">
+                <span id="search-selected-count"
+                  style="font-size: 0.85rem; color: var(--text-secondary); width: 100%; text-align: center;">0 selected,
+                  0 matches</span>
+              </div>
+              <div id="search-bulk-progress" class="operation-progress" hidden aria-live="polite">
+                <div class="operation-progress-row">
+                  <span id="search-bulk-progress-text" class="operation-progress-text">Deleting solves...</span>
+                  <span id="search-bulk-progress-percent" class="operation-progress-percent">0%</span>
+                </div>
+                <div id="search-bulk-progress-track" class="operation-progress-track" role="progressbar"
+                  aria-label="Bulk action progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                  <div id="search-bulk-progress-fill" class="operation-progress-fill"></div>
+                </div>
+              </div>
+              <div class="stats-search-toolbar stats-search-actions-row">
+                <button id="btn-search-select-all" class="btn-action">Select All</button>
+                <button id="btn-search-clear-filters" class="btn-action">Clear</button>
+                <div class="custom-select-menu" id="search-bulk-move-menu">
+                  <button id="btn-search-bulk-move" class="custom-select-btn" title="Move selected" type="button"
+                    aria-haspopup="listbox" aria-expanded="false" aria-controls="search-bulk-move-dropdown" disabled>
+                    <span class="custom-select-label">Move to...</span>
+                    <span class="custom-select-caret" aria-hidden="true">▾</span>
+                  </button>
+                  <div id="search-bulk-move-dropdown" class="custom-select-dropdown" role="listbox"
+                    aria-label="Move selected solves"></div>
+                  <select id="search-bulk-move-select" tabindex="-1" aria-hidden="true">
+                    <option value="" hidden disabled>Move to...</option>
+                  </select>
+                </div>
+                <button id="btn-search-bulk-delete" class="btn-action btn-danger" title="Delete selected" disabled>
                   <span class="icon-mask icon-mask-trash" aria-hidden="true"></span>
                 </button>
               </div>
+              <input type="text" id="stats-search-input" placeholder="Search times, scrambles, comments..."
+                autocomplete="off" spellcheck="false">
+            </div>
+
+            <!-- Session info -->
+            <div id="session-info">
+              <span id="solve-count">solve: 0/0</span>
+              <span id="session-mean">mean: -</span>
             </div>
           </div>
 
-          <!-- Stats filter -->
-          <div id="stats-filter-bar">
-            <div class="stats-filter-select-wrapper custom-select-menu" id="stats-filter-menu" data-no-timer-start>
-              <button id="btn-stats-filter-select" class="custom-select-btn" type="button" aria-haspopup="listbox"
-                aria-expanded="false" aria-controls="stats-filter-dropdown">
-                <span class="custom-select-label"></span>
-                <span class="custom-select-caret" aria-hidden="true">▾</span>
-              </button>
-              <div id="stats-filter-dropdown" class="custom-select-dropdown" role="listbox"
-                aria-label="Stats filter options"></div>
-              <select id="stats-filter-select" tabindex="-1" aria-hidden="true">
-                <option value="all">All</option>
-                <option value="today">Today</option>
-                <option value="week">This week</option>
-                <option value="month">This month</option>
-                <option value="custom">Custom</option>
-              </select>
-            </div>
-            <input id="custom-filter-input" type="text" placeholder="e.g. 1d 12h or 100"
-              aria-label="Custom stats filter" style="display:none;" maxlength="20">
-          </div>
-
-          <!-- Summary stats -->
-          <div id="stats-summary">
-            <table>
+          <!-- Solves list -->
+          <div id="solves-container">
+            <table id="solves-table">
               <thead>
                 <tr>
-                  <th></th>
-                  <th>current</th>
-                  <th>best</th>
+                  <th data-sort="search" style="cursor: pointer; white-space: nowrap;"><span
+                      class="icon-mask icon-mask-search" aria-hidden="true" style="margin: 0 auto;"></span></th>
+                  <th data-sort="time" style="cursor: pointer;">time</th>
+                  <th data-sort="ao5" style="cursor: pointer;">ao5</th>
+                  <th data-sort="ao12" style="cursor: pointer;">ao12</th>
                 </tr>
               </thead>
-              <tbody id="stats-summary-body">
-                <tr>
-                  <td>time</td>
-                  <td>-</td>
-                  <td>-</td>
-                </tr>
-                <tr>
-                  <td>mo3</td>
-                  <td>-</td>
-                  <td>-</td>
-                </tr>
-                <tr>
-                  <td>ao5</td>
-                  <td>-</td>
-                  <td>-</td>
-                </tr>
-                <tr>
-                  <td>ao12</td>
-                  <td>-</td>
-                  <td>-</td>
-                </tr>
-                <tr>
-                  <td>ao100</td>
-                  <td>-</td>
-                  <td>-</td>
-                </tr>
-              </tbody>
+              <tbody id="solves-tbody"></tbody>
             </table>
           </div>
-
-          <!-- Search UI -->
-          <div id="stats-search-menu" hidden>
-              <div class="stats-search-filters">
-              <div class="stats-search-filter-group">
-                <input type="text" id="search-filter-index-min" class="search-filter-input" placeholder="Min index" inputmode="numeric">
-                <span class="search-filter-sep">-</span>
-                <input type="text" id="search-filter-index-max" class="search-filter-input" placeholder="Max index" inputmode="numeric">
-              </div>
-              <div class="stats-search-filter-group">
-                <input type="text" id="search-filter-time-min" class="search-filter-input" placeholder="Min time">
-                <span class="search-filter-sep">-</span>
-                <input type="text" id="search-filter-time-max" class="search-filter-input" placeholder="Max time">
-              </div>
-            </div>
-            <div class="stats-search-toolbar stats-search-count-row" style="padding-top: 0; padding-bottom: 2px;">
-              <span id="search-selected-count" style="font-size: 0.85rem; color: var(--text-secondary); width: 100%; text-align: center;">0 selected, 0 matches</span>
-            </div>
-            <div id="search-bulk-progress" class="operation-progress" hidden aria-live="polite">
-              <div class="operation-progress-row">
-                <span id="search-bulk-progress-text" class="operation-progress-text">Deleting solves...</span>
-                <span id="search-bulk-progress-percent" class="operation-progress-percent">0%</span>
-              </div>
-              <div id="search-bulk-progress-track" class="operation-progress-track" role="progressbar" aria-label="Bulk action progress"
-                aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-                <div id="search-bulk-progress-fill" class="operation-progress-fill"></div>
-              </div>
-            </div>
-            <div class="stats-search-toolbar stats-search-actions-row">
-              <button id="btn-search-select-all" class="btn-action">Select All</button>
-              <button id="btn-search-clear-filters" class="btn-action">Clear</button>
-              <div class="custom-select-menu" id="search-bulk-move-menu">
-                <button id="btn-search-bulk-move" class="custom-select-btn" title="Move selected" type="button"
-                  aria-haspopup="listbox" aria-expanded="false" aria-controls="search-bulk-move-dropdown" disabled>
-                  <span class="custom-select-label">Move to...</span>
-                  <span class="custom-select-caret" aria-hidden="true">▾</span>
-                </button>
-                <div id="search-bulk-move-dropdown" class="custom-select-dropdown" role="listbox"
-                  aria-label="Move selected solves"></div>
-                <select id="search-bulk-move-select" tabindex="-1" aria-hidden="true">
-                  <option value="" hidden disabled>Move to...</option>
-                </select>
-              </div>
-              <button id="btn-search-bulk-delete" class="btn-action btn-danger" title="Delete selected" disabled>
-                <span class="icon-mask icon-mask-trash" aria-hidden="true"></span>
-              </button>
-            </div>
-            <input type="text" id="stats-search-input" placeholder="Search times, scrambles, comments..." autocomplete="off" spellcheck="false">
-          </div>
-
-          <!-- Session info -->
-          <div id="session-info">
-            <span id="solve-count">solve: 0/0</span>
-            <span id="session-mean">mean: -</span>
-          </div>
-        </div>
-
-        <!-- Solves list -->
-        <div id="solves-container">
-          <table id="solves-table">
-            <thead>
-              <tr>
-                <th data-sort="search" style="cursor: pointer; white-space: nowrap;"><span class="icon-mask icon-mask-search" aria-hidden="true" style="margin: 0 auto;"></span></th>
-                <th data-sort="time" style="cursor: pointer;">time</th>
-                <th data-sort="ao5" style="cursor: pointer;">ao5</th>
-                <th data-sort="ao12" style="cursor: pointer;">ao12</th>
-              </tr>
-            </thead>
-            <tbody id="solves-tbody"></tbody>
-          </table>
-        </div>
         </div>
       </div>
     </div>
@@ -349,8 +371,8 @@
             <span id="import-progress-text" class="operation-progress-text">Importing backup...</span>
             <span id="import-progress-percent" class="operation-progress-percent">0%</span>
           </div>
-          <div id="import-progress-track" class="operation-progress-track" role="progressbar" aria-label="Import progress"
-            aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div id="import-progress-track" class="operation-progress-track" role="progressbar"
+            aria-label="Import progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
             <div id="import-progress-fill" class="operation-progress-fill"></div>
           </div>
         </div>
@@ -408,118 +430,146 @@
       </div>
       <div class="panel daily-streak-card daily-streak-card-desktop" data-daily-streak-card hidden>
         <div class="panel-shell">
-        <div class="daily-streak-main">
-          <span class="daily-streak-fire" data-daily-streak-fire aria-hidden="true">
-            <svg class="daily-streak-fire-icon" viewBox="0 0 24 24" focusable="false">
-              <path
-                d="M12 2.5C11.7 5.1 10.3 6.6 9 8c-1.7 1.8-3.3 3.5-3.3 6.4 0 3.9 2.8 7.1 6.5 7.1s6.5-3.2 6.5-7.1c0-2.3-1-4-2.6-5.6-.8-.8-1.7-1.5-2.3-2.6-.6-1.1-1-2.3-1.3-3.7-.1-.4-.5-.6-.9-.6-.4 0-.8.3-.9.7ZM12.2 11.2c.5 1.1 1.3 1.8 2 2.5.9.9 1.6 1.8 1.6 3.4 0 2.2-1.6 4-3.8 4s-3.8-1.8-3.8-4c0-1.8.9-2.8 2-3.9.7-.8 1.5-1.6 2-2.8Z" />
-            </svg>
-          </span>
-          <div class="daily-streak-copy">
-            <span class="daily-streak-count" data-daily-streak-count>0</span>
-            <span class="daily-streak-count-label" data-daily-streak-count-label>days</span>
+          <div class="daily-streak-main">
+            <span class="daily-streak-fire" data-daily-streak-fire aria-hidden="true">
+              <svg class="daily-streak-fire-icon" viewBox="0 0 24 24" focusable="false">
+                <path
+                  d="M12 2.5C11.7 5.1 10.3 6.6 9 8c-1.7 1.8-3.3 3.5-3.3 6.4 0 3.9 2.8 7.1 6.5 7.1s6.5-3.2 6.5-7.1c0-2.3-1-4-2.6-5.6-.8-.8-1.7-1.5-2.3-2.6-.6-1.1-1-2.3-1.3-3.7-.1-.4-.5-.6-.9-.6-.4 0-.8.3-.9.7ZM12.2 11.2c.5 1.1 1.3 1.8 2 2.5.9.9 1.6 1.8 1.6 3.4 0 2.2-1.6 4-3.8 4s-3.8-1.8-3.8-4c0-1.8.9-2.8 2-3.9.7-.8 1.5-1.6 2-2.8Z" />
+              </svg>
+            </span>
+            <div class="daily-streak-copy">
+              <span class="daily-streak-count" data-daily-streak-count>0</span>
+              <span class="daily-streak-count-label" data-daily-streak-count-label>days</span>
+            </div>
+            <span class="daily-streak-progress-count" data-daily-streak-progress-count>0 / 0</span>
           </div>
-          <span class="daily-streak-progress-count" data-daily-streak-progress-count>0 / 0</span>
-        </div>
         </div>
       </div>
       <div id="cube-panel" class="panel collapsible">
         <div class="panel-shell">
-        <div class="panel-header" data-collapse-target="cube-body">Scramble Preview <span
-            class="collapse-chevron">▾</span></div>
-        <div id="cube-body" class="collapsible-body">
-          <div id="cube-camera-timer-slot" hidden></div>
-          <div id="cube-canvas-container">
-            <canvas id="cube-canvas"></canvas>
+          <div class="panel-header" data-collapse-target="cube-body"><span id="cube-panel-title">Scramble Preview</span>
+            <span class="collapse-chevron">▾</span>
           </div>
-        </div>
+          <div id="cube-body" class="collapsible-body">
+            <div id="cube-camera-timer-slot" hidden></div>
+            <button id="battle-preview-panel" class="battle-preview-panel" type="button" hidden
+              aria-label="Open online battle room">
+              <div class="battle-table-shell battle-table-shell-compact">
+                <table class="battle-table battle-table-compact">
+                  <thead>
+                    <tr>
+                      <th class="battle-table-player">Name</th>
+                      <th class="battle-table-mean">Mean</th>
+                      <th class="battle-table-elo">ELO</th>
+                      <th class="battle-table-win">Wins</th>
+                      <th class="battle-table-status">Status</th>
+                      <th class="battle-table-time">Time</th>
+                    </tr>
+                  </thead>
+                  <tbody id="battle-preview-body">
+                    <tr>
+                      <td colspan="6" class="battle-empty-cell">Join a room to start battling.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </button>
+            <div id="cube-canvas-container">
+              <canvas id="cube-canvas"></canvas>
+            </div>
+          </div>
         </div>
       </div>
       <div id="mobile-summary-card" class="panel">
         <div class="panel-shell">
-        <div class="mobile-summary-grid">
-          <button type="button" class="mobile-summary-cell" data-mobile-summary-action="ao5"
-            aria-label="Open Average of 5 details">
-            <span class="mobile-summary-label">AO5</span>
-            <span id="mobile-summary-ao5" class="mobile-summary-value">-</span>
-          </button>
-          <button type="button" class="mobile-summary-cell" data-mobile-summary-action="ao12"
-            aria-label="Open Average of 12 details">
-            <span class="mobile-summary-label">AO12</span>
-            <span id="mobile-summary-ao12" class="mobile-summary-value">-</span>
-          </button>
-          <button type="button" class="mobile-summary-cell" data-mobile-summary-action="ao100"
-            aria-label="Open Average of 100 details">
-            <span class="mobile-summary-label">AO100</span>
-            <span id="mobile-summary-ao100" class="mobile-summary-value">-</span>
-          </button>
-          <button type="button" class="mobile-summary-cell" data-mobile-summary-action="stats"
-            aria-label="Open stats tab">
-            <span class="mobile-summary-label">MEAN</span>
-            <span id="mobile-summary-mean" class="mobile-summary-value">-</span>
-          </button>
-        </div>
+          <div class="mobile-summary-grid">
+            <button type="button" class="mobile-summary-cell" data-mobile-summary-action="ao5"
+              aria-label="Open Average of 5 details">
+              <span class="mobile-summary-label">AO5</span>
+              <span id="mobile-summary-ao5" class="mobile-summary-value">-</span>
+            </button>
+            <button type="button" class="mobile-summary-cell" data-mobile-summary-action="ao12"
+              aria-label="Open Average of 12 details">
+              <span class="mobile-summary-label">AO12</span>
+              <span id="mobile-summary-ao12" class="mobile-summary-value">-</span>
+            </button>
+            <button type="button" class="mobile-summary-cell" data-mobile-summary-action="ao100"
+              aria-label="Open Average of 100 details">
+              <span class="mobile-summary-label">AO100</span>
+              <span id="mobile-summary-ao100" class="mobile-summary-value">-</span>
+            </button>
+            <button type="button" class="mobile-summary-cell" data-mobile-summary-action="stats"
+              aria-label="Open stats tab">
+              <span class="mobile-summary-label">MEAN</span>
+              <span id="mobile-summary-mean" class="mobile-summary-value">-</span>
+            </button>
+          </div>
         </div>
       </div>
       <div id="graph-panel" class="panel collapsible">
         <div class="panel-shell">
-        <div class="panel-header" data-collapse-target="graph-body">
-          <span class="graph-title">Time Trend</span>
-          <span class="graph-legend">
-            <span class="legend-item"><span class="legend-dot"
-                style="background:var(--graph-color-time)"></span>time</span>
-            <span class="legend-item"><span class="legend-dot" style="background:var(--graph-color-line1)"></span><span
-                id="graph-legend-line1-label">ao5</span></span>
-            <span class="legend-item"><span class="legend-dot" style="background:var(--graph-color-line2)"></span><span
-                id="graph-legend-line2-label">ao12</span></span>
-            <span class="legend-item"><span class="legend-dot" style="background:var(--graph-color-line3)"></span><span
-                id="graph-legend-line3-label">ao100</span></span>
-          </span>
-          <span class="collapse-chevron">▾</span>
-        </div>
-        <div id="graph-body" class="collapsible-body">
-          <div id="graph-canvas-container">
-            <canvas id="graph-canvas"></canvas>
+          <div class="panel-header" data-collapse-target="graph-body">
+            <span class="graph-title">Time Trend</span>
+            <span class="graph-legend">
+              <span class="legend-item"><span class="legend-dot"
+                  style="background:var(--graph-color-time)"></span>time</span>
+              <span class="legend-item"><span class="legend-dot"
+                  style="background:var(--graph-color-line1)"></span><span
+                  id="graph-legend-line1-label">ao5</span></span>
+              <span class="legend-item"><span class="legend-dot"
+                  style="background:var(--graph-color-line2)"></span><span
+                  id="graph-legend-line2-label">ao12</span></span>
+              <span class="legend-item"><span class="legend-dot"
+                  style="background:var(--graph-color-line3)"></span><span
+                  id="graph-legend-line3-label">ao100</span></span>
+            </span>
+            <span class="collapse-chevron">▾</span>
           </div>
-          <div id="graph-controls">
-            <div class="graph-controls-primary">
-              <button id="btn-graph-distribution" type="button" title="Open time distribution"
-                aria-label="Open time distribution">
-                <span class="icon-mask icon-mask-distribution" aria-hidden="true"></span>
-              </button>
-              <button data-action="last25" data-mobile-label="Last 25" title="Show last 25 solves">25</button>
-              <button data-action="reset" data-mobile-label="Reset" title="Reset view" style="font-size:18px">⟲</button>
-              <span style="flex:1"></span>
-              <button class="graph-line-toggle active" data-line="time" data-mobile-label="Time"
-                title="Toggle time line" style="color:var(--graph-color-time)">●</button>
-              <button id="graph-line-toggle-line1" class="graph-line-toggle active" data-line="line1"
-                data-mobile-label="LINE 1" title="Toggle line 1" style="color:var(--graph-color-line1)">●</button>
-              <button id="graph-line-toggle-line2" class="graph-line-toggle active" data-line="line2"
-                data-mobile-label="LINE 2" title="Toggle line 2" style="color:var(--graph-color-line2)">●</button>
-              <button id="graph-line-toggle-line3" class="graph-line-toggle active" data-line="line3"
-                data-mobile-label="LINE 3" title="Toggle line 3" style="color:var(--graph-color-line3)">●</button>
-              <button id="btn-graph-tools" class="btn-graph-toggle" title="Toggle zoom/pan controls"
-                aria-label="Toggle zoom and pan controls" style="font-size:16px">
-                <span class="icon-mask icon-mask-settings" aria-hidden="true"></span>
-              </button>
+          <div id="graph-body" class="collapsible-body">
+            <div id="graph-camera-timer-slot" hidden></div>
+            <div id="graph-canvas-container">
+              <canvas id="graph-canvas"></canvas>
             </div>
-            <div class="graph-controls-secondary collapsed" id="graph-tools-drawer">
-              <div class="graph-controls-secondary-group graph-controls-secondary-group-scale">
-                <button data-action="zoom-y-in" title="Zoom in vertically">Y+</button>
-                <button data-action="zoom-x-out" title="Zoom out horizontally">X−</button>
-                <button data-action="zoom-x-in" title="Zoom in horizontally">X+</button>
-                <button data-action="zoom-y-out" title="Zoom out vertically">Y−</button>
+            <div id="graph-controls">
+              <div class="graph-controls-primary">
+                <button id="btn-graph-distribution" type="button" title="Open time distribution"
+                  aria-label="Open time distribution">
+                  <span class="icon-mask icon-mask-distribution" aria-hidden="true"></span>
+                </button>
+                <button data-action="last25" data-mobile-label="Last 25" title="Show last 25 solves">25</button>
+                <button data-action="reset" data-mobile-label="Reset" title="Reset view"
+                  style="font-size:18px">⟲</button>
+                <span style="flex:1"></span>
+                <button class="graph-line-toggle active" data-line="time" data-mobile-label="Time"
+                  title="Toggle time line" style="color:var(--graph-color-time)">●</button>
+                <button id="graph-line-toggle-line1" class="graph-line-toggle active" data-line="line1"
+                  data-mobile-label="LINE 1" title="Toggle line 1" style="color:var(--graph-color-line1)">●</button>
+                <button id="graph-line-toggle-line2" class="graph-line-toggle active" data-line="line2"
+                  data-mobile-label="LINE 2" title="Toggle line 2" style="color:var(--graph-color-line2)">●</button>
+                <button id="graph-line-toggle-line3" class="graph-line-toggle active" data-line="line3"
+                  data-mobile-label="LINE 3" title="Toggle line 3" style="color:var(--graph-color-line3)">●</button>
+                <button id="btn-graph-tools" class="btn-graph-toggle" title="Toggle zoom/pan controls"
+                  aria-label="Toggle zoom and pan controls" style="font-size:16px">
+                  <span class="icon-mask icon-mask-settings" aria-hidden="true"></span>
+                </button>
               </div>
-              <span class="graph-controls-sep"></span>
-              <div class="graph-controls-secondary-group graph-controls-secondary-group-pan">
-                <button data-action="pan-up" title="Pan up">↑</button>
-                <button data-action="pan-left" title="Pan left">←</button>
-                <button data-action="pan-right" title="Pan right">→</button>
-                <button data-action="pan-down" title="Pan down">↓</button>
+              <div class="graph-controls-secondary collapsed" id="graph-tools-drawer">
+                <div class="graph-controls-secondary-group graph-controls-secondary-group-scale">
+                  <button data-action="zoom-y-in" title="Zoom in vertically">Y+</button>
+                  <button data-action="zoom-x-out" title="Zoom out horizontally">X−</button>
+                  <button data-action="zoom-x-in" title="Zoom in horizontally">X+</button>
+                  <button data-action="zoom-y-out" title="Zoom out vertically">Y−</button>
+                </div>
+                <span class="graph-controls-sep"></span>
+                <div class="graph-controls-secondary-group graph-controls-secondary-group-pan">
+                  <button data-action="pan-up" title="Pan up">↑</button>
+                  <button data-action="pan-left" title="Pan left">←</button>
+                  <button data-action="pan-right" title="Pan right">→</button>
+                  <button data-action="pan-down" title="Pan down">↓</button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
         </div>
       </div>
     </div>
@@ -682,6 +732,11 @@
           <h2>Time Distribution</h2>
           <div id="distribution-session-name" class="distribution-session-name"></div>
         </div>
+        <button id="distribution-mode-toggle" class="btn-action distribution-header-toggle distribution-icon-toggle"
+          type="button" aria-pressed="false" aria-label="Toggle cumulative mode" title="Toggle cumulative mode">
+          <span class="icon-mask icon-mask-distribution-normal" aria-hidden="true"></span>
+          <span class="icon-mask icon-mask-distribution-cumulative" aria-hidden="true"></span>
+        </button>
         <button id="distribution-legend-toggle" class="btn-action distribution-header-toggle distribution-icon-toggle"
           type="button" aria-pressed="true" aria-label="Toggle legend" title="Toggle legend">
           <span class="icon-mask icon-mask-legend" aria-hidden="true"></span>
@@ -720,6 +775,7 @@
             <button id="distribution-bin-finer" class="btn-action distribution-zoom-btn" type="button"
               aria-label="Use wider bins">+</button>
           </div>
+
         </div>
 
         <div id="distribution-chart-shell" class="distribution-chart-shell">
@@ -819,6 +875,79 @@
 
   <div id="daily-streak-toast" class="daily-streak-toast" role="status" aria-live="polite" hidden></div>
 
+  <div id="battle-overlay" class="modal-overlay" aria-hidden="true">
+    <div class="modal-box battle-modal-box">
+      <div class="modal-header">
+        <h2 id="battle-title">Round 1</h2>
+        <button id="battle-close" class="modal-close" type="button" aria-label="Close online battle">✕</button>
+      </div>
+      <div class="modal-body battle-modal-body">
+        <div class="battle-room-toolbar">
+          <p id="battle-room-summary" class="battle-room-summary">Join or create a shared room.</p>
+          <div class="battle-room-actions">
+            <button id="battle-copy-link" class="btn battle-copy-link" type="button" hidden>Copy Link</button>
+            <button id="battle-room-action" class="btn" type="button">Join Room</button>
+          </div>
+        </div>
+        <p id="battle-connection-status" class="battle-connection-status" role="status" aria-live="polite" hidden></p>
+
+        <div id="battle-form-grid" class="battle-form-grid">
+          <label class="battle-field" for="battle-nickname-input">
+            <span class="battle-field-label">Nickname</span>
+            <input id="battle-nickname-input" type="text" maxlength="18" spellcheck="false" placeholder="Your nickname">
+          </label>
+          <label class="battle-field" for="battle-room-input">
+            <span class="battle-field-label">Room</span>
+            <input id="battle-room-input" type="text" maxlength="32" autocomplete="off" spellcheck="false"
+              placeholder="battle-room">
+          </label>
+        </div>
+
+        <div class="battle-table-shell">
+          <table class="battle-table">
+            <thead>
+              <tr>
+                <th class="battle-table-rank">#</th>
+                <th class="battle-table-player">Name</th>
+                <th class="battle-table-mean">Mean</th>
+                <th class="battle-table-elo">ELO</th>
+                <th class="battle-table-win">Wins</th>
+                <th class="battle-table-status">Status</th>
+                <th class="battle-table-time">Time</th>
+              </tr>
+            </thead>
+            <tbody id="battle-players-body">
+              <tr>
+                <td colspan="7" class="battle-empty-cell">Join a room to start battling.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="graph-overlay" class="modal-overlay" aria-hidden="true"></div>
+
+  <div id="battle-create-overlay" class="modal-overlay" aria-hidden="true">
+    <div class="modal-box battle-create-modal-box">
+      <div class="modal-header">
+        <h2>Create Battle Room</h2>
+        <button id="battle-create-close" class="modal-close" type="button" aria-label="Close room creation">✕</button>
+      </div>
+      <div class="modal-body battle-create-modal-body">
+        <p class="battle-room-summary">This room does not exist yet. Choose the puzzle type before creating it.</p>
+        <label class="battle-field" for="battle-create-scramble-type">
+          <span class="battle-field-label">Scramble type</span>
+          <select id="battle-create-scramble-type" aria-label="Battle room scramble type"></select>
+        </label>
+        <div class="battle-create-actions">
+          <button id="battle-create-confirm" class="btn" type="button">Create Room</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ─── Settings Overlay ─── -->
   <div id="settings-overlay" class="settings-overlay">
     <div class="settings-box">
@@ -827,6 +956,26 @@
         <button id="settings-close" class="modal-close">✕</button>
       </div>
       <div class="settings-body">
+
+        <div class="setting-group" data-settings-section-id="tools">
+          <button class="setting-group-toggle" type="button" aria-expanded="true" data-settings-section-toggle="tools">
+            <span class="setting-group-toggle-inner">
+              <span class="setting-group-chevron" aria-hidden="true"></span>
+              <span class="setting-group-title">Tools</span>
+              <span class="setting-group-chevron-spacer" aria-hidden="true"></span>
+            </span>
+          </button>
+          <div class="setting-group-content">
+            <div class="setting-row">
+              <button id="btn-open-online-battle" class="setting-row-button" type="button">
+                <div class="setting-label">
+                  Online Battle
+                  <small>Join or create a live room</small>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
 
         <div class="setting-group" data-settings-section-id="timer">
           <button class="setting-group-toggle" type="button" aria-expanded="true" data-settings-section-toggle="timer">
@@ -1288,12 +1437,19 @@
         <div class="theme-customization-header-actions">
           <button id="theme-customization-dock-bottom-left"
             class="btn-action modal-option-btn theme-customization-dock-btn" type="button"
-            title="Dock editor to the bottom-left corner" aria-label="Dock editor to the bottom-left corner"
-            aria-pressed="false">BL</button>
+            title="Dock editor to bottom-left" aria-label="Dock editor to bottom-left" aria-pressed="false"><svg
+              xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 64 64"
+              style="transform:rotate(180deg)">
+              <path style="stroke:none;fill-rule:nonzero;fill:currentColor;fill-opacity:1"
+                d="M48 18.668H32a2.676 2.676 0 0 0-2.668 2.664V32A2.68 2.68 0 0 0 32 34.668h16A2.68 2.68 0 0 0 50.668 32V21.332A2.676 2.676 0 0 0 48 18.668ZM56 8H8c-2.934 0-5.332 2.398-5.332 5.332v37.336c0 2.934 2.398 5.277 5.332 5.277h48c2.934 0 5.332-2.343 5.332-5.277V13.332C61.332 10.398 58.934 8 56 8Zm-2.668 42.691H10.668A2.673 2.673 0 0 1 8 48.027V15.945c0-1.465 1.2-2.664 2.668-2.664h42.664c1.469 0 2.668 1.2 2.668 2.664v32.082c0 1.465-1.2 2.664-2.668 2.664Zm0 0" />
+            </svg></button>
           <button id="theme-customization-dock-top-right"
             class="btn-action modal-option-btn theme-customization-dock-btn" type="button"
-            title="Dock editor to the top-right corner" aria-label="Dock editor to the top-right corner"
-            aria-pressed="false">TR</button>
+            title="Dock editor to top-right" aria-label="Dock editor to top-right" aria-pressed="false"><svg
+              xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 64 64">
+              <path style="stroke:none;fill-rule:nonzero;fill:currentColor;fill-opacity:1"
+                d="M48 18.668H32a2.676 2.676 0 0 0-2.668 2.664V32A2.68 2.68 0 0 0 32 34.668h16A2.68 2.68 0 0 0 50.668 32V21.332A2.676 2.676 0 0 0 48 18.668ZM56 8H8c-2.934 0-5.332 2.398-5.332 5.332v37.336c0 2.934 2.398 5.277 5.332 5.277h48c2.934 0 5.332-2.343 5.332-5.277V13.332C61.332 10.398 58.934 8 56 8Zm-2.668 42.691H10.668A2.673 2.673 0 0 1 8 48.027V15.945c0-1.465 1.2-2.664 2.668-2.664h42.664c1.469 0 2.668 1.2 2.668 2.664v32.082c0 1.465-1.2 2.664-2.668 2.664Zm0 0" />
+            </svg></button>
           <button id="theme-customization-close" class="modal-close">✕</button>
         </div>
       </div>
@@ -1408,7 +1564,7 @@
   </script>
 
   <!-- App Script -->
-  <script type="module" src="js/app.js?v=2026050201"></script>
+  <script type="module" src="js/app.js?v=2026051104"></script>
 </body>
 
 </html>

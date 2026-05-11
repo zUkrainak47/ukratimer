@@ -20,7 +20,9 @@
 
 #btn-settings,
 #btn-daily-streak-mobile,
+#btn-battle-room-launch,
 #btn-camera-background-toggle,
+#btn-battle-graph,
 #btn-zen,
 #btn-scramble-preview {
     font-size: 18px;
@@ -52,6 +54,15 @@
     z-index: 70;
 }
 
+#btn-battle-room-launch {
+    display: none;
+}
+
+#btn-battle-graph {
+    display: none;
+}
+
+#btn-battle-room-launch[hidden],
 #btn-camera-background-toggle[hidden] {
     display: none !important;
 }
@@ -196,6 +207,24 @@
 .scramble-type-btn:focus-visible {
     outline: none;
     box-shadow: none;
+}
+
+.scramble-type-btn:disabled,
+.scramble-type-menu.battle-control-locked .scramble-type-btn {
+    opacity: 0.22;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.scramble-type-menu.battle-control-locked,
+.scramble-type-menu.battle-control-locked * {
+    pointer-events: none !important;
+}
+
+.scramble-type-menu.battle-control-locked .scramble-type-dropdown {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    transform: translateY(-4px) !important;
 }
 
 .scramble-type-dropdown {
@@ -359,7 +388,9 @@
 }
 
 #btn-settings:hover,
+#btn-battle-room-launch:hover,
 #btn-camera-background-toggle:hover,
+#btn-battle-graph:hover,
 #btn-zen:hover,
 #btn-scramble-preview:hover {
     opacity: 1;
@@ -367,8 +398,12 @@
 
 #btn-settings:focus,
 #btn-settings:focus-visible,
+#btn-battle-room-launch:focus,
+#btn-battle-room-launch:focus-visible,
 #btn-camera-background-toggle:focus,
 #btn-camera-background-toggle:focus-visible,
+#btn-battle-graph:focus,
+#btn-battle-graph:focus-visible,
 #btn-zen:focus,
 #btn-zen:focus-visible,
 #btn-scramble-preview:focus,
@@ -565,6 +600,12 @@ body.solving #btn-next-scramble {
     z-index: 70;
 }
 
+#btn-edit-scramble[hidden],
+#btn-prev-scramble[hidden],
+#btn-next-scramble[hidden] {
+    display: none !important;
+}
+
 #btn-edit-scramble {
     order: -2;
 }
@@ -600,6 +641,11 @@ body.solving #btn-next-scramble {
     opacity: 1;
 }
 
+#btn-edit-scramble:disabled {
+    opacity: 0.22;
+    cursor: not-allowed;
+}
+
 #btn-prev-scramble:disabled,
 #btn-next-scramble:disabled {
     opacity: 0.2;
@@ -621,7 +667,9 @@ body.solving #btn-next-scramble {
     }
 
     #btn-settings,
+    #btn-battle-room-launch,
     #btn-camera-background-toggle,
+    #btn-battle-graph,
     #btn-zen,
     #btn-scramble-preview {
         top: calc(var(--space-lg) + ((var(--space-2xl) - 28px) / 2));
@@ -634,6 +682,7 @@ body.solving #btn-next-scramble {
     }
 
     body.solving #btn-camera-background-toggle,
+    body.solving #btn-battle-graph,
     body.solving #btn-zen,
     body.solving #btn-scramble-preview {
         opacity: 0;
@@ -647,23 +696,54 @@ body.solving #btn-next-scramble {
             visibility 0s linear 0.3s;
     }
 
-    body.camera-background-active #btn-scramble-preview {
+    body.camera-background-active #btn-scramble-preview:not([hidden]),
+    body.camera-background-active #btn-battle-graph:not([hidden]),
+    body.battle-active #btn-scramble-preview:not([hidden]),
+    body.battle-active #btn-battle-graph:not([hidden]) {
         display: inline-flex;
         position: absolute;
-        right: calc(var(--space-md) + 72px);
         width: 28px;
         height: 28px;
         align-items: center;
         justify-content: center;
     }
 
+    body.battle-active #btn-scramble-preview {
+        right: calc(var(--space-md) + 36px);
+    }
+
+    body.camera-background-active:not(.battle-active) #btn-scramble-preview {
+        right: calc(var(--space-md) + 72px);
+    }
+
+    body.camera-background-active:not(.battle-active) #btn-battle-graph {
+        right: calc(var(--space-md) + 72px);
+    }
+
+    body.battle-active:not(.camera-background-toggle-visible) #btn-battle-graph {
+        right: calc(var(--space-md) + 36px);
+    }
+
+    body.battle-active.camera-background-toggle-visible #btn-battle-graph {
+        right: calc(var(--space-md) + 72px);
+    }
+
+    body.battle-active.camera-background-toggle-visible.battle-swap-buttons-dual-visible #btn-battle-graph {
+        right: calc(var(--space-md) + 108px);
+    }
+
+    body.battle-active.camera-background-toggle-visible #btn-scramble-preview {
+        right: calc(var(--space-md) + 72px);
+    }
+
     body.camera-background-active:not(.solving) #btn-scramble-preview {
         opacity: 0.72;
     }
 
-    body.camera-background-active #btn-scramble-preview .scramble-preview-face-icon {
-        width: 17px;
-        height: 17px;
+    body.camera-background-active:not(.solving) #btn-battle-graph,
+    body.battle-active:not(.solving) #btn-battle-graph,
+    body.battle-active:not(.solving) #btn-scramble-preview {
+        opacity: 0.72;
     }
 
     #scramble-container {
@@ -838,6 +918,7 @@ body.solving #btn-next-scramble {
 
     #btn-settings,
     #btn-daily-streak-mobile,
+    #btn-battle-room-launch,
     #btn-zen,
     #btn-scramble-preview,
     #scramble-type-menu-mobile .scramble-type-btn {
@@ -970,7 +1051,9 @@ body.solving #btn-next-scramble {
 
     body.solving #btn-settings,
     body.solving #btn-daily-streak-mobile,
+    body.solving #btn-battle-room-launch,
     body.solving #btn-camera-background-toggle,
+    body.solving #btn-battle-graph,
     body.solving #btn-zen,
     body.solving #btn-scramble-preview,
     body.solving #scramble-type-menu-mobile .scramble-type-btn {
@@ -1038,6 +1121,23 @@ body.solving #btn-next-scramble {
         height: 40px;
         margin-left: 0;
         flex: 0 0 auto;
+        order: 24;
+    }
+
+    #btn-battle-room-launch {
+        display: none;
+        position: relative;
+        min-width: 60px;
+        height: 40px;
+        padding: 0 12px;
+        margin-left: 0;
+        flex: 0 0 auto;
+        font-family: var(--font-mono);
+        font-size: 0.84rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        font-variant-numeric: tabular-nums;
+        order: 21;
     }
 
     #btn-scramble-preview {
@@ -1047,6 +1147,15 @@ body.solving #btn-next-scramble {
         height: 40px;
         margin-left: 0;
         flex: 0 0 auto;
+        order: 23;
+    }
+
+    #btn-battle-graph {
+        order: 22;
+    }
+
+    #btn-zen {
+        order: 25;
     }
 
     #scramble-type-menu-desktop {
@@ -1058,6 +1167,7 @@ body.solving #btn-next-scramble {
         position: relative;
         flex: 0 0 auto;
         margin-left: auto;
+        order: 20;
     }
 
     #scramble-type-menu-mobile .scramble-type-btn {
@@ -1068,6 +1178,20 @@ body.solving #btn-next-scramble {
         padding-inline: 12px;
         font-size: 0.82rem;
         color: var(--scramble-top-text);
+    }
+
+    body.battle-active #btn-scramble-preview:not([hidden]),
+    body.camera-background-toggle-visible #btn-scramble-preview:not([hidden]) {
+        display: inline-flex;
+    }
+
+    body.zen.mobile-viewport #btn-scramble-preview,
+    body.zen.mobile-viewport #btn-battle-room-launch,
+    body.zen.mobile-viewport #btn-battle-graph {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transition: opacity 0.3s ease, visibility 0s linear 0.3s;
     }
 
     #scramble-container {
@@ -1163,13 +1287,13 @@ body.solving #btn-next-scramble {
         right: 0;
     }
 
+    #btn-edit-scramble:disabled,
     #btn-prev-scramble:disabled,
     #btn-next-scramble:disabled {
         opacity: 0.32;
         color: var(--text-tertiary);
         background: var(--surface-ghost-muted);
         border-color: var(--floating-surface-border);
-        pointer-events: none;
         cursor: not-allowed;
     }
 }
@@ -1208,10 +1332,21 @@ body.solving #btn-next-scramble {
     }
 
     #btn-zen,
+    #btn-battle-room-launch,
     #btn-camera-background-toggle,
+    #btn-battle-graph,
     #btn-scramble-preview {
         width: 46px;
         height: 46px;
+    }
+
+    #btn-battle-room-launch {
+        display: none;
+        min-width: 68px;
+        width: auto;
+        padding-inline: 12px;
+        font-size: 0.92rem;
+        order: 21;
     }
 
     #scramble-type-menu-mobile .scramble-type-btn {
@@ -1228,15 +1363,32 @@ body.solving #btn-next-scramble {
     }
 
     #btn-scramble-preview {
-        margin-left: auto;
+        margin-left: 0;
+        order: 23;
+    }
+
+    body.battle-active #btn-battle-room-launch:not([hidden]) {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    #btn-battle-graph {
+        margin-left: 0;
+        order: 22;
     }
 
     #scramble-type-menu-mobile {
-        margin-left: 0;
+        margin-left: auto;
+        order: 20;
     }
 
-    #btn-scramble-preview+#btn-zen {
-        margin-left: 0;
+    #btn-camera-background-toggle {
+        order: 24;
+    }
+
+    #btn-zen {
+        order: 25;
     }
 
     .scramble-preview-face-icon {
@@ -1274,7 +1426,25 @@ body.solving #btn-next-scramble {
         display: inline-flex;
     }
 
+    #btn-battle-graph:not([hidden]) {
+        display: inline-flex;
+    }
+
     body.zen.mobile-viewport #btn-scramble-preview {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transition: opacity 0.3s ease, visibility 0s linear 0.3s;
+    }
+
+    body.zen.mobile-viewport #btn-battle-room-launch {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transition: opacity 0.3s ease, visibility 0s linear 0.3s;
+    }
+
+    body.zen.mobile-viewport #btn-battle-graph {
         opacity: 0;
         visibility: hidden;
         pointer-events: none;
@@ -1284,6 +1454,12 @@ body.solving #btn-next-scramble {
 
 @media (max-width: 1100px) and (orientation: landscape),
 (pointer: coarse) and (orientation: landscape) {
+    body.battle-active #btn-battle-room-launch:not([hidden]) {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
     #scramble-text-wrapper {
         width: min(86vw, 100%);
         margin-inline: auto;
