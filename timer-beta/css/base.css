@@ -370,6 +370,20 @@ select {
     mask-image: url('../resources/legend.svg');
 }
 
+.icon-mask-distribution-normal {
+    width: 1em;
+    height: 1em;
+    -webkit-mask-image: url('../resources/distribution-normal.svg');
+    mask-image: url('../resources/distribution-normal.svg');
+}
+
+.icon-mask-distribution-cumulative {
+    width: 1em;
+    height: 1em;
+    -webkit-mask-image: url('../resources/distribution-cumulative.svg');
+    mask-image: url('../resources/distribution-cumulative.svg');
+}
+
 .icon-mask-trash {
     -webkit-mask-image: url('../resources/trash.svg');
     mask-image: url('../resources/trash.svg');

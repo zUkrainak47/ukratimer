@@ -727,6 +727,11 @@
           <h2>Time Distribution</h2>
           <div id="distribution-session-name" class="distribution-session-name"></div>
         </div>
+        <button id="distribution-mode-toggle" class="btn-action distribution-header-toggle distribution-icon-toggle"
+          type="button" aria-pressed="false" aria-label="Toggle cumulative mode" title="Toggle cumulative mode">
+          <span class="icon-mask icon-mask-distribution-normal" aria-hidden="true"></span>
+          <span class="icon-mask icon-mask-distribution-cumulative" aria-hidden="true"></span>
+        </button>
         <button id="distribution-legend-toggle" class="btn-action distribution-header-toggle distribution-icon-toggle"
           type="button" aria-pressed="true" aria-label="Toggle legend" title="Toggle legend">
           <span class="icon-mask icon-mask-legend" aria-hidden="true"></span>
@@ -765,6 +770,7 @@
             <button id="distribution-bin-finer" class="btn-action distribution-zoom-btn" type="button"
               aria-label="Use wider bins">+</button>
           </div>
+
         </div>
 
         <div id="distribution-chart-shell" class="distribution-chart-shell">

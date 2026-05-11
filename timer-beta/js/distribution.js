@@ -12,6 +12,11 @@ const BIN_WIDTH_OPTIONS = Object.freeze([
     { label: '0.1s', ms: 100 },
 ])
 
+const DISTRIBUTION_MODES = Object.freeze({
+    standard: 'standard',
+    cumulative: 'cumulative',
+})
+
 const PREFS_KEY = 'ukratimer_distribution_prefs_v2'
 const EXPORT_SIZE = Object.freeze({ width: 1600, height: 900 })
 const touchPrimaryQuery = window.matchMedia('(hover: none) and (pointer: coarse)')
@@ -36,6 +41,7 @@ let _rangeMinInput = null
 let _rangeMaxInput = null
 let _rangeResetButton = null
 let _binWidthSelect = null
+let _modeToggleButton = null
 let _binCoarserButton = null
 let _binFinerButton = null
 let _legendToggleButton = null
@@ -52,6 +58,7 @@ let _prefs = {
     binWidthIndex: null,
     customMin: null,
     customMax: null,
+    mode: DISTRIBUTION_MODES.standard,
     legendVisible: true,
 }
 
@@ -69,6 +76,14 @@ function shouldUseTouchInteraction(pointerType = null) {
     return touchPrimaryQuery.matches
 }
 
+function isCumulativeMode(mode) {
+    return mode === DISTRIBUTION_MODES.cumulative
+}
+
+function getDistributionModeLabel(mode) {
+    return isCumulativeMode(mode) ? 'Cumulative' : 'Normal'
+}
+
 function loadPreferences() {
     try {
         const raw = localStorage.getItem(PREFS_KEY)
@@ -78,6 +93,7 @@ function loadPreferences() {
             binWidthIndex: Number.isInteger(parsed?.binWidthIndex) ? clamp(parsed.binWidthIndex, 0, BIN_WIDTH_OPTIONS.length - 1) : null,
             customMin: Number.isFinite(parsed?.customMin) ? Math.max(0, parsed.customMin) : null,
             customMax: Number.isFinite(parsed?.customMax) ? Math.max(0, parsed.customMax) : null,
+            mode: isCumulativeMode(parsed?.mode) ? DISTRIBUTION_MODES.cumulative : DISTRIBUTION_MODES.standard,
             legendVisible: parsed?.legendVisible !== false,
         }
     } catch {
@@ -85,6 +101,7 @@ function loadPreferences() {
             binWidthIndex: null,
             customMin: null,
             customMax: null,
+            mode: DISTRIBUTION_MODES.standard,
             legendVisible: true,
         }
     }
@@ -95,6 +112,7 @@ function savePreferences() {
         binWidthIndex: _state ? _state.binWidthIndex : _prefs.binWidthIndex,
         customMin: _state ? _state.customMin : _prefs.customMin,
         customMax: _state ? _state.customMax : _prefs.customMax,
+        mode: _state ? _state.mode : _prefs.mode,
         legendVisible: _state ? _state.legendVisible : _prefs.legendVisible,
     }
     _prefs = nextPrefs
@@ -177,6 +195,10 @@ function formatRangeLabel(start, end, digits) {
     return `${trimFormattedTime(formatTime(start, digits))} - ${trimFormattedTime(formatTime(end, digits))}`
 }
 
+function formatThresholdLabel(value, digits) {
+    return `<= ${trimFormattedTime(formatTime(value, digits))}`
+}
+
 function formatDurationHms(ms, fractionDigits = 2, trimTrailingZeros = true) {
     const totalSeconds = ms / 1000
     const hours = Math.floor(totalSeconds / 3600)
@@ -247,6 +269,16 @@ function usesBinRangeDecimals(bins) {
 function formatSummaryRangeLabel(start, end, digits) {
     if (start === end) return formatTime(start, digits)
     return `${formatTime(start, digits)} - ${formatTime(end, digits)}`
+}
+
+function formatBinLabel(bin, digits, mode) {
+    if (isCumulativeMode(mode)) return formatThresholdLabel(bin.end, digits)
+    return formatRangeLabel(bin.start, bin.end, digits)
+}
+
+function formatSummaryBinLabel(bin, digits, mode) {
+    if (isCumulativeMode(mode)) return formatThresholdLabel(bin.end, digits)
+    return formatSummaryRangeLabel(bin.start, bin.end, digits)
 }
 
 function formatSummaryDuration(ms, digits) {
@@ -331,7 +363,7 @@ function getAutoRange(validTimes, binWidthMs) {
     return { min, max }
 }
 
-function buildDistribution(times, binWidthMs, customMin, customMax) {
+function buildDistribution(times, binWidthMs, customMin, customMax, mode = DISTRIBUTION_MODES.standard) {
     const sortedTimes = [...times].sort((a, b) => a - b)
     const autoRange = getAutoRange(sortedTimes, binWidthMs)
 
@@ -341,6 +373,7 @@ function buildDistribution(times, binWidthMs, customMin, customMax) {
             visibleTimes: [],
             median: null,
             bins: [],
+            mode,
             binWidth: binWidthMs,
             min: null,
             max: null,
@@ -389,11 +422,25 @@ function buildDistribution(times, binWidthMs, customMin, customMax) {
         visibleTimes.push(time)
     })
 
+    if (isCumulativeMode(mode)) {
+        let cumulativeCount = 0
+        let visibleIndex = 0
+
+        bins.forEach((bin) => {
+            while (visibleIndex < visibleTimes.length && visibleTimes[visibleIndex] <= bin.end) {
+                cumulativeCount += 1
+                visibleIndex += 1
+            }
+            bin.count = cumulativeCount
+        })
+    }
+
     return {
         validTimes: sortedTimes,
         visibleTimes,
         median,
         bins,
+        mode,
         binWidth: binWidthMs,
         min,
         max,
@@ -426,13 +473,14 @@ function buildDistributionTextSummary() {
     const bins = activeBins
         .map((bin) => {
             const barLength = Math.max(1, Math.round((bin.count / peak) * 24))
-            return `${formatSummaryRangeLabel(bin.start, bin.end, binDigits).padEnd(22)} | ${'█'.repeat(barLength)} ${bin.count}`
+            return `${formatSummaryBinLabel(bin, binDigits, distribution.mode).padEnd(22)} | ${'█'.repeat(barLength)} ${bin.count}`
         })
 
     return [
         `Generated by UkraTimer on ${formatReadableDate(Date.now())}`,
         `Time distribution for ${_state.sessionName} (${formatTimeRange(_state.solveTimestamps)})`,
         '',
+        `Mode: ${getDistributionModeLabel(distribution.mode)}`,
         `${distribution.visibleCount}/${distribution.validTimes.length} solves shown`,
         `Range: ${formatSummaryDuration(distribution.min, 2)} - ${formatSummaryDuration(distribution.max, 2)}`,
         `Median: ${formatSummaryDuration(distribution.median, 2)}`,
@@ -507,8 +555,10 @@ function showTooltipForBin(index, point = null) {
     const digits = getDisplayDigits(distribution.binWidth)
     const share = distribution.visibleCount > 0 ? (bin.count / distribution.visibleCount) * 100 : 0
 
-    _tooltipRange.textContent = formatRangeLabel(bin.start, bin.end, digits)
-    _tooltipCount.textContent = `${bin.count} solve${bin.count === 1 ? '' : 's'}, ${share.toFixed(1)}% in this bin`
+    _tooltipRange.textContent = formatBinLabel(bin, digits, distribution.mode)
+    _tooltipCount.textContent = isCumulativeMode(distribution.mode)
+        ? `${bin.count} solve${bin.count === 1 ? '' : 's'}, ${share.toFixed(1)}% at or under this threshold`
+        : `${bin.count} solve${bin.count === 1 ? '' : 's'}, ${share.toFixed(1)}% in this bin`
     _tooltipShare.textContent = ''
     _tooltipShare.hidden = true
     positionTooltip(index, point)
@@ -579,6 +629,15 @@ function niceIntegerStep(maxValue, maxTicks = 4) {
     return 10 * magnitude
 }
 
+function niceStepAtMost(maxStep) {
+    if (maxStep < 1) return 1
+    const magnitude = 10 ** Math.floor(Math.log10(maxStep))
+    const normalized = Math.floor(maxStep / magnitude)
+    if (normalized >= 5) return 5 * magnitude
+    if (normalized >= 2) return 2 * magnitude
+    return magnitude
+}
+
 function getXAxisStep(domainRange, plotWidth) {
     const steps = [100, 200, 500, 1000, 2000, 5000, 10000, 15000, 30000, 60000, 120000, 300000]
     const maxTickCount = clamp(Math.floor(plotWidth / 38), 4, 24)
@@ -590,25 +649,47 @@ function getXAxisStep(domainRange, plotWidth) {
 }
 
 function drawLegend(ctx, plotLeft, plotTop, plotWidth, distribution, colors, interactive, medianX = null) {
-    const line1 = `Range: ${formatDataRange(distribution.min, distribution.max)}`
-    const line2 = `${distribution.visibleCount}/${distribution.validTimes.length} solves on graph`
-    const line3 = `Time range: ${formatTimeRange(_state.solveTimestamps)}`
     const metrics = interactive
-        ? { paddingX: 12, paddingY: 10, titleSize: 12, bodySize: 12, line2Y: 22, line3Y: 40, minWidth: 220, height: 72, radius: 12 }
-        : { paddingX: 12, paddingY: 10, titleSize: 15, bodySize: 14, line2Y: 26, line3Y: 50, minWidth: 220, height: 86, radius: 12 }
+        ? { paddingX: 12, paddingY: 10, titleSize: 12, bodySize: 12, lineGap: 4, minWidth: 220, radius: 12 }
+        : { paddingX: 12, paddingY: 10, titleSize: 15, bodySize: 14, lineGap: 5, minWidth: 220, radius: 12 }
     const titleFont = `600 ${metrics.titleSize}px Inter, system-ui, sans-serif`
     const bodyFont = `${metrics.bodySize}px Inter, system-ui, sans-serif`
+    const titleLineHeight = Math.ceil(metrics.titleSize * 1.25)
+    const bodyLineHeight = Math.ceil(metrics.bodySize * 1.25)
+    const lines = [
+        {
+            text: `Range: ${formatDataRange(distribution.min, distribution.max)}`,
+            font: titleFont,
+            height: titleLineHeight,
+            color: colors.text,
+        },
+        {
+            text: `${distribution.visibleCount}/${distribution.validTimes.length} solves on graph`,
+            font: bodyFont,
+            height: bodyLineHeight,
+            color: colors.textMuted,
+        },
+        {
+            text: `Time range: ${formatTimeRange(_state.solveTimestamps)}`,
+            font: bodyFont,
+            height: bodyLineHeight,
+            color: colors.textMuted,
+        },
+    ]
 
-    ctx.font = titleFont
-    const line1Width = ctx.measureText(line1).width
-    const line2Width = ctx.measureText(line2).width
-    ctx.font = bodyFont
-    const line3Width = ctx.measureText(line3).width
-    const naturalWidth = Math.max(metrics.minWidth, Math.ceil(Math.max(line1Width, line2Width, line3Width) + (metrics.paddingX * 2)))
+    const textWidths = lines.map((line) => {
+        ctx.font = line.font
+        return ctx.measureText(line.text).width
+    })
+    const naturalWidth = Math.max(metrics.minWidth, Math.ceil(Math.max(...textWidths) + (metrics.paddingX * 2)))
     const maxWidth = Math.max(140, Math.floor(plotWidth * 0.4))
     const scale = naturalWidth > maxWidth ? (maxWidth / naturalWidth) : 1
     const boxWidth = naturalWidth * scale
-    const boxHeight = metrics.height * scale
+    const contentHeight = lines.reduce((total, line, index) => (
+        total + line.height + (index < lines.length - 1 ? metrics.lineGap : 0)
+    ), 0)
+    const naturalHeight = Math.ceil((metrics.paddingY * 2) + contentHeight)
+    const boxHeight = naturalHeight * scale
 
     const sliceLength = Math.max(1, Math.floor(distribution.bins.length / 3))
     const leftPeak = Math.max(...distribution.bins.slice(0, sliceLength).map((bin) => bin.count), 0)
@@ -650,19 +731,19 @@ function drawLegend(ctx, plotLeft, plotTop, plotWidth, distribution, colors, int
     ctx.fillStyle = colors.legendBg
     ctx.strokeStyle = colors.legendBorder
     ctx.lineWidth = 1
-    drawRoundedRect(ctx, 0, 0, naturalWidth, metrics.height, metrics.radius)
+    drawRoundedRect(ctx, 0, 0, naturalWidth, naturalHeight, metrics.radius)
     ctx.fill()
     ctx.stroke()
 
-    ctx.fillStyle = colors.text
     ctx.textAlign = 'left'
     ctx.textBaseline = 'top'
-    ctx.font = titleFont
-    ctx.fillText(line1, metrics.paddingX, metrics.paddingY)
-    ctx.fillStyle = colors.textMuted
-    ctx.font = bodyFont
-    ctx.fillText(line2, metrics.paddingX, metrics.paddingY + metrics.line2Y)
-    ctx.fillText(line3, metrics.paddingX, metrics.paddingY + metrics.line3Y)
+    let lineY = metrics.paddingY
+    lines.forEach((line) => {
+        ctx.fillStyle = line.color
+        ctx.font = line.font
+        ctx.fillText(line.text, metrics.paddingX, lineY)
+        lineY += line.height + metrics.lineGap
+    })
     ctx.restore()
 }
 
@@ -719,15 +800,19 @@ function renderChart(targetCanvas, width, height, { interactive = false, activeI
 
     const maxCount = Math.max(1, distribution.maxCount)
     const visibleCount = Math.max(0, distribution.visibleCount)
-    const yStep = niceIntegerStep(maxCount, 7)
+    let yStep = niceIntegerStep(maxCount, 7)
+    if (visibleCount >= 10 && yStep * 4 > visibleCount) {
+        yStep = niceStepAtMost(Math.floor(visibleCount / 4))
+    }
+    const displayMax = Math.max(maxCount, Math.min(yStep * 4, visibleCount || maxCount))
     ctx.font = tickFont
     ctx.textBaseline = 'middle'
     ctx.strokeStyle = colors.grid
     ctx.fillStyle = colors.textMuted
     ctx.lineWidth = 1
 
-    for (let value = 0; value <= maxCount; value += yStep) {
-        const y = plotBottom - ((value / maxCount) * plotHeight)
+    for (let value = 0; value <= displayMax; value += yStep) {
+        const y = plotBottom - ((value / displayMax) * plotHeight)
         ctx.beginPath()
         ctx.moveTo(plotLeft, y)
         ctx.lineTo(plotRight, y)
@@ -744,7 +829,7 @@ function renderChart(targetCanvas, width, height, { interactive = false, activeI
 
     distribution.bins.forEach((bin, index) => {
         const x = plotLeft + (index * stepWidth)
-        const barHeight = bin.count <= 0 ? 0 : Math.max(2, (bin.count / maxCount) * plotHeight)
+        const barHeight = bin.count <= 0 ? 0 : Math.max(2, (bin.count / displayMax) * plotHeight)
         const y = plotBottom - barHeight
         const ratio = distribution.bins.length <= 1 ? 0 : index / (distribution.bins.length - 1)
         const fillColor = interpolateColor(colors.leftBar, colors.rightBar, ratio)
@@ -812,7 +897,7 @@ function renderChart(targetCanvas, width, height, { interactive = false, activeI
         const outlineX = plotLeft + (activeIndex * stepWidth)
         const outlineHeight = activeBin.count <= 0
             ? 2
-            : Math.max(2, (activeBin.count / maxCount) * plotHeight)
+            : Math.max(2, (activeBin.count / displayMax) * plotHeight)
         const outlineY = plotBottom - outlineHeight
 
         ctx.save()
@@ -891,8 +976,9 @@ function renderRangeInputs() {
 }
 
 function syncControls() {
-    if (!_state || !_binWidthSelect || !_binCoarserButton || !_binFinerButton || !_legendToggleButton) return
+    if (!_state || !_binWidthSelect || !_modeToggleButton || !_binCoarserButton || !_binFinerButton || !_legendToggleButton) return
     _binWidthSelect.value = String(_state.binWidthIndex)
+    _modeToggleButton.setAttribute('aria-pressed', String(isCumulativeMode(_state.mode)))
     _binCoarserButton.disabled = _state.binWidthIndex >= BIN_WIDTH_OPTIONS.length - 1
     _binFinerButton.disabled = _state.binWidthIndex <= 0
     _legendToggleButton.setAttribute('aria-pressed', String(_state.legendVisible))
@@ -925,7 +1011,7 @@ function renderDistribution() {
 function rebuildDistribution() {
     if (!_state) return
     const binWidth = BIN_WIDTH_OPTIONS[_state.binWidthIndex].ms
-    _state.distribution = buildDistribution(_state.validTimes, binWidth, _state.customMin, _state.customMax)
+    _state.distribution = buildDistribution(_state.validTimes, binWidth, _state.customMin, _state.customMax, _state.mode)
 
     const activeIndex = getActiveBinIndex()
     if (activeIndex >= _state.distribution.bins.length) {
@@ -942,6 +1028,14 @@ function setBinWidthIndex(nextIndex) {
     const clamped = clamp(nextIndex, 0, BIN_WIDTH_OPTIONS.length - 1)
     if (clamped === _state.binWidthIndex) return
     _state.binWidthIndex = clamped
+    rebuildDistribution()
+}
+
+function setDistributionMode(nextMode) {
+    if (!_state) return
+    const normalizedMode = isCumulativeMode(nextMode) ? DISTRIBUTION_MODES.cumulative : DISTRIBUTION_MODES.standard
+    if (normalizedMode === _state.mode) return
+    _state.mode = normalizedMode
     rebuildDistribution()
 }
 
@@ -1101,8 +1195,9 @@ function setDistributionState(solves, { sessionName = 'Session' } = {}) {
         binWidthIndex: nextBinWidthIndex,
         customMin: _prefs.customMin,
         customMax: _prefs.customMax,
+        mode: _prefs.mode,
         legendVisible: _prefs.legendVisible,
-        distribution: buildDistribution(validTimes, BIN_WIDTH_OPTIONS[nextBinWidthIndex].ms, _prefs.customMin, _prefs.customMax),
+        distribution: buildDistribution(validTimes, BIN_WIDTH_OPTIONS[nextBinWidthIndex].ms, _prefs.customMin, _prefs.customMax, _prefs.mode),
     }
 }
 
@@ -1250,6 +1345,7 @@ export function initTimeDistributionModal() {
     _rangeMaxInput = document.getElementById('distribution-range-max')
     _rangeResetButton = document.getElementById('distribution-range-reset')
     _binWidthSelect = document.getElementById('distribution-bin-width-select')
+    _modeToggleButton = document.getElementById('distribution-mode-toggle')
     _binCoarserButton = document.getElementById('distribution-bin-coarser')
     _binFinerButton = document.getElementById('distribution-bin-finer')
     _legendToggleButton = document.getElementById('distribution-legend-toggle')
@@ -1322,6 +1418,12 @@ export function initTimeDistributionModal() {
     _binWidthSelect?.addEventListener('change', (event) => {
         const nextIndex = Number.parseInt(event.target.value, 10)
         setBinWidthIndex(Number.isFinite(nextIndex) ? nextIndex : 5)
+    })
+
+    _modeToggleButton?.addEventListener('click', () => {
+        if (!_state) return
+        const nextMode = isCumulativeMode(_state.mode) ? DISTRIBUTION_MODES.standard : DISTRIBUTION_MODES.cumulative
+        setDistributionMode(nextMode)
     })
 
     _binCoarserButton?.addEventListener('click', () => {

@@ -507,7 +507,7 @@
 
 .distribution-modal-header {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
     align-items: center;
     column-gap: 10px;
     row-gap: 10px;
@@ -533,6 +533,11 @@
 
 .distribution-icon-toggle:hover {
     color: var(--text-secondary);
+}
+
+.distribution-icon-toggle .icon-mask {
+    width: 18px;
+    height: 18px;
 }
 
 .distribution-close-btn {
@@ -679,6 +684,30 @@
 }
 
 #distribution-legend-toggle[aria-pressed="true"]:hover {
+    background: var(--surface-hover);
+    color: var(--text-secondary);
+    border-color: var(--text-secondary);
+}
+
+#distribution-mode-toggle .icon-mask-distribution-cumulative {
+    display: none;
+}
+
+#distribution-mode-toggle[aria-pressed="true"] .icon-mask-distribution-normal {
+    display: none;
+}
+
+#distribution-mode-toggle[aria-pressed="true"] .icon-mask-distribution-cumulative {
+    display: block;
+}
+
+#distribution-mode-toggle[aria-pressed="true"] {
+    background: var(--surface-hover);
+    color: var(--text-secondary);
+    border-color: var(--text-tertiary);
+}
+
+#distribution-mode-toggle[aria-pressed="true"]:hover {
     background: var(--surface-hover);
     color: var(--text-secondary);
     border-color: var(--text-secondary);
