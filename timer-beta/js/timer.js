@@ -495,6 +495,9 @@ class Timer extends EventEmitter {
             this._holdTimer = null;
             this._setState(State.READY);
             this._setColor(State.READY);
+            if (navigator.vibrate) {
+                navigator.vibrate(50);
+            }
         }, holdDuration);
     }
 
@@ -548,6 +551,9 @@ class Timer extends EventEmitter {
             this._holdTimer = null;
             this._setState(State.INSPECTION_READY);
             this._setColor(State.INSPECTION_READY);
+            if (navigator.vibrate) {
+                navigator.vibrate(50);
+            }
         }, holdDuration);
     }
 
