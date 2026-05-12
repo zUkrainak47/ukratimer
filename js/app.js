@@ -2979,7 +2979,9 @@ function updateManualTimeEntryUI() {
     const hasValue = Number(quickActionsState.manualDigits || 0) > 0;
     const submitBlocked = Boolean(battleManager.getStartBlockReason());
 
-    if (hiddenInput) hiddenInput.value = quickActionsState.manualDigits;
+    if (hiddenInput && hiddenInput.value !== quickActionsState.manualDigits) {
+        hiddenInput.value = quickActionsState.manualDigits;
+    }
     if (formattedEl) formattedEl.innerHTML = renderManualTimeMarkup(quickActionsState.manualDigits);
     if (submitBtn) submitBtn.disabled = !hasValue || submitBlocked;
     scheduleViewportLayoutSync();
