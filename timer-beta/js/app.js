@@ -9,7 +9,7 @@ import { applyMegaminxScramble, applyPyraminxScramble, applyScramble, applySquar
 import { initGraph, updateGraph, updateGraphData, setLineVisibility, getLineVisibility, applyAction, graphEvents, getGraphLineDefinitions } from './graph.js?v=2026051201';
 import { closeTimeDistributionModal, initTimeDistributionModal, isTimeDistributionModalOpen, refreshTimeDistributionData, refreshTimeDistributionTheme, showTimeDistributionModal } from './distribution.js?v=2026051201';
 import { exportAll, importAll, isCsTimerFormat, importCsTimer, exportCsTimer, importSessionCsv } from './storage.js?v=2026051201';
-import { connectGoogleDrive, exportBackupToGoogleDrive, getGoogleDriveBackupInfo, hasGoogleDriveSession, importBackupFromGoogleDrive, isGoogleDriveSyncConfigured, restoreGoogleDriveSession, signOutOfGoogleDrive } from './google-drive-sync.js?v=2026051201';
+import { connectGoogleDrive, consumeAuthSession, exportBackupToGoogleDrive, getGoogleDriveBackupInfo, hasGoogleDriveSession, importBackupFromGoogleDrive, isGoogleDriveSyncConfigured, restoreGoogleDriveSession, signOutOfGoogleDrive } from './google-drive-sync.js?v=2026051201';
 import { dailyStreakStore, normalizeDailyStreakGoal } from './streaks.js?v=2026051201';
 import { bluetoothTimerInput, BluetoothTimerState } from './hardware-bluetooth-timer.js?v=2026051201';
 import { stackmatInput } from './hardware-stackmat.js?v=2026051201';
@@ -13202,8 +13202,12 @@ function initSettingsPanel() {
         };
     }
 
-    // After the OAuth redirect flow, the URL may contain auth_success or auth_error
-    // query params. Clean them up for a tidy URL.
+    // After the OAuth redirect flow, the URL may contain an auth_session
+    // hash fragment and auth_success/auth_error query params.
+    // Consume the session ID from the hash first (stores it in localStorage),
+    // then clean up the query params for a tidy URL.
+    consumeAuthSession();
+
     const authReturnParams = new URLSearchParams(window.location.search);
     const authError = authReturnParams.get('auth_error') || '';
     if (authReturnParams.has('auth_success') || authReturnParams.has('auth_error')) {

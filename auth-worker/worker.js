@@ -29,7 +29,7 @@ function corsHeaders(request, env) {
         'Access-Control-Allow-Origin': origin,
         'Access-Control-Allow-Credentials': 'true',
         'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     };
 }
 
@@ -60,6 +60,17 @@ function getSessionIdFromCookie(request) {
         new RegExp(`(?:^|;\\s*)${SESSION_COOKIE_NAME}=([^;]+)`)
     );
     return match ? match[1].trim() : '';
+}
+
+// Read session ID from Authorization header first, fall back to cookie
+// for backward compatibility with existing sessions.
+function getSessionId(request) {
+    const authHeader = request.headers.get('Authorization') || '';
+    if (authHeader.startsWith('Bearer ')) {
+        const token = authHeader.slice(7).trim();
+        if (token) return token;
+    }
+    return getSessionIdFromCookie(request);
 }
 
 // ─── /auth/start ───
@@ -152,14 +163,19 @@ async function handleAuthCallback(request, env) {
         expirationTtl: SESSION_TTL_SECONDS,
     });
 
-    // Redirect back to the app with the session cookie set
+    // Redirect back to the app with the session ID in the URL hash.
+    // Using a fragment (not a query param) so it never appears in
+    // server logs, Referer headers, or browser history entries.
     const redirectUrl = new URL(appRedirect);
     redirectUrl.searchParams.set('auth_success', '1');
+
+    const locationWithHash = `${redirectUrl.toString()}#auth_session=${sessionId}`;
 
     return new Response(null, {
         status: 302,
         headers: {
-            Location: redirectUrl.toString(),
+            Location: locationWithHash,
+            // Also set a cookie for backward compatibility.
             'Set-Cookie': buildSessionCookie(sessionId),
         },
     });
@@ -168,7 +184,7 @@ async function handleAuthCallback(request, env) {
 // ─── /auth/token ───
 // Returns a fresh access token by refreshing via the stored refresh token.
 async function handleAuthToken(request, env) {
-    const sessionId = getSessionIdFromCookie(request);
+    const sessionId = getSessionId(request);
     if (!sessionId) {
         return jsonResponse({ error: 'no_session' }, 401, request, env);
     }
@@ -248,7 +264,7 @@ async function handleAuthToken(request, env) {
 // ─── /auth/logout ───
 // Clears the session cookie and deletes the KV entry.
 async function handleAuthLogout(request, env) {
-    const sessionId = getSessionIdFromCookie(request);
+    const sessionId = getSessionId(request);
 
     if (sessionId) {
         await env.AUTH_SESSIONS.delete(sessionId);

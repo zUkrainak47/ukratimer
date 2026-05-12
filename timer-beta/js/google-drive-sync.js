@@ -2,10 +2,23 @@ const DRIVE_FILES_ENDPOINT = 'https://www.googleapis.com/drive/v3/files';
 const DRIVE_UPLOAD_ENDPOINT = 'https://www.googleapis.com/upload/drive/v3/files';
 const DEFAULT_SAVE_FILENAME = 'ukratimer-save.json';
 const ACCESS_TOKEN_SAFETY_WINDOW_MS = 60 * 1000;
+const SESSION_STORAGE_KEY = 'ukratimer_auth_session';
 
 let accessToken = '';
 let accessTokenExpiresAt = 0;
 let pendingTokenRequest = null;
+
+function getStoredSessionId() {
+    try { return localStorage.getItem(SESSION_STORAGE_KEY) || ''; } catch (_) { return ''; }
+}
+
+function setStoredSessionId(id) {
+    try { localStorage.setItem(SESSION_STORAGE_KEY, id); } catch (_) { /* quota or private-mode */ }
+}
+
+function clearStoredSessionId() {
+    try { localStorage.removeItem(SESSION_STORAGE_KEY); } catch (_) { /* ignore */ }
+}
 
 function getAuthWorkerUrl() {
     return document.querySelector('meta[name="google-drive-auth-worker-url"]')?.content?.trim() || '';
@@ -58,16 +71,21 @@ function mapDriveError(status, text) {
 }
 
 // Fetch a fresh access token from the auth Worker.
-// The Worker reads the HttpOnly session cookie, looks up the stored
-// refresh token in KV, and returns a new short-lived access token.
+// The Worker reads the session ID from the Authorization header, looks up
+// the stored refresh token in KV, and returns a new short-lived access token.
 async function fetchAccessTokenFromWorker() {
     const workerUrl = getAuthWorkerUrl();
     if (!workerUrl) {
         throw new Error('Google Drive sync is not configured.');
     }
 
+    const sessionId = getStoredSessionId();
+    if (!sessionId) {
+        throw new Error('no_session');
+    }
+
     const response = await fetch(`${workerUrl}/auth/token`, {
-        credentials: 'include',
+        headers: { 'Authorization': `Bearer ${sessionId}` },
     });
 
     if (!response.ok) {
@@ -76,6 +94,7 @@ async function fetchAccessTokenFromWorker() {
 
         if (errorCode === 'no_session' || errorCode === 'session_expired' || errorCode === 'refresh_token_revoked') {
             clearGoogleDriveSession();
+            clearStoredSessionId();
             throw new Error('no_session');
         }
 
@@ -219,13 +238,14 @@ export async function connectGoogleDrive() {
 
 export async function signOutOfGoogleDrive() {
     const workerUrl = getAuthWorkerUrl();
+    const sessionId = getStoredSessionId();
 
-    // Clear the server-side session (cookie + KV entry).
-    if (workerUrl) {
+    // Clear the server-side session (KV entry).
+    if (workerUrl && sessionId) {
         try {
             await fetch(`${workerUrl}/auth/logout`, {
                 method: 'POST',
-                credentials: 'include',
+                headers: { 'Authorization': `Bearer ${sessionId}` },
             });
         } catch (_) {
             // Best-effort. If the Worker is unreachable, we still clear locally.
@@ -233,11 +253,13 @@ export async function signOutOfGoogleDrive() {
     }
 
     clearGoogleDriveSession();
+    clearStoredSessionId();
 }
 
 export async function restoreGoogleDriveSession() {
     if (!isGoogleDriveSyncConfigured()) return false;
     if (hasGoogleDriveSession()) return true;
+    if (!getStoredSessionId()) return false;
 
     try {
         await requestGoogleDriveAccessToken();
@@ -245,6 +267,29 @@ export async function restoreGoogleDriveSession() {
     } catch (_) {
         return false;
     }
+}
+
+// Reads the session ID from the URL hash fragment set by the auth Worker
+// callback redirect, stores it in localStorage, and strips it from the URL.
+// Must be called on page load before restoreGoogleDriveSession().
+export function consumeAuthSession() {
+    const hash = window.location.hash || '';
+    const match = hash.match(/auth_session=([^&]+)/);
+    if (!match) return '';
+
+    const sessionId = decodeURIComponent(match[1]);
+    if (sessionId) {
+        setStoredSessionId(sessionId);
+    }
+
+    // Strip the auth_session fragment from the URL.
+    const cleanHash = hash
+        .replace(/[#&]?auth_session=[^&]*/g, '')
+        .replace(/^#$/, '');
+    const cleanUrl = window.location.pathname + window.location.search + cleanHash;
+    window.history.replaceState(null, '', cleanUrl);
+
+    return sessionId;
 }
 
 export async function getGoogleDriveBackupInfo() {

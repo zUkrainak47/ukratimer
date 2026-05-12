@@ -41,12 +41,12 @@ The Worker will be live at `https://ukratimer-auth.zukrainak47.workers.dev`.
 
 ## Endpoints
 
-| Method | Path             | Description                                      |
-|--------|------------------|--------------------------------------------------|
-| GET    | `/auth/start`    | Redirects to Google consent screen                |
-| GET    | `/auth/callback` | Exchanges auth code for tokens, sets session cookie |
-| GET    | `/auth/token`    | Returns a fresh access token (reads session cookie) |
-| POST   | `/auth/logout`   | Clears session cookie and deletes refresh token    |
+| Method | Path             | Description                                                        |
+|--------|------------------|--------------------------------------------------------------------|
+| GET    | `/auth/start`    | Redirects to Google consent screen                                  |
+| GET    | `/auth/callback` | Exchanges auth code for tokens, redirects with session ID in hash   |
+| GET    | `/auth/token`    | Returns a fresh access token (reads session from `Authorization` header) |
+| POST   | `/auth/logout`   | Deletes the KV session entry and clears the legacy cookie           |
 
 ## Environment
 
