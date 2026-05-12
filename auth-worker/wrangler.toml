@@ -1,0 +1,14 @@
+name = "ukratimer-auth"
+main = "worker.js"
+compatibility_date = "2026-05-11"
+workers_dev = true
+preview_urls = false
+
+[vars]
+GOOGLE_CLIENT_ID = "210179775275-e62l646u4b8157hqs7j2ovt6ap608bjo.apps.googleusercontent.com"
+ALLOWED_ORIGINS = "https://ukratimer.com,https://www.ukratimer.com,http://localhost:8080"
+APP_URL = "https://ukratimer.com/timer-beta/"
+
+[[kv_namespaces]]
+binding = "AUTH_SESSIONS"
+id = "fe377cc3f6724d139e4fd0b1f03385cd"

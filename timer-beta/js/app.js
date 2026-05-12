@@ -13114,7 +13114,7 @@ function initSettingsPanel() {
 
             googleDriveBusy = true;
             syncGoogleDriveButtons();
-            setGoogleDriveStatus('Opening Google sign-in...');
+            setGoogleDriveStatus('Redirecting to Google sign-in...');
 
             try {
                 await connectGoogleDrive();
@@ -13202,7 +13202,36 @@ function initSettingsPanel() {
         };
     }
 
-    void refreshGoogleDriveStatus();
+    // After the OAuth redirect flow, the URL may contain auth_success or auth_error
+    // query params. Clean them up for a tidy URL.
+    const authReturnParams = new URLSearchParams(window.location.search);
+    const authError = authReturnParams.get('auth_error') || '';
+    if (authReturnParams.has('auth_success') || authReturnParams.has('auth_error')) {
+        authReturnParams.delete('auth_success');
+        authReturnParams.delete('auth_error');
+        const cleanSearch = authReturnParams.toString();
+        const cleanUrl = window.location.pathname + (cleanSearch ? `?${cleanSearch}` : '') + window.location.hash;
+        window.history.replaceState(null, '', cleanUrl);
+    }
+
+    // Restore the Google Drive session from the auth Worker on init,
+    // then refresh the UI status. This replaces the old localStorage hydration.
+    void (async () => {
+        if (authError) {
+            setGoogleDriveStatus(
+                authError === 'access_denied'
+                    ? 'Google Drive access was denied.'
+                    : `Google Drive connection failed (${authError}).`,
+                'error'
+            );
+            syncGoogleDriveButtons();
+            return;
+        }
+
+        // Try to silently restore the session (calls /auth/token on the Worker).
+        await restoreGoogleDriveSession();
+        await refreshGoogleDriveStatus();
+    })();
 
     // // Export
     // document.getElementById('btn-export').onclick = async () => {
