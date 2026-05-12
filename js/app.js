@@ -1,20 +1,20 @@
-import { timer, State as TimerState } from './timer.js?v=2026051104';
-import { SCRAMBLE_TYPE_OPTIONS, generateScrambleForType, getScramble, getCurrentScramble, getCurrentScrambleType, getPrevScramble, getNextScramble, getSelectedScrambleType, setCurrentScramble, setScrambleType, isCurrentScrambleManual, hasPrevScramble, isViewingPreviousScramble, preloadScrambleEngines, needsCubingWarmup, runCubingWarmup } from './scramble.js?v=2026051104';
-import { sessionManager } from './session.js?v=2026051104';
-import { settings, DEFAULTS, THEME_OPTIONS, THEME_COLOR_SECTIONS, THEME_DEFAULT_ID, THEME_OLED_ID, THEME_CUSTOM_IDS, composeThemeColor, decomposeThemeColor, getThemePresetColors, isCustomThemeId } from './settings.js?v=2026051104';
-import { parseGraphStatType, parseRollingStatType, rollingStatAt, StatsCache } from './stats.js?v=2026051104';
-import { formatTime, formatSolveTime, formatTimerDisplayTime, getEffectiveTime, formatDate, formatDateTime, parseTimeInputToMs, truncateTimeDisplay } from './utils.js?v=2026051104';
-import { initModal, showSolveDetail, showAverageDetail, closeModal, closeMoveSessionMenus, customConfirm, customPrompt, getModalSelectionContext, setModalStatNavigator, setModalStatButtons, armModalGhostClickGuard } from './modal.js?v=2026051104';
-import { applyMegaminxScramble, applyPyraminxScramble, applyScramble, applySquare1Scramble, applySkewbScramble, applyClockScramble, clearCubeDisplay, drawMegaminxFacePreview, drawSquare1, drawClock, initCubeDisplay, updateCubeDisplay, updateMegaminxDisplay, updatePyraminxDisplay, updateSquare1Display, updateSkewbDisplay, updateClockDisplay } from './cube-display.js?v=2026051104';
-import { initGraph, updateGraph, updateGraphData, setLineVisibility, getLineVisibility, applyAction, graphEvents, getGraphLineDefinitions } from './graph.js?v=2026051104';
-import { closeTimeDistributionModal, initTimeDistributionModal, isTimeDistributionModalOpen, refreshTimeDistributionData, refreshTimeDistributionTheme, showTimeDistributionModal } from './distribution.js?v=2026051104';
-import { exportAll, importAll, isCsTimerFormat, importCsTimer, exportCsTimer, importSessionCsv } from './storage.js?v=2026051104';
-import { connectGoogleDrive, exportBackupToGoogleDrive, getGoogleDriveBackupInfo, hasGoogleDriveSession, importBackupFromGoogleDrive, isGoogleDriveSyncConfigured, restoreGoogleDriveSession, signOutOfGoogleDrive } from './google-drive-sync.js?v=2026051104';
-import { dailyStreakStore, normalizeDailyStreakGoal } from './streaks.js?v=2026051104';
-import { bluetoothTimerInput, BluetoothTimerState } from './hardware-bluetooth-timer.js?v=2026051104';
-import { stackmatInput } from './hardware-stackmat.js?v=2026051104';
-import { isHardwareTimeEntryMode, isTypingTimeEntryMode, normalizeTimeEntryMode, TIME_ENTRY_MODE_BLUETOOTH, TIME_ENTRY_MODE_STACKMAT, TIME_ENTRY_MODE_TIMER } from './time-entry.js?v=2026051104';
-import { battleManager } from './battle.js?v=2026051104';
+import { timer, State as TimerState } from './timer.js?v=2026051202';
+import { SCRAMBLE_TYPE_OPTIONS, generateScrambleForType, getScramble, getCurrentScramble, getCurrentScrambleType, getPrevScramble, getNextScramble, getSelectedScrambleType, setCurrentScramble, setScrambleType, isCurrentScrambleManual, hasPrevScramble, isViewingPreviousScramble, preloadScrambleEngines, needsCubingWarmup, runCubingWarmup } from './scramble.js?v=2026051202';
+import { sessionManager } from './session.js?v=2026051202';
+import { settings, DEFAULTS, THEME_OPTIONS, THEME_COLOR_SECTIONS, THEME_DEFAULT_ID, THEME_OLED_ID, THEME_CUSTOM_IDS, composeThemeColor, decomposeThemeColor, getThemePresetColors, isCustomThemeId } from './settings.js?v=2026051202';
+import { parseGraphStatType, parseRollingStatType, rollingStatAt, StatsCache } from './stats.js?v=2026051202';
+import { formatTime, formatSolveTime, formatTimerDisplayTime, getEffectiveTime, formatDate, formatDateTime, parseTimeInputToMs, truncateTimeDisplay } from './utils.js?v=2026051202';
+import { initModal, showSolveDetail, showAverageDetail, closeModal, closeMoveSessionMenus, customConfirm, customPrompt, getModalSelectionContext, setModalStatNavigator, setModalStatButtons, armModalGhostClickGuard } from './modal.js?v=2026051202';
+import { applyMegaminxScramble, applyPyraminxScramble, applyScramble, applySquare1Scramble, applySkewbScramble, applyClockScramble, clearCubeDisplay, drawMegaminxFacePreview, drawSquare1, drawClock, initCubeDisplay, updateCubeDisplay, updateMegaminxDisplay, updatePyraminxDisplay, updateSquare1Display, updateSkewbDisplay, updateClockDisplay } from './cube-display.js?v=2026051202';
+import { initGraph, updateGraph, updateGraphData, setLineVisibility, getLineVisibility, applyAction, graphEvents, getGraphLineDefinitions } from './graph.js?v=2026051202';
+import { closeTimeDistributionModal, initTimeDistributionModal, isTimeDistributionModalOpen, refreshTimeDistributionData, refreshTimeDistributionTheme, showTimeDistributionModal } from './distribution.js?v=2026051202';
+import { exportAll, importAll, isCsTimerFormat, importCsTimer, exportCsTimer, importSessionCsv } from './storage.js?v=2026051202';
+import { connectGoogleDrive, consumeAuthSession, exportBackupToGoogleDrive, getGoogleDriveBackupInfo, hasGoogleDriveSession, importBackupFromGoogleDrive, isGoogleDriveSyncConfigured, restoreGoogleDriveSession, signOutOfGoogleDrive } from './google-drive-sync.js?v=2026051202';
+import { dailyStreakStore, normalizeDailyStreakGoal } from './streaks.js?v=2026051202';
+import { bluetoothTimerInput, BluetoothTimerState } from './hardware-bluetooth-timer.js?v=2026051202';
+import { stackmatInput } from './hardware-stackmat.js?v=2026051202';
+import { isHardwareTimeEntryMode, isTypingTimeEntryMode, normalizeTimeEntryMode, TIME_ENTRY_MODE_BLUETOOTH, TIME_ENTRY_MODE_STACKMAT, TIME_ENTRY_MODE_TIMER } from './time-entry.js?v=2026051202';
+import { battleManager } from './battle.js?v=2026051202';
 
 let currentScramble = '';
 let currentSortCol = null;
@@ -268,7 +268,7 @@ async function registerServiceWorker() {
     if (window.location?.protocol === 'file:') return;
 
     try {
-        const serviceWorkerUrl = new URL('../sw.js?v=2026051104', import.meta.url);
+        const serviceWorkerUrl = new URL('../sw.js?v=2026051202', import.meta.url);
         await navigator.serviceWorker.register(serviceWorkerUrl);
     } catch (error) {
         console.warn('Service worker registration failed:', error);
@@ -13114,7 +13114,7 @@ function initSettingsPanel() {
 
             googleDriveBusy = true;
             syncGoogleDriveButtons();
-            setGoogleDriveStatus('Opening Google sign-in...');
+            setGoogleDriveStatus('Redirecting to Google sign-in...');
 
             try {
                 await connectGoogleDrive();
@@ -13202,7 +13202,40 @@ function initSettingsPanel() {
         };
     }
 
-    void refreshGoogleDriveStatus();
+    // After the OAuth redirect flow, the URL may contain an auth_session
+    // hash fragment and auth_success/auth_error query params.
+    // Consume the session ID from the hash first (stores it in localStorage),
+    // then clean up the query params for a tidy URL.
+    consumeAuthSession();
+
+    const authReturnParams = new URLSearchParams(window.location.search);
+    const authError = authReturnParams.get('auth_error') || '';
+    if (authReturnParams.has('auth_success') || authReturnParams.has('auth_error')) {
+        authReturnParams.delete('auth_success');
+        authReturnParams.delete('auth_error');
+        const cleanSearch = authReturnParams.toString();
+        const cleanUrl = window.location.pathname + (cleanSearch ? `?${cleanSearch}` : '') + window.location.hash;
+        window.history.replaceState(null, '', cleanUrl);
+    }
+
+    // Restore the Google Drive session from the auth Worker on init,
+    // then refresh the UI status. This replaces the old localStorage hydration.
+    void (async () => {
+        if (authError) {
+            setGoogleDriveStatus(
+                authError === 'access_denied'
+                    ? 'Google Drive access was denied.'
+                    : `Google Drive connection failed (${authError}).`,
+                'error'
+            );
+            syncGoogleDriveButtons();
+            return;
+        }
+
+        // Try to silently restore the session (calls /auth/token on the Worker).
+        await restoreGoogleDriveSession();
+        await refreshGoogleDriveStatus();
+    })();
 
     // // Export
     // document.getElementById('btn-export').onclick = async () => {

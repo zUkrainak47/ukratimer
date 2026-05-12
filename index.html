@@ -15,58 +15,60 @@
   <!-- Add your Google OAuth Web Client ID below to enable Drive backups. -->
   <meta name="google-drive-client-id"
     content="210179775275-e62l646u4b8157hqs7j2ovt6ap608bjo.apps.googleusercontent.com">
+  <!-- Auth Worker URL for persistent Google Drive login (server-side OAuth refresh token flow). -->
+  <meta name="google-drive-auth-worker-url" content="https://ukratimer-auth.zukrainak47.workers.dev">
   <!-- Optional websocket endpoint base for online battle, for example wss://example.com/battle -->
   <meta name="battle-server-url" content="https://ukratimer-battle.zukrainak47.workers.dev">
   <!-- <meta name="battle-server-url" content="http://localhost:8081/battle"> -->
   <title>UkraTimer</title>
 
-  <link rel="manifest" href="manifest.webmanifest?v=2026051104">
-  <link rel="apple-touch-icon" href="resources/pwa-icon-180.png?v=2026051104">
+  <link rel="manifest" href="manifest.webmanifest?v=2026051202">
+  <link rel="apple-touch-icon" href="resources/pwa-icon-180.png?v=2026051202">
 
   <!-- Fonts -->
-  <link rel="preload" href="resources/fonts/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2?v=2026051104" as="font"
+  <link rel="preload" href="resources/fonts/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2?v=2026051202" as="font"
     type="font/woff2" crossorigin>
   <link rel="preload"
-    href="resources/fonts/tDbv2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPxDcwgknk-4.woff2?v=2026051104"
+    href="resources/fonts/tDbv2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPxDcwgknk-4.woff2?v=2026051202"
     as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="css/fonts.css?v=2026051104">
+  <link rel="stylesheet" href="css/fonts.css?v=2026051202">
 
   <!-- Favicon -->
-  <link rel="icon" href="resources/pwa-icon.svg?v=2026051104" type="image/svg+xml">
+  <link rel="icon" href="resources/pwa-icon.svg?v=2026051202" type="image/svg+xml">
 
   <!-- Preload SVG icon assets to avoid first-open lag -->
-  <link rel="preload" href="resources/comment-off.svg?v=2026051104" as="image" type="image/svg+xml">
-  <link rel="preload" href="resources/comment.svg?v=2026051104" as="image" type="image/svg+xml">
-  <link rel="preload" href="resources/calendar-date-off.svg?v=2026051104" as="image" type="image/svg+xml">
-  <link rel="preload" href="resources/calendar-date.svg?v=2026051104" as="image" type="image/svg+xml">
-  <link rel="preload" href="resources/clock.svg?v=2026051104" as="image" type="image/svg+xml">
-  <link rel="preload" href="resources/legend.svg?v=2026051104" as="image" type="image/svg+xml">
-  <link rel="preload" href="resources/hashtag.svg?v=2026051104" as="image" type="image/svg+xml">
-  <link rel="preload" href="resources/hashtag-full.svg?v=2026051104" as="image" type="image/svg+xml">
-  <link rel="preload" href="resources/settings.svg?v=2026051104" as="image" type="image/svg+xml">
-  <link rel="preload" href="resources/distribution.svg?v=2026051104" as="image" type="image/svg+xml">
-  <link rel="preload" href="resources/trash.svg?v=2026051104" as="image" type="image/svg+xml">
-  <link rel="preload" href="resources/search.svg?v=2026051104" as="image" type="image/svg+xml">
-  <link rel="preload" href="resources/camera-video.svg?v=2026051104" as="image" type="image/svg+xml">
-  <link rel="preload" href="resources/camera-video-off.svg?v=2026051104" as="image" type="image/svg+xml">
-  <link rel="preload" href="resources/compress.svg?v=2026051104" as="image" type="image/svg+xml">
-  <link rel="preload" href="resources/expand.svg?v=2026051104" as="image" type="image/svg+xml">
-  <link rel="preload" href="resources/distribution-cumulative.svg?v=2026051104" as="image" type="image/svg+xml">
-  <link rel="preload" href="resources/distribution-normal.svg?v=2026051104" as="image" type="image/svg+xml">
-  <link rel="preload" href="resources/trending-down.svg?v=2026051104" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/comment-off.svg?v=2026051202" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/comment.svg?v=2026051202" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/calendar-date-off.svg?v=2026051202" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/calendar-date.svg?v=2026051202" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/clock.svg?v=2026051202" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/legend.svg?v=2026051202" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/hashtag.svg?v=2026051202" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/hashtag-full.svg?v=2026051202" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/settings.svg?v=2026051202" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/distribution.svg?v=2026051202" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/trash.svg?v=2026051202" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/search.svg?v=2026051202" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/camera-video.svg?v=2026051202" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/camera-video-off.svg?v=2026051202" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/compress.svg?v=2026051202" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/expand.svg?v=2026051202" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/distribution-cumulative.svg?v=2026051202" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/distribution-normal.svg?v=2026051202" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/trending-down.svg?v=2026051202" as="image" type="image/svg+xml">
 
   <!-- Styles -->
-  <link rel="stylesheet" href="css/variables.css?v=2026051104">
-  <link rel="stylesheet" href="css/base.css?v=2026051104">
-  <link rel="stylesheet" href="css/layout.css?v=2026051104">
-  <link rel="stylesheet" href="css/scramble.css?v=2026051104">
-  <link rel="stylesheet" href="css/timer.css?v=2026051104">
-  <link rel="stylesheet" href="css/stats.css?v=2026051104">
-  <link rel="stylesheet" href="css/cube.css?v=2026051104">
-  <link rel="stylesheet" href="css/graph.css?v=2026051104">
-  <link rel="stylesheet" href="css/modal.css?v=2026051104">
-  <link rel="stylesheet" href="css/battle.css?v=2026051104">
-  <link rel="stylesheet" href="css/settings.css?v=2026051104">
+  <link rel="stylesheet" href="css/variables.css?v=2026051202">
+  <link rel="stylesheet" href="css/base.css?v=2026051202">
+  <link rel="stylesheet" href="css/layout.css?v=2026051202">
+  <link rel="stylesheet" href="css/scramble.css?v=2026051202">
+  <link rel="stylesheet" href="css/timer.css?v=2026051202">
+  <link rel="stylesheet" href="css/stats.css?v=2026051202">
+  <link rel="stylesheet" href="css/cube.css?v=2026051202">
+  <link rel="stylesheet" href="css/graph.css?v=2026051202">
+  <link rel="stylesheet" href="css/modal.css?v=2026051202">
+  <link rel="stylesheet" href="css/battle.css?v=2026051202">
+  <link rel="stylesheet" href="css/settings.css?v=2026051202">
 </head>
 
 <body>
@@ -1564,7 +1566,7 @@
   </script>
 
   <!-- App Script -->
-  <script type="module" src="js/app.js?v=2026051104"></script>
+  <script type="module" src="js/app.js?v=2026051202"></script>
 </body>
 
 </html>

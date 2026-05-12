@@ -1,16 +1,28 @@
-const GOOGLE_IDENTITY_SCRIPT_URL = 'https://accounts.google.com/gsi/client';
 const DRIVE_FILES_ENDPOINT = 'https://www.googleapis.com/drive/v3/files';
 const DRIVE_UPLOAD_ENDPOINT = 'https://www.googleapis.com/upload/drive/v3/files';
-const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
 const DEFAULT_SAVE_FILENAME = 'ukratimer-save.json';
 const ACCESS_TOKEN_SAFETY_WINDOW_MS = 60 * 1000;
-const GOOGLE_DRIVE_AUTH_STATE_KEY = 'ukratimer_google_drive_authorized';
-const GOOGLE_DRIVE_TOKEN_KEY = 'ukratimer_google_drive_access_token';
-const GOOGLE_DRIVE_TOKEN_EXPIRY_KEY = 'ukratimer_google_drive_access_token_expiry';
+const SESSION_STORAGE_KEY = 'ukratimer_auth_session';
 
-let googleIdentityScriptPromise = null;
 let accessToken = '';
 let accessTokenExpiresAt = 0;
+let pendingTokenRequest = null;
+
+function getStoredSessionId() {
+    try { return localStorage.getItem(SESSION_STORAGE_KEY) || ''; } catch (_) { return ''; }
+}
+
+function setStoredSessionId(id) {
+    try { localStorage.setItem(SESSION_STORAGE_KEY, id); } catch (_) { /* quota or private-mode */ }
+}
+
+function clearStoredSessionId() {
+    try { localStorage.removeItem(SESSION_STORAGE_KEY); } catch (_) { /* ignore */ }
+}
+
+function getAuthWorkerUrl() {
+    return document.querySelector('meta[name="google-drive-auth-worker-url"]')?.content?.trim() || '';
+}
 
 function getGoogleDriveClientId() {
     return document.querySelector('meta[name="google-drive-client-id"]')?.content?.trim() || '';
@@ -20,72 +32,11 @@ function getGoogleDriveSaveFilename() {
     return DEFAULT_SAVE_FILENAME;
 }
 
-function persistGoogleDriveSession() {
-    try {
-        if (!accessToken || !accessTokenExpiresAt) {
-            localStorage.removeItem(GOOGLE_DRIVE_TOKEN_KEY);
-            localStorage.removeItem(GOOGLE_DRIVE_TOKEN_EXPIRY_KEY);
-            return;
-        }
-
-        localStorage.setItem(GOOGLE_DRIVE_TOKEN_KEY, accessToken);
-        localStorage.setItem(GOOGLE_DRIVE_TOKEN_EXPIRY_KEY, String(accessTokenExpiresAt));
-    } catch (_) {
-        // Ignore storage failures and continue with the in-memory token only.
-    }
-}
-
-function hydrateGoogleDriveSessionFromStorage() {
-    if (accessToken && accessTokenExpiresAt) return;
-
-    try {
-        const storedToken = localStorage.getItem(GOOGLE_DRIVE_TOKEN_KEY) || '';
-        const storedExpiry = Number(localStorage.getItem(GOOGLE_DRIVE_TOKEN_EXPIRY_KEY) || '0');
-
-        if (!storedToken || !Number.isFinite(storedExpiry) || storedExpiry <= Date.now()) {
-            localStorage.removeItem(GOOGLE_DRIVE_TOKEN_KEY);
-            localStorage.removeItem(GOOGLE_DRIVE_TOKEN_EXPIRY_KEY);
-            return;
-        }
-
-        accessToken = storedToken;
-        accessTokenExpiresAt = storedExpiry;
-    } catch (_) {
-        // Ignore storage failures and fall back to the in-memory token.
-    }
-}
-
-function rememberGoogleDriveAuthorization() {
-    try {
-        localStorage.setItem(GOOGLE_DRIVE_AUTH_STATE_KEY, '1');
-    } catch (_) {
-        // Ignore storage failures and fall back to the current-page session.
-    }
-}
-
-function forgetGoogleDriveAuthorization() {
-    try {
-        localStorage.removeItem(GOOGLE_DRIVE_AUTH_STATE_KEY);
-    } catch (_) {
-        // Ignore storage failures.
-    }
-}
-
-function wasGoogleDrivePreviouslyAuthorized() {
-    try {
-        return localStorage.getItem(GOOGLE_DRIVE_AUTH_STATE_KEY) === '1';
-    } catch (_) {
-        return false;
-    }
-}
-
 export function isGoogleDriveSyncConfigured() {
-    return Boolean(getGoogleDriveClientId());
+    return Boolean(getAuthWorkerUrl()) && Boolean(getGoogleDriveClientId());
 }
 
 export function hasGoogleDriveSession() {
-    hydrateGoogleDriveSessionFromStorage();
-
     if (accessTokenExpiresAt && Date.now() >= accessTokenExpiresAt - ACCESS_TOKEN_SAFETY_WINDOW_MS) {
         clearGoogleDriveSession();
         return false;
@@ -94,50 +45,13 @@ export function hasGoogleDriveSession() {
     return Boolean(accessToken) && Date.now() < accessTokenExpiresAt - ACCESS_TOKEN_SAFETY_WINDOW_MS;
 }
 
-function escapeDriveQueryValue(value) {
-    return String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-}
-
-async function loadGoogleIdentityServices() {
-    if (window.google?.accounts?.oauth2) return window.google;
-    if (googleIdentityScriptPromise) return googleIdentityScriptPromise;
-
-    googleIdentityScriptPromise = new Promise((resolve, reject) => {
-        const existing = document.querySelector(`script[src="${GOOGLE_IDENTITY_SCRIPT_URL}"]`);
-        if (existing) {
-            existing.addEventListener('load', () => resolve(window.google), { once: true });
-            existing.addEventListener('error', () => reject(new Error('Failed to load Google Identity Services.')), { once: true });
-            return;
-        }
-
-        const script = document.createElement('script');
-        script.src = GOOGLE_IDENTITY_SCRIPT_URL;
-        script.async = true;
-        script.defer = true;
-        script.onload = () => resolve(window.google);
-        script.onerror = () => reject(new Error('Failed to load Google Identity Services.'));
-        document.head.appendChild(script);
-    });
-
-    return googleIdentityScriptPromise;
-}
-
 function clearGoogleDriveSession() {
     accessToken = '';
     accessTokenExpiresAt = 0;
-    persistGoogleDriveSession();
 }
 
-function mapGoogleAuthError(error) {
-    const message = String(error?.message || error || '').trim();
-
-    if (message === 'popup_closed') return 'Google sign-in was closed before it finished.';
-    if (message === 'popup_failed_to_open') return 'Google sign-in popup could not be opened.';
-    if (message === 'access_denied') return 'Google Drive access was denied.';
-    if (message === 'invalid_client') return 'The Google OAuth client ID is invalid for this site.';
-    if (message) return message;
-
-    return 'Google authentication failed.';
+function escapeDriveQueryValue(value) {
+    return String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }
 
 function mapDriveError(status, text) {
@@ -156,44 +70,74 @@ function mapDriveError(status, text) {
     return text || `Google Drive request failed (${status}).`;
 }
 
-async function requestGoogleDriveAccessToken({ selectAccount = false } = {}) {
-    if (!isGoogleDriveSyncConfigured()) {
-        throw new Error('Google Drive sync is not configured. Add a Google OAuth client ID first.');
+// Fetch a fresh access token from the auth Worker.
+// The Worker reads the session ID from the Authorization header, looks up
+// the stored refresh token in KV, and returns a new short-lived access token.
+async function fetchAccessTokenFromWorker() {
+    const workerUrl = getAuthWorkerUrl();
+    if (!workerUrl) {
+        throw new Error('Google Drive sync is not configured.');
     }
 
-    if (!selectAccount && hasGoogleDriveSession()) {
+    const sessionId = getStoredSessionId();
+    if (!sessionId) {
+        throw new Error('no_session');
+    }
+
+    const response = await fetch(`${workerUrl}/auth/token`, {
+        headers: { 'Authorization': `Bearer ${sessionId}` },
+    });
+
+    if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        const errorCode = data?.error || '';
+
+        if (errorCode === 'no_session' || errorCode === 'session_expired' || errorCode === 'refresh_token_revoked') {
+            clearGoogleDriveSession();
+            clearStoredSessionId();
+            throw new Error('no_session');
+        }
+
+        throw new Error(errorCode || 'Failed to get access token.');
+    }
+
+    const data = await response.json();
+    if (!data?.access_token) {
+        throw new Error('Auth worker returned an empty access token.');
+    }
+
+    return data;
+}
+
+// Get a valid access token, refreshing from the Worker if needed.
+// De-duplicates concurrent calls so only one Worker request is in flight.
+async function requestGoogleDriveAccessToken() {
+    if (!isGoogleDriveSyncConfigured()) {
+        throw new Error('Google Drive sync is not configured. Add the auth worker URL and client ID first.');
+    }
+
+    if (hasGoogleDriveSession()) {
         return accessToken;
     }
 
-    await loadGoogleIdentityServices();
+    // De-duplicate: if a token request is already in flight, wait for it.
+    if (pendingTokenRequest) {
+        return await pendingTokenRequest;
+    }
 
-    return await new Promise((resolve, reject) => {
-        const tokenClient = window.google.accounts.oauth2.initTokenClient({
-            client_id: getGoogleDriveClientId(),
-            scope: DRIVE_SCOPE,
-            callback: (response) => {
-                if (!response?.access_token) {
-                    reject(new Error('Google authentication failed.'));
-                    return;
-                }
-
-                accessToken = response.access_token;
-                accessTokenExpiresAt = Date.now() + (Number(response.expires_in) || 3600) * 1000;
-                persistGoogleDriveSession();
-                rememberGoogleDriveAuthorization();
-                resolve(accessToken);
-            },
-            error_callback: (response) => {
-                reject(new Error(response?.type || response?.message || 'Google authentication failed.'));
-            },
+    pendingTokenRequest = fetchAccessTokenFromWorker()
+        .then((data) => {
+            accessToken = data.access_token;
+            accessTokenExpiresAt = Date.now() + (Number(data.expires_in) || 3600) * 1000;
+            pendingTokenRequest = null;
+            return accessToken;
+        })
+        .catch((error) => {
+            pendingTokenRequest = null;
+            throw error;
         });
 
-        tokenClient.requestAccessToken({
-            prompt: selectAccount ? 'select_account' : '',
-        });
-    }).catch((error) => {
-        throw new Error(mapGoogleAuthError(error));
-    });
+    return await pendingTokenRequest;
 }
 
 async function driveFetch(path, { method = 'GET', headers = {}, body = null, expectJson = true } = {}) {
@@ -273,35 +217,79 @@ function createMultipartUploadBody(content) {
     return { body, boundary };
 }
 
+// ─── Public API ───
+// These exported functions keep the same signatures that app.js expects.
+
 export async function connectGoogleDrive() {
-    await requestGoogleDriveAccessToken({ selectAccount: true });
-    return await getGoogleDriveBackupInfo();
+    const workerUrl = getAuthWorkerUrl();
+    if (!workerUrl) {
+        throw new Error('Google Drive sync is not configured.');
+    }
+
+    // Navigate the user to the auth Worker's /auth/start endpoint.
+    // The Worker redirects to Google's consent screen, then back to the app
+    // with a session cookie set. This is a full-page redirect.
+    const redirectUri = encodeURIComponent(window.location.href);
+    window.location.href = `${workerUrl}/auth/start?redirect_uri=${redirectUri}`;
+
+    // Return a never-resolving promise since the page is about to navigate away.
+    return new Promise(() => {});
 }
 
 export async function signOutOfGoogleDrive() {
-    // Just clear the local session data.
-    // DO NOT call window.google.accounts.oauth2.revoke!
-    // Revoking tells Google to delete the user's consent entirely,
-    // forcing the permission screen to show up again next time.
+    const workerUrl = getAuthWorkerUrl();
+    const sessionId = getStoredSessionId();
+
+    // Clear the server-side session (KV entry).
+    if (workerUrl && sessionId) {
+        try {
+            await fetch(`${workerUrl}/auth/logout`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${sessionId}` },
+            });
+        } catch (_) {
+            // Best-effort. If the Worker is unreachable, we still clear locally.
+        }
+    }
+
     clearGoogleDriveSession();
-    forgetGoogleDriveAuthorization();
+    clearStoredSessionId();
 }
 
 export async function restoreGoogleDriveSession() {
     if (!isGoogleDriveSyncConfigured()) return false;
     if (hasGoogleDriveSession()) return true;
-    if (!wasGoogleDrivePreviouslyAuthorized()) return false;
+    if (!getStoredSessionId()) return false;
 
     try {
-        await requestGoogleDriveAccessToken({ selectAccount: false });
+        await requestGoogleDriveAccessToken();
         return true;
-    } catch (error) {
-        const message = String(error?.message || '');
-        if (message === 'access_denied' || message === 'invalid_client') {
-            forgetGoogleDriveAuthorization();
-        }
+    } catch (_) {
         return false;
     }
+}
+
+// Reads the session ID from the URL hash fragment set by the auth Worker
+// callback redirect, stores it in localStorage, and strips it from the URL.
+// Must be called on page load before restoreGoogleDriveSession().
+export function consumeAuthSession() {
+    const hash = window.location.hash || '';
+    const match = hash.match(/auth_session=([^&]+)/);
+    if (!match) return '';
+
+    const sessionId = decodeURIComponent(match[1]);
+    if (sessionId) {
+        setStoredSessionId(sessionId);
+    }
+
+    // Strip the auth_session fragment from the URL.
+    const cleanHash = hash
+        .replace(/[#&]?auth_session=[^&]*/g, '')
+        .replace(/^#$/, '');
+    const cleanUrl = window.location.pathname + window.location.search + cleanHash;
+    window.history.replaceState(null, '', cleanUrl);
+
+    return sessionId;
 }
 
 export async function getGoogleDriveBackupInfo() {
