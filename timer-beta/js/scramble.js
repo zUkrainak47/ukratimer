@@ -1,5 +1,5 @@
-import { load, save } from './storage.js?v=2026051401';
-import { createSubsetScramble } from './subset-scramblers.js?v=2026051401';
+import { load, save } from './storage.js?v=2026051402';
+import { createSubsetScramble } from './subset-scramblers.js?v=2026051402';
 
 let randomScrambleForEvent;
 let _cubingInitPromise = null;
@@ -22,10 +22,10 @@ const CUBING_SCRAMBLE_MODULE_SRC = 'https://cdn.cubing.net/v0/js/cubing/scramble
 const SCRAMBOW_SCRIPT_SRC = 'https://unpkg.com/scrambow@1.8.1/dist/scrambow.js';
 const SUBSET_BOOTSTRAP_QUEUE_FILL_DELAY_MS = 280;
 const CUBING_WARMUP_VERSION = '2026-04-01';
-const SCRAMBOW_BATCH_SIZE = 250;
+const SCRAMBOW_BATCH_SIZE = 12;
 const CUBING_BATCH_CONCURRENCY = 12;
 const SUBSET_BATCH_YIELD_INTERVAL = 12;
-const CUSTOM_BATCH_SIZE = 60;
+const CUSTOM_BATCH_SIZE = 12;
 
 export const SCRAMBLE_TYPE_OPTIONS = Object.freeze([
     { id: '333', menuLabel: '3x3x3', buttonLabel: '3x3x3', generator: 'cubing', eventId: '333' },
@@ -133,6 +133,10 @@ function createAbortError() {
     const error = new Error('Scramble generation aborted.');
     error.name = 'AbortError';
     return error;
+}
+
+function isAbortError(error) {
+    return error?.name === 'AbortError';
 }
 
 function throwIfBatchGenerationAborted(signal) {
@@ -612,7 +616,9 @@ async function createScrambowScrambleBatch(type, count, { signal = null, onProgr
     while (scrambles.length < count) {
         throwIfBatchGenerationAborted(signal);
         const batchSize = Math.min(SCRAMBOW_BATCH_SIZE, count - scrambles.length);
-        scrambles.push(...getScrambowBatchScrambles(type, batchSize));
+        const batch = getScrambowBatchScrambles(type, batchSize);
+        throwIfBatchGenerationAborted(signal);
+        scrambles.push(...batch);
         reportBatchGenerationProgress(onProgress, scrambles.length, count);
 
         if (scrambles.length < count) {
@@ -708,6 +714,7 @@ async function createCubingScrambleBatch(eventId, count, { signal = null, onProg
                 Array.from({ length: batchSize }, () => randomScrambleForEvent(eventId)),
             );
 
+            throwIfBatchGenerationAborted(signal);
             scrambles.push(...batch.map((alg) => normalizeScrambleText(alg.toString())));
             markCubingTypeWarmed(type);
             reportBatchGenerationProgress(onProgress, scrambles.length, count);
@@ -719,6 +726,10 @@ async function createCubingScrambleBatch(eventId, count, { signal = null, onProg
 
         return scrambles;
     } catch (error) {
+        if (isAbortError(error)) {
+            throw error;
+        }
+
         _cubingUnavailable = true;
         _cubingInitPromise = null;
         randomScrambleForEvent = null;
@@ -743,6 +754,7 @@ async function createCustomSubsetScrambleBatch(type, count, { signal = null, onP
             scrambles.push(createSubsetScramble(type));
         }
 
+        throwIfBatchGenerationAborted(signal);
         reportBatchGenerationProgress(onProgress, scrambles.length, count);
 
         if (scrambles.length < count) {
