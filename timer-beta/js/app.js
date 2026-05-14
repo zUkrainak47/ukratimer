@@ -2976,6 +2976,7 @@ function updateManualTimeEntryUI() {
     const hiddenInput = getEl('manual-time-hidden-input');
     const formattedEl = getEl('manual-time-formatted');
     const submitBtn = getEl('manual-time-submit');
+    const parts = getManualTimeParts(quickActionsState.manualDigits);
     const hasValue = Number(quickActionsState.manualDigits || 0) > 0;
     const submitBlocked = Boolean(battleManager.getStartBlockReason());
 
@@ -2984,6 +2985,7 @@ function updateManualTimeEntryUI() {
     }
     if (formattedEl) formattedEl.innerHTML = renderManualTimeMarkup(quickActionsState.manualDigits);
     if (submitBtn) submitBtn.disabled = !hasValue || submitBlocked;
+    document.body.classList.toggle('manual-time-has-hours', parts.hasHours);
     scheduleViewportLayoutSync();
 }
 
@@ -3113,6 +3115,7 @@ function closeManualTimeEntry({ restoreQuickActions = quickActionsState.restoreV
     quickActionsState.manualEntryActive = false;
     quickActionsState.manualEntryHistoryManaged = false;
     document.body.classList.remove('manual-time-entry-active');
+    document.body.classList.remove('manual-time-has-hours');
 
     if (manualEntryEl) manualEntryEl.hidden = true;
     if (hiddenInput && document.activeElement === hiddenInput) hiddenInput.blur();
