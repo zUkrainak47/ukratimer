@@ -1,20 +1,20 @@
-import { timer, State as TimerState } from './timer.js?v=2026051203';
-import { SCRAMBLE_TYPE_OPTIONS, generateScrambleForType, getScramble, getCurrentScramble, getCurrentScrambleType, getPrevScramble, getNextScramble, getSelectedScrambleType, setCurrentScramble, setScrambleType, isCurrentScrambleManual, hasPrevScramble, isViewingPreviousScramble, preloadScrambleEngines, needsCubingWarmup, runCubingWarmup } from './scramble.js?v=2026051203';
-import { sessionManager } from './session.js?v=2026051203';
-import { settings, DEFAULTS, THEME_OPTIONS, THEME_COLOR_SECTIONS, THEME_DEFAULT_ID, THEME_OLED_ID, THEME_CUSTOM_IDS, composeThemeColor, decomposeThemeColor, getThemePresetColors, isCustomThemeId } from './settings.js?v=2026051203';
-import { parseGraphStatType, parseRollingStatType, rollingStatAt, StatsCache } from './stats.js?v=2026051203';
-import { formatTime, formatSolveTime, formatTimerDisplayTime, getEffectiveTime, formatDate, formatDateTime, parseTimeInputToMs, truncateTimeDisplay } from './utils.js?v=2026051203';
-import { initModal, showSolveDetail, showAverageDetail, closeModal, closeMoveSessionMenus, customConfirm, customPrompt, getModalSelectionContext, setModalStatNavigator, setModalStatButtons, armModalGhostClickGuard } from './modal.js?v=2026051203';
-import { applyMegaminxScramble, applyPyraminxScramble, applyScramble, applySquare1Scramble, applySkewbScramble, applyClockScramble, clearCubeDisplay, drawMegaminxFacePreview, drawSquare1, drawClock, initCubeDisplay, updateCubeDisplay, updateMegaminxDisplay, updatePyraminxDisplay, updateSquare1Display, updateSkewbDisplay, updateClockDisplay } from './cube-display.js?v=2026051203';
-import { initGraph, updateGraph, updateGraphData, setLineVisibility, getLineVisibility, applyAction, graphEvents, getGraphLineDefinitions } from './graph.js?v=2026051203';
-import { closeTimeDistributionModal, initTimeDistributionModal, isTimeDistributionModalOpen, refreshTimeDistributionData, refreshTimeDistributionTheme, showTimeDistributionModal } from './distribution.js?v=2026051203';
-import { exportAll, importAll, isCsTimerFormat, importCsTimer, exportCsTimer, importSessionCsv } from './storage.js?v=2026051203';
-import { connectGoogleDrive, consumeAuthSession, exportBackupToGoogleDrive, getGoogleDriveBackupInfo, hasGoogleDriveSession, importBackupFromGoogleDrive, isGoogleDriveSyncConfigured, restoreGoogleDriveSession, signOutOfGoogleDrive } from './google-drive-sync.js?v=2026051203';
-import { dailyStreakStore, normalizeDailyStreakGoal } from './streaks.js?v=2026051203';
-import { bluetoothTimerInput, BluetoothTimerState } from './hardware-bluetooth-timer.js?v=2026051203';
-import { stackmatInput } from './hardware-stackmat.js?v=2026051203';
-import { isHardwareTimeEntryMode, isTypingTimeEntryMode, normalizeTimeEntryMode, TIME_ENTRY_MODE_BLUETOOTH, TIME_ENTRY_MODE_STACKMAT, TIME_ENTRY_MODE_TIMER } from './time-entry.js?v=2026051203';
-import { battleManager } from './battle.js?v=2026051203';
+import { timer, State as TimerState } from './timer.js?v=2026051401';
+import { SCRAMBLE_TYPE_OPTIONS, generateScrambleBatchForType, generateScrambleForType, getScramble, getCurrentScramble, getCurrentScrambleType, getPrevScramble, getNextScramble, getSelectedScrambleType, setCurrentScramble, setScrambleType, isCurrentScrambleManual, hasPrevScramble, isViewingPreviousScramble, preloadScrambleEngines, needsCubingWarmup, runCubingWarmup } from './scramble.js?v=2026051401';
+import { sessionManager } from './session.js?v=2026051401';
+import { settings, DEFAULTS, THEME_OPTIONS, THEME_COLOR_SECTIONS, THEME_DEFAULT_ID, THEME_OLED_ID, THEME_CUSTOM_IDS, composeThemeColor, decomposeThemeColor, getThemePresetColors, isCustomThemeId } from './settings.js?v=2026051401';
+import { parseGraphStatType, parseRollingStatType, rollingStatAt, StatsCache } from './stats.js?v=2026051401';
+import { formatTime, formatSolveTime, formatTimerDisplayTime, getEffectiveTime, formatDate, formatDateTime, parseTimeInputToMs, truncateTimeDisplay } from './utils.js?v=2026051401';
+import { initModal, showSolveDetail, showAverageDetail, closeModal, closeMoveSessionMenus, customConfirm, customPrompt, getModalSelectionContext, setModalStatNavigator, setModalStatButtons, armModalGhostClickGuard } from './modal.js?v=2026051401';
+import { applyMegaminxScramble, applyPyraminxScramble, applyScramble, applySquare1Scramble, applySkewbScramble, applyClockScramble, clearCubeDisplay, drawMegaminxFacePreview, drawSquare1, drawClock, initCubeDisplay, updateCubeDisplay, updateMegaminxDisplay, updatePyraminxDisplay, updateSquare1Display, updateSkewbDisplay, updateClockDisplay } from './cube-display.js?v=2026051401';
+import { initGraph, updateGraph, updateGraphData, setLineVisibility, getLineVisibility, applyAction, graphEvents, getGraphLineDefinitions } from './graph.js?v=2026051401';
+import { closeTimeDistributionModal, initTimeDistributionModal, isTimeDistributionModalOpen, refreshTimeDistributionData, refreshTimeDistributionTheme, showTimeDistributionModal } from './distribution.js?v=2026051401';
+import { exportAll, importAll, isCsTimerFormat, importCsTimer, exportCsTimer, importSessionCsv } from './storage.js?v=2026051401';
+import { connectGoogleDrive, consumeAuthSession, exportBackupToGoogleDrive, getGoogleDriveBackupInfo, hasGoogleDriveSession, importBackupFromGoogleDrive, isGoogleDriveSyncConfigured, restoreGoogleDriveSession, signOutOfGoogleDrive } from './google-drive-sync.js?v=2026051401';
+import { dailyStreakStore, normalizeDailyStreakGoal } from './streaks.js?v=2026051401';
+import { bluetoothTimerInput, BluetoothTimerState } from './hardware-bluetooth-timer.js?v=2026051401';
+import { stackmatInput } from './hardware-stackmat.js?v=2026051401';
+import { isHardwareTimeEntryMode, isTypingTimeEntryMode, normalizeTimeEntryMode, TIME_ENTRY_MODE_BLUETOOTH, TIME_ENTRY_MODE_STACKMAT, TIME_ENTRY_MODE_TIMER } from './time-entry.js?v=2026051401';
+import { battleManager } from './battle.js?v=2026051401';
 
 let currentScramble = '';
 let currentSortCol = null;
@@ -108,6 +108,14 @@ const BATTLE_ROOM_LINK_PARAM = 'battle';
 const BATTLE_ROOM_ID_PATTERN = /^[a-z0-9](?:[a-z0-9_-]{2,31})$/i;
 const RIGHT_PANEL_SECONDARY_GRAPH = 'graph';
 const RIGHT_PANEL_SECONDARY_SCRAMBLE = 'scramble';
+const SCRAMBLE_GENERATOR_MAX_AMOUNT = 100;
+const SCRAMBLE_GENERATOR_DEFAULT_AMOUNT = 12;
+const SCRAMBLE_GENERATOR_PREFIX_FORMATTERS = Object.freeze({
+    'number-dot': (index) => `${index + 1}. `,
+    'number-paren': (index) => `${index + 1}) `,
+    'number-wrapped-paren': (index) => `(${index + 1}) `,
+    none: () => '',
+});
 let battleRestoreScrambleType = null;
 let isBattleEnvironmentActive = false;
 let battleGraphModalOpen = false;
@@ -118,6 +126,12 @@ let battlePendingCreateRoomId = '';
 let battlePendingSolveUploadPromise = null;
 let battlePendingSolveScrambleRetryTimer = null;
 let battlePendingSolveScrambleRetryAttempt = 0;
+let scrambleGeneratorOverlayEl = null;
+let scrambleGeneratorAbortController = null;
+let scrambleGeneratorScrambles = [];
+let scrambleGeneratorGeneratedType = '';
+let scrambleGeneratorOutputText = '';
+let scrambleGeneratorRequestId = 0;
 let battleDeferredSolveUiPreviousStats = null;
 let battleFormHydrated = false;
 let battleCopyLinkFeedbackTimer = null;
@@ -268,7 +282,7 @@ async function registerServiceWorker() {
     if (window.location?.protocol === 'file:') return;
 
     try {
-        const serviceWorkerUrl = new URL('../sw.js?v=2026051203', import.meta.url);
+        const serviceWorkerUrl = new URL('../sw.js?v=2026051401', import.meta.url);
         await navigator.serviceWorker.register(serviceWorkerUrl);
     } catch (error) {
         console.warn('Service worker registration failed:', error);
@@ -905,7 +919,7 @@ const ALT_SCRAMBLE_TYPE_SHORTCUTS = new Map([
     ['KeyC', 'clock'],
     ['KeyS', 'skewb'],
 ]);
-const blockingOverlayIds = ['modal-overlay', 'distribution-overlay', 'scramble-preview-overlay', 'confirm-overlay', 'prompt-overlay', 'shortcuts-overlay', 'chart-image-overlay', 'theme-customization-overlay', 'battle-overlay', 'graph-overlay', 'battle-create-overlay'];
+const blockingOverlayIds = ['modal-overlay', 'distribution-overlay', 'scramble-preview-overlay', 'confirm-overlay', 'prompt-overlay', 'shortcuts-overlay', 'chart-image-overlay', 'theme-customization-overlay', 'battle-overlay', 'graph-overlay', 'battle-create-overlay', 'scramble-generator-overlay'];
 const THEME_OPTION_LABELS = new Map(THEME_OPTIONS.map(({ value, label }) => [value, label]));
 let settingsOverlayEl = null;
 let shortcutsOverlayEl = null;
@@ -1089,6 +1103,11 @@ function handlePopState(event) {
     if (document.getElementById('prompt-overlay').classList.contains('active')) {
         const cancelBtn = document.getElementById('prompt-btn-cancel');
         cancelBtn?.click();
+        return;
+    }
+
+    if (scrambleGeneratorOverlayEl?.classList.contains('active')) {
+        closeScrambleGeneratorOverlay({ isPopState: true });
         return;
     }
 
@@ -1409,6 +1428,73 @@ function closeBattleCreateOverlay() {
     overlay.classList.remove('active');
     overlay.setAttribute('aria-hidden', 'true');
     battlePendingCreateRoomId = '';
+}
+
+function isScrambleGeneratorOpen() {
+    return scrambleGeneratorOverlayEl?.classList.contains('active');
+}
+
+function cancelScrambleGeneratorRequest() {
+    scrambleGeneratorRequestId += 1;
+    scrambleGeneratorAbortController?.abort();
+    scrambleGeneratorAbortController = null;
+}
+
+function sanitizeScrambleGeneratorAmountValue(value) {
+    return String(value ?? '').replace(/\D+/g, '').slice(0, 3);
+}
+
+function parseScrambleGeneratorAmount(value) {
+    const sanitized = sanitizeScrambleGeneratorAmountValue(value);
+    if (!sanitized) return 0;
+    const parsed = Number.parseInt(sanitized, 10);
+    return Number.isFinite(parsed) ? Math.min(SCRAMBLE_GENERATOR_MAX_AMOUNT, parsed) : 0;
+}
+
+function getScrambleGeneratorPrefixFormatter(value) {
+    return SCRAMBLE_GENERATOR_PREFIX_FORMATTERS[value] || SCRAMBLE_GENERATOR_PREFIX_FORMATTERS['number-dot'];
+}
+
+function buildScrambleGeneratorOutput(scrambles, prefixStyle) {
+    const prefixFormatter = getScrambleGeneratorPrefixFormatter(prefixStyle);
+    return scrambles.map((scramble, index) => `${prefixFormatter(index)}${scramble}`).join('\n');
+}
+
+function getScrambleGeneratorTypeLabel(type) {
+    return SCRAMBLE_TYPE_OPTIONS.find((option) => option.id === type)?.menuLabel || 'Scramble';
+}
+
+function getScrambleGeneratorIdleStatusText() {
+    return `Generate up to ${SCRAMBLE_GENERATOR_MAX_AMOUNT} scrambles at a time.`;
+}
+
+function buildScrambleGeneratorDownloadFilename(type, count) {
+    const typeToken = getScrambleGeneratorTypeLabel(type)
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        || 'scrambles';
+    return `ukratimer-${typeToken}-${count}-scrambles-${formatDate(Date.now())}.txt`;
+}
+
+function openScrambleGeneratorOverlay({ isSwitching = false } = {}) {
+    if (!scrambleGeneratorOverlayEl) return false;
+    if (!scrambleGeneratorOverlayEl.classList.contains('active') && !canOpenSettingsPanel()) return false;
+
+    if (!isSwitching) pushHistoryState();
+    scrambleGeneratorOverlayEl.classList.add('active');
+    scrambleGeneratorOverlayEl.setAttribute('aria-hidden', 'false');
+    return true;
+}
+
+function closeScrambleGeneratorOverlay({ isPopState = false, isSwitching = false } = {}) {
+    if (!scrambleGeneratorOverlayEl) return;
+    if (!isPopState && !isSwitching) backToDismiss();
+
+    cancelScrambleGeneratorRequest();
+    scrambleGeneratorOverlayEl.classList.remove('active');
+    scrambleGeneratorOverlayEl.setAttribute('aria-hidden', 'true');
+    if (document.activeElement) document.activeElement.blur();
 }
 
 function ensureGraphOverlayModal() {
@@ -4935,6 +5021,7 @@ async function init() {
     refreshHardwareInputStatus();
     refreshUI();
     initSettingsPanel();
+    initScrambleGeneratorControls();
     void syncCameraBackgroundMode();
     initInspectionSpeechUnlockPrompt();
     initInspectionCancelControl();
@@ -10016,6 +10103,249 @@ function initBattleControls() {
     applyBattleRoomLinkFromUrl();
     window.addEventListener('hashchange', () => {
         applyBattleRoomLinkFromUrl();
+    });
+}
+
+function initScrambleGeneratorControls() {
+    scrambleGeneratorOverlayEl = getEl('scramble-generator-overlay');
+    const settingsOpenButton = getEl('btn-open-scramble-generator');
+    const closeButton = getEl('scramble-generator-close');
+    const typeSelect = getEl('scramble-generator-type');
+    const amountInput = getEl('scramble-generator-amount');
+    const prefixSelect = getEl('scramble-generator-prefix');
+    const statusEl = getEl('scramble-generator-status');
+    const outputEl = getEl('scramble-generator-output');
+    const generateButton = getEl('scramble-generator-generate');
+    const copyButton = getEl('scramble-generator-copy');
+    const downloadButton = getEl('scramble-generator-download');
+
+    if (!scrambleGeneratorOverlayEl || !settingsOpenButton || !closeButton || !typeSelect || !amountInput || !prefixSelect
+        || !statusEl || !outputEl || !generateButton || !copyButton || !downloadButton) {
+        return;
+    }
+
+    SCRAMBLE_TYPE_OPTIONS.forEach((option) => {
+        const optionEl = document.createElement('option');
+        optionEl.value = option.id;
+        optionEl.textContent = option.menuLabel;
+        typeSelect.append(optionEl);
+    });
+
+    const setStatus = (message, { isError = false } = {}) => {
+        statusEl.textContent = message;
+        statusEl.classList.toggle('is-error', isError);
+    };
+
+    const syncStatusFromOutput = () => {
+        if (!scrambleGeneratorScrambles.length) {
+            setStatus(getScrambleGeneratorIdleStatusText());
+            return;
+        }
+
+        const typeLabel = getScrambleGeneratorTypeLabel(scrambleGeneratorGeneratedType || typeSelect.value);
+        const count = scrambleGeneratorScrambles.length;
+        setStatus(`Generated ${count} ${typeLabel} scramble${count === 1 ? '' : 's'}.`);
+    };
+
+    const setActionFeedback = (button, label) => {
+        if (!button) return;
+
+        const originalLabel = button.dataset.originalLabel || button.textContent;
+        if (!button.dataset.originalLabel) {
+            button.dataset.originalLabel = originalLabel;
+        }
+
+        button.textContent = label;
+        window.clearTimeout(button._feedbackTimeout);
+        button._feedbackTimeout = window.setTimeout(() => {
+            button.textContent = button.dataset.originalLabel || originalLabel;
+        }, 1200);
+    };
+
+    const syncOutputText = () => {
+        scrambleGeneratorOutputText = buildScrambleGeneratorOutput(scrambleGeneratorScrambles, prefixSelect.value);
+        outputEl.value = scrambleGeneratorOutputText;
+        outputEl.scrollTop = 0;
+    };
+
+    const syncActionState = () => {
+        const isGenerating = Boolean(scrambleGeneratorAbortController);
+        const hasValidAmount = parseScrambleGeneratorAmount(amountInput.value) > 0;
+        const hasOutput = Boolean(scrambleGeneratorOutputText);
+
+        typeSelect.disabled = isGenerating;
+        amountInput.disabled = isGenerating;
+        prefixSelect.disabled = isGenerating;
+
+        generateButton.disabled = isGenerating || !hasValidAmount || !typeSelect.value;
+        generateButton.textContent = isGenerating ? 'Generating...' : 'Generate';
+        copyButton.disabled = isGenerating || !hasOutput;
+        downloadButton.disabled = isGenerating || !hasOutput;
+    };
+
+    const syncOpenState = () => {
+        if (!typeSelect.value) {
+            typeSelect.value = getSelectedScrambleType();
+        }
+        if (!amountInput.value) {
+            amountInput.value = String(SCRAMBLE_GENERATOR_DEFAULT_AMOUNT);
+        }
+        amountInput.value = sanitizeScrambleGeneratorAmountValue(amountInput.value);
+        if (!prefixSelect.value) {
+            prefixSelect.value = 'number-dot';
+        }
+
+        if (scrambleGeneratorScrambles.length) {
+            syncOutputText();
+            syncStatusFromOutput();
+        } else {
+            outputEl.value = '';
+            setStatus(getScrambleGeneratorIdleStatusText());
+        }
+
+        syncActionState();
+    };
+
+    settingsOpenButton.addEventListener('click', () => {
+        closeSettingsPanel({ isSwitching: true });
+        if (!openScrambleGeneratorOverlay({ isSwitching: true })) return;
+        syncOpenState();
+        window.requestAnimationFrame(() => {
+            amountInput.focus();
+            amountInput.select();
+        });
+        settingsOpenButton.blur();
+    });
+
+    closeButton.addEventListener('click', () => {
+        closeScrambleGeneratorOverlay();
+    });
+
+    scrambleGeneratorOverlayEl.addEventListener('click', (event) => {
+        if (event.target !== scrambleGeneratorOverlayEl) return;
+        closeScrambleGeneratorOverlay();
+    });
+
+    amountInput.addEventListener('input', () => {
+        const sanitized = sanitizeScrambleGeneratorAmountValue(amountInput.value);
+        if (amountInput.value !== sanitized) {
+            amountInput.value = sanitized;
+        }
+        syncActionState();
+    });
+
+    amountInput.addEventListener('blur', () => {
+        const amount = parseScrambleGeneratorAmount(amountInput.value);
+        amountInput.value = amount > 0 ? String(amount) : '';
+        syncActionState();
+    });
+
+    amountInput.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        generateButton.click();
+    });
+
+    typeSelect.addEventListener('change', () => {
+        syncActionState();
+    });
+
+    prefixSelect.addEventListener('change', () => {
+        if (scrambleGeneratorScrambles.length) {
+            syncOutputText();
+        }
+        syncActionState();
+    });
+
+    generateButton.addEventListener('click', async () => {
+        const amount = parseScrambleGeneratorAmount(amountInput.value);
+        if (amount < 1 || amount > SCRAMBLE_GENERATOR_MAX_AMOUNT) {
+            setStatus(`Enter an amount from 1 to ${SCRAMBLE_GENERATOR_MAX_AMOUNT}.`, { isError: true });
+            amountInput.focus();
+            amountInput.select();
+            syncActionState();
+            return;
+        }
+
+        const type = typeSelect.value || getSelectedScrambleType();
+        cancelScrambleGeneratorRequest();
+        scrambleGeneratorAbortController = new AbortController();
+        const abortController = scrambleGeneratorAbortController;
+        const requestId = scrambleGeneratorRequestId;
+
+        syncActionState();
+        setStatus(`Generating 0 / ${amount} scramble${amount === 1 ? '' : 's'}...`);
+        await waitForNextPaint();
+
+        try {
+            const scrambles = await generateScrambleBatchForType(type, amount, {
+                signal: abortController.signal,
+                onProgress: ({ completed, total }) => {
+                    if (requestId !== scrambleGeneratorRequestId) return;
+                    setStatus(`Generating ${completed} / ${total} scramble${total === 1 ? '' : 's'}...`);
+                },
+            });
+
+            if (requestId !== scrambleGeneratorRequestId) return;
+
+            scrambleGeneratorScrambles = scrambles;
+            scrambleGeneratorGeneratedType = type;
+            syncOutputText();
+            syncStatusFromOutput();
+        } catch (error) {
+            if (requestId !== scrambleGeneratorRequestId) return;
+            if (error?.name === 'AbortError') {
+                syncStatusFromOutput();
+                return;
+            }
+
+            console.error('Could not generate scramble list:', error);
+            setStatus('Could not generate scrambles. Please try again.', { isError: true });
+        } finally {
+            if (requestId !== scrambleGeneratorRequestId) return;
+            scrambleGeneratorAbortController = null;
+            syncActionState();
+        }
+    });
+
+    copyButton.addEventListener('click', async () => {
+        if (!scrambleGeneratorOutputText) return;
+
+        try {
+            if (!navigator.clipboard?.writeText) throw new Error('Clipboard copy unavailable.');
+            await navigator.clipboard.writeText(scrambleGeneratorOutputText);
+            setActionFeedback(copyButton, 'Copied');
+        } catch {
+            await customPrompt(
+                'Clipboard copy was blocked. Copy the generated scramble list below.',
+                scrambleGeneratorOutputText,
+                Math.max(scrambleGeneratorOutputText.length, 1000),
+                'Copy Scramble List',
+            );
+        }
+    });
+
+    downloadButton.addEventListener('click', () => {
+        if (!scrambleGeneratorOutputText) return;
+
+        const count = scrambleGeneratorScrambles.length;
+        const blob = new Blob([scrambleGeneratorOutputText], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = buildScrambleGeneratorDownloadFilename(scrambleGeneratorGeneratedType || typeSelect.value, count);
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        URL.revokeObjectURL(url);
+        setActionFeedback(downloadButton, 'Downloaded');
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.code !== 'Escape' || !isScrambleGeneratorOpen()) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        closeScrambleGeneratorOverlay();
     });
 }
 

@@ -374,6 +374,94 @@
     outline: none;
 }
 
+.scramble-generator-modal-box {
+    width: min(760px, calc(100vw - 24px));
+}
+
+.scramble-generator-modal-body {
+    display: grid;
+    gap: 16px;
+}
+
+.scramble-generator-summary {
+    margin: 0;
+    color: var(--text-secondary);
+}
+
+.scramble-generator-form {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: minmax(0, 1.45fr) minmax(120px, 0.7fr) minmax(0, 0.9fr);
+    align-items: end;
+}
+
+.scramble-generator-status {
+    margin: 0;
+    min-height: 20px;
+    color: var(--text-secondary);
+}
+
+.scramble-generator-status.is-error {
+    color: var(--danger);
+}
+
+.scramble-generator-output {
+    min-height: 300px !important;
+    max-height: min(50vh, 540px);
+}
+
+.scramble-generator-output::placeholder {
+    color: var(--text-muted);
+}
+
+.scramble-generator-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.scramble-generator-actions .btn {
+    min-width: 136px;
+    justify-content: center;
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--surface-border);
+}
+
+.scramble-generator-actions .btn:not(:disabled):hover {
+    background: var(--surface-hover);
+    border-color: var(--text-muted);
+}
+
+.scramble-generator-actions .btn:active {
+    background: var(--surface-active);
+}
+
+.scramble-generator-actions .btn.btn-primary {
+    background: var(--accent);
+    color: #000;
+    border-color: transparent;
+}
+
+.scramble-generator-actions .btn.btn-primary:not(:disabled):hover {
+    background: var(--accent-hover);
+    border-color: transparent;
+    color: #000;
+}
+
+.scramble-generator-actions .btn.btn-primary:active {
+    background: var(--accent-hover);
+}
+
+.scramble-generator-actions .btn:disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
+    color: var(--text-tertiary);
+    background: var(--surface-ghost-muted);
+    border-color: var(--divider-subtle);
+}
+
 .modal-stat-nav {
     display: flex;
     flex-wrap: wrap;
@@ -1200,6 +1288,24 @@
 
     .modal-body {
         padding-bottom: calc(var(--space-lg) + var(--safe-area-bottom));
+    }
+
+    .scramble-generator-form {
+        grid-template-columns: 1fr;
+    }
+
+    .scramble-generator-output {
+        min-height: 240px !important;
+        max-height: none;
+    }
+
+    .scramble-generator-actions {
+        flex-direction: column;
+    }
+
+    .scramble-generator-actions .btn {
+        width: 100%;
+        min-width: 0;
     }
 
     .modal-secondary-layer .modal-body {
