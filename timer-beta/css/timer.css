@@ -1101,7 +1101,7 @@ body.camera-background-active.typing-entry-mode:not(.coarse-pointer) :is(#cube-c
     }
 }
 
-@media (max-width: 560px) {
+@media (max-width: 610px) {
     body.manual-time-entry-active.manual-time-has-hours #manual-time-formatted {
         font-size: clamp(3.35rem, 16vw, 4.65rem);
         letter-spacing: -0.055em;
