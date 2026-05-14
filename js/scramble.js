@@ -1,5 +1,5 @@
-import { load, save } from './storage.js?v=2026051203';
-import { createSubsetScramble } from './subset-scramblers.js?v=2026051203';
+import { load, save } from './storage.js?v=2026051402';
+import { createSubsetScramble } from './subset-scramblers.js?v=2026051402';
 
 let randomScrambleForEvent;
 let _cubingInitPromise = null;
@@ -22,6 +22,10 @@ const CUBING_SCRAMBLE_MODULE_SRC = 'https://cdn.cubing.net/v0/js/cubing/scramble
 const SCRAMBOW_SCRIPT_SRC = 'https://unpkg.com/scrambow@1.8.1/dist/scrambow.js';
 const SUBSET_BOOTSTRAP_QUEUE_FILL_DELAY_MS = 280;
 const CUBING_WARMUP_VERSION = '2026-04-01';
+const SCRAMBOW_BATCH_SIZE = 12;
+const CUBING_BATCH_CONCURRENCY = 12;
+const SUBSET_BATCH_YIELD_INTERVAL = 12;
+const CUSTOM_BATCH_SIZE = 12;
 
 export const SCRAMBLE_TYPE_OPTIONS = Object.freeze([
     { id: '333', menuLabel: '3x3x3', buttonLabel: '3x3x3', generator: 'cubing', eventId: '333' },
@@ -123,6 +127,28 @@ function normalizeScrambleText(value) {
     return String(value ?? '')
         .replace(/\s+/g, ' ')
         .trim();
+}
+
+function createAbortError() {
+    const error = new Error('Scramble generation aborted.');
+    error.name = 'AbortError';
+    return error;
+}
+
+function isAbortError(error) {
+    return error?.name === 'AbortError';
+}
+
+function throwIfBatchGenerationAborted(signal) {
+    if (signal?.aborted) {
+        throw createAbortError();
+    }
+}
+
+function reportBatchGenerationProgress(onProgress, completed, total) {
+    if (typeof onProgress === 'function') {
+        onProgress({ completed, total });
+    }
 }
 
 function isLocalDevelopmentRuntime() {
@@ -453,6 +479,17 @@ function yieldQueueFillTurn(type) {
     });
 }
 
+function yieldBatchGenerationTurn() {
+    return new Promise((resolve) => {
+        if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+            window.requestAnimationFrame(() => resolve());
+            return;
+        }
+
+        window.setTimeout(resolve, 0);
+    });
+}
+
 function scheduleBootstrapQueueFill(type = _scrambleType) {
     const normalizedType = sanitizeScrambleType(type);
     if (!SCRAMBLE_QUEUE_TYPE_SET.has(normalizedType) || _bootstrapQueueFillScheduled.has(normalizedType)) return;
@@ -527,6 +564,13 @@ function getSingleScrambowScramble(type) {
     return extractScrambleText(result);
 }
 
+function getScrambowBatchScrambles(type, count) {
+    const scrambler = getScrambowInstance(type);
+    const results = scrambler.get(count);
+    if (!Array.isArray(results)) return [];
+    return results.map(extractScrambleText);
+}
+
 async function createScrambowScramble(type) {
     await initScrambow();
 
@@ -546,6 +590,43 @@ async function createScrambowScramble(type) {
 
     console.warn(`Subset scrambler kept returning only-U moves for ${type}; using the last generated scramble.`);
     return lastScramble;
+}
+
+async function createScrambowScrambleBatch(type, count, { signal = null, onProgress = null } = {}) {
+    await initScrambow();
+
+    if (SCRAMBOW_SUBSET_TYPES.has(type)) {
+        const scrambles = [];
+
+        while (scrambles.length < count) {
+            throwIfBatchGenerationAborted(signal);
+            scrambles.push(await createScrambowScramble(type));
+            reportBatchGenerationProgress(onProgress, scrambles.length, count);
+
+            if (scrambles.length < count && scrambles.length % SUBSET_BATCH_YIELD_INTERVAL === 0) {
+                await yieldBatchGenerationTurn();
+            }
+        }
+
+        return scrambles;
+    }
+
+    const scrambles = [];
+
+    while (scrambles.length < count) {
+        throwIfBatchGenerationAborted(signal);
+        const batchSize = Math.min(SCRAMBOW_BATCH_SIZE, count - scrambles.length);
+        const batch = getScrambowBatchScrambles(type, batchSize);
+        throwIfBatchGenerationAborted(signal);
+        scrambles.push(...batch);
+        reportBatchGenerationProgress(onProgress, scrambles.length, count);
+
+        if (scrambles.length < count) {
+            await yieldBatchGenerationTurn();
+        }
+    }
+
+    return scrambles;
 }
 
 async function createScrambleForType(type) {
@@ -604,6 +685,112 @@ export async function getScramble() {
 
 export async function generateScrambleForType(type) {
     return generateNextScrambleForType(type);
+}
+
+async function createCubingScrambleBatch(eventId, count, { signal = null, onProgress = null } = {}) {
+    const type = sanitizeScrambleType(eventId);
+
+    if (_cubingUnavailable) {
+        warnCubingFallback('cubing.js scrambler is unavailable; falling back to Scrambow for supported events.');
+        return createScrambowScrambleBatch(type, count, { signal, onProgress });
+    }
+
+    if (isLocalDevelopmentRuntime() && SCRAMBOW_SUPPORTED_TYPES.has(type)) {
+        warnCubingFallback('Local development runtime detected; bypassing cubing.js worker and using Scrambow for supported events.');
+        return createScrambowScrambleBatch(type, count, { signal, onProgress });
+    }
+
+    try {
+        if (!randomScrambleForEvent) {
+            await initCubingScrambler();
+        }
+
+        const scrambles = [];
+
+        while (scrambles.length < count) {
+            throwIfBatchGenerationAborted(signal);
+            const batchSize = Math.min(CUBING_BATCH_CONCURRENCY, count - scrambles.length);
+            const batch = await Promise.all(
+                Array.from({ length: batchSize }, () => randomScrambleForEvent(eventId)),
+            );
+
+            throwIfBatchGenerationAborted(signal);
+            scrambles.push(...batch.map((alg) => normalizeScrambleText(alg.toString())));
+            markCubingTypeWarmed(type);
+            reportBatchGenerationProgress(onProgress, scrambles.length, count);
+
+            if (scrambles.length < count) {
+                await yieldBatchGenerationTurn();
+            }
+        }
+
+        return scrambles;
+    } catch (error) {
+        if (isAbortError(error)) {
+            throw error;
+        }
+
+        _cubingUnavailable = true;
+        _cubingInitPromise = null;
+        randomScrambleForEvent = null;
+
+        warnCubingFallback('cubing.js scrambler is unavailable; falling back to Scrambow for supported events.', error);
+
+        if (SCRAMBOW_SUPPORTED_TYPES.has(type)) {
+            return createScrambowScrambleBatch(type, count, { signal, onProgress });
+        }
+
+        throw error;
+    }
+}
+
+async function createCustomSubsetScrambleBatch(type, count, { signal = null, onProgress = null } = {}) {
+    const scrambles = [];
+
+    while (scrambles.length < count) {
+        throwIfBatchGenerationAborted(signal);
+        const batchSize = Math.min(CUSTOM_BATCH_SIZE, count - scrambles.length);
+        for (let index = 0; index < batchSize; index += 1) {
+            scrambles.push(createSubsetScramble(type));
+        }
+
+        throwIfBatchGenerationAborted(signal);
+        reportBatchGenerationProgress(onProgress, scrambles.length, count);
+
+        if (scrambles.length < count) {
+            await yieldBatchGenerationTurn();
+        }
+    }
+
+    return scrambles;
+}
+
+export async function generateScrambleBatchForType(type, count, { signal = null, onProgress = null } = {}) {
+    const normalizedType = typeof type === 'string' ? type.trim().toLowerCase() : '';
+    const total = Math.max(0, Math.min(999, Number.parseInt(count, 10) || 0));
+
+    if (!SCRAMBLE_TYPE_SET.has(normalizedType)) {
+        throw new Error(`Unsupported scramble type: ${type}`);
+    }
+
+    if (total === 0) {
+        return [];
+    }
+
+    reportBatchGenerationProgress(onProgress, 0, total);
+
+    const cubingEventId = CUBING_SCRAMBLE_EVENTS.get(normalizedType);
+    if (cubingEventId) {
+        return createCubingScrambleBatch(cubingEventId, total, { signal, onProgress });
+    }
+    if (SCRAMBOW_SUPPORTED_TYPES.has(normalizedType)) {
+        return createScrambowScrambleBatch(normalizedType, total, { signal, onProgress });
+    }
+    if (CUSTOM_SUBSET_SCRAMBLE_TYPES.has(normalizedType)) {
+        return createCustomSubsetScrambleBatch(normalizedType, total, { signal, onProgress });
+    }
+
+    throw new Error(`Unsupported scramble type: ${type}`);
 }
 
 export function getPrevScramble() {

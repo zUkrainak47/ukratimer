@@ -76,6 +76,9 @@ body.camera-background-active #center-panel > #timer-popup-overlay {
 #inspection-alert {
     border-color: rgba(227, 179, 65, 0.45);
     color: #e3b341;
+    font-size: 0.22em;
+    padding-inline: 1em;
+    padding-block: 0.42em;
 }
 
 #new-best-alert {
@@ -1023,6 +1026,13 @@ body.camera-background-active.typing-entry-mode:not(.coarse-pointer) :is(#cube-c
         padding-inline: 0.7em;
     }
 
+    #inspection-alert {
+        font-size: 0.3em;
+        margin-bottom: 0.32em;
+        padding-inline: 1.15em;
+        padding-block: 0.5em;
+    }
+
     #timer-info {
         display: none !important;
     }
@@ -1062,6 +1072,11 @@ body.camera-background-active.typing-entry-mode:not(.coarse-pointer) :is(#cube-c
         margin-bottom: 0.22em;
     }
 
+    #inspection-alert {
+        font-size: 0.28em;
+        margin-bottom: 0.24em;
+    }
+
     #import-progress {
         width: min(88vw, 25em);
         max-width: min(88vw, 25em);
@@ -1083,5 +1098,16 @@ body.camera-background-active.typing-entry-mode:not(.coarse-pointer) :is(#cube-c
     #timer-display,
     #manual-time-formatted {
         font-size: clamp(3.85rem, 18.5vw, 5.3rem);
+    }
+}
+
+@media (max-width: 610px) {
+    body.manual-time-entry-active.manual-time-has-hours #manual-time-formatted {
+        font-size: clamp(3.35rem, 16vw, 4.65rem);
+        letter-spacing: -0.055em;
+    }
+
+    body.manual-time-entry-active.manual-time-has-hours .manual-time-caret {
+        margin-left: 7px;
     }
 }
