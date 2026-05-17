@@ -1,7 +1,7 @@
 import * as db from './db.js?v=2026051402';
 import { load, save } from './storage.js?v=2026051402';
 import { generateId, EventEmitter, getStartOfToday, getStartOfWeek, getStartOfMonth, parseCustomStatsFilter } from './utils.js?v=2026051402';
-import { settings } from './settings.js?v=2026051402';
+import { settings, SETTING_SCOPE_GLOBAL } from './settings.js?v=2026051402';
 import { SCRAMBLE_TYPE_OPTIONS } from './scramble.js?v=2026051402';
 
 const DEFAULT_SCRAMBLE_TYPE = '333';
@@ -106,7 +106,7 @@ async function mergeSolvesByTimestampWithProgress(left, right, onProgress = null
 class SessionManager extends EventEmitter {
     constructor() {
         super();
-        /** @type {{ id: string, name: string, createdAt: number, order: number, scrambleType: string, solveCount: number, solves: object[] }[]} */
+        /** @type {{ id: string, name: string, createdAt: number, order: number, scrambleType: string, settings: object, solveCount: number, solves: object[] }[]} */
         this._sessions = [];
         this._activeId = null;
         this._ready = false;
@@ -136,28 +136,38 @@ class SessionManager extends EventEmitter {
         const sessionsToBackfill = [];
 
         // Build in-memory session objects (metadata + empty solves array)
-        this._sessions = dbSessions.map((s, index) => ({
-            id: s.id,
-            name: s.name,
-            createdAt: s.createdAt,
-            order: Number.isFinite(s.order) ? s.order : 0,
-            scrambleType: (() => {
-                const nextScrambleType = sanitizeSessionScrambleType(s.scrambleType ?? legacyScrambleType);
-                if (s.scrambleType !== nextScrambleType) {
-                    sessionsToBackfill.push({
-                        id: s.id,
-                        name: s.name,
-                        createdAt: s.createdAt,
-                        order: Number.isFinite(s.order) ? s.order : 0,
-                        scrambleType: nextScrambleType,
-                    });
-                }
-                return nextScrambleType;
-            })(),
-            solveCount: solveCounts[index] ?? 0,
-            solves: [],
-            solvesLoaded: false,
-        }));
+        this._sessions = dbSessions.map((s, index) => {
+            const normalizedSessionSettings = settings.normalizeSessionSettings(s.settings);
+            const nextScrambleType = sanitizeSessionScrambleType(s.scrambleType ?? legacyScrambleType);
+            const order = Number.isFinite(s.order) ? s.order : 0;
+
+            if (
+                s.scrambleType !== nextScrambleType
+                || (s.settings && typeof s.settings === 'object'
+                    && JSON.stringify(normalizedSessionSettings) !== JSON.stringify(s.settings))
+            ) {
+                sessionsToBackfill.push({
+                    id: s.id,
+                    name: s.name,
+                    createdAt: s.createdAt,
+                    order,
+                    scrambleType: nextScrambleType,
+                    settings: normalizedSessionSettings,
+                });
+            }
+
+            return {
+                id: s.id,
+                name: s.name,
+                createdAt: s.createdAt,
+                order,
+                scrambleType: nextScrambleType,
+                settings: normalizedSessionSettings,
+                solveCount: solveCounts[index] ?? 0,
+                solves: [],
+                solvesLoaded: false,
+            };
+        });
 
         if (sessionsToBackfill.length > 0) {
             await Promise.all(sessionsToBackfill.map((session) => db.updateSession(session)));
@@ -175,7 +185,69 @@ class SessionManager extends EventEmitter {
 
         // Load solves for the active session
         await this._loadSolvesFor(this._activeId);
+        this._connectSessionSettings();
         this._ready = true;
+    }
+
+    _connectSessionSettings() {
+        settings.configureSessionSettingsPersistence(async (sessionId, nextSettings, { reconcileKeys = [] } = {}) => {
+            const session = this.getSessionById(sessionId);
+            if (!session) return;
+            const nextStoredSettings = settings.normalizeSessionSettings(session.settings);
+            const normalizedNextSettings = settings.normalizeSessionSettings(nextSettings);
+            const normalizedReconcileKeys = Array.from(new Set(
+                (Array.isArray(reconcileKeys) ? reconcileKeys : [])
+                    .filter((key) => settings.canScopeSetting(key)),
+            ));
+
+            normalizedReconcileKeys.forEach((key) => {
+                if (Object.prototype.hasOwnProperty.call(normalizedNextSettings, key)) {
+                    nextStoredSettings[key] = normalizedNextSettings[key];
+                    return;
+                }
+                delete nextStoredSettings[key];
+            });
+
+            session.settings = nextStoredSettings;
+            await db.updateSession(this._serializeSession(session));
+            this.emit('sessionUpdated', sessionId);
+        });
+        settings.configureSessionScopePersistence(async (keys, scope, { activeSessionId } = {}) => {
+            if (scope !== SETTING_SCOPE_GLOBAL) return;
+            await this._clearSessionSettingOverrides(keys, { skipSessionId: activeSessionId || null });
+        });
+        settings.setActiveSessionContext(this._activeId, this.getActiveSession()?.settings || {});
+    }
+
+    async _clearSessionSettingOverrides(keys, { skipSessionId = null } = {}) {
+        const uniqueKeys = Array.from(new Set(
+            (Array.isArray(keys) ? keys : []).filter((key) => typeof key === 'string' && key),
+        ));
+        if (uniqueKeys.length === 0) return;
+
+        const pendingUpdates = [];
+        this._sessions.forEach((session) => {
+            if (!session || session.id === skipSessionId) return;
+
+            const nextSettings = settings.normalizeSessionSettings(session.settings);
+            let changed = false;
+            uniqueKeys.forEach((key) => {
+                if (!Object.prototype.hasOwnProperty.call(nextSettings, key)) return;
+                delete nextSettings[key];
+                changed = true;
+            });
+
+            if (!changed) return;
+
+            session.settings = nextSettings;
+            pendingUpdates.push(
+                db.updateSession(this._serializeSession(session)).then(() => {
+                    this.emit('sessionUpdated', session.id);
+                }),
+            );
+        });
+
+        await Promise.all(pendingUpdates);
     }
 
     async _loadSolvesFor(sessionId) {
@@ -193,16 +265,20 @@ class SessionManager extends EventEmitter {
             createdAt: session.createdAt,
             order: session.order,
             scrambleType: sanitizeSessionScrambleType(session.scrambleType),
+            settings: settings.normalizeSessionSettings(session.settings),
         };
     }
 
-    async _createDefault({ scrambleType = getLegacyScrambleTypeFallback() } = {}) {
+    async _createDefault({ scrambleType = getLegacyScrambleTypeFallback(), sessionSettings = null } = {}) {
         const session = {
             id: generateId(),
             name: 'Session 1',
             createdAt: Date.now(),
             order: this._getNextSessionOrder(),
             scrambleType: sanitizeSessionScrambleType(scrambleType),
+            settings: sessionSettings == null
+                ? settings.getSessionSettingsForNewSession()
+                : settings.normalizeSessionSettings(sessionSettings),
             solveCount: 0,
             solves: [],
             solvesLoaded: false,
@@ -220,6 +296,7 @@ class SessionManager extends EventEmitter {
             createdAt: s.createdAt,
             order: s.order,
             scrambleType: s.scrambleType,
+            settings: settings.filterSessionSettingsByActiveScopes(s.settings),
             solveCount: s.solveCount,
         }));
     }
@@ -254,6 +331,7 @@ class SessionManager extends EventEmitter {
         this._activeId = id;
         save('activeSessionId', id);
         await this._loadSolvesFor(id);
+        settings.setActiveSessionContext(id, this.getActiveSession()?.settings || {});
         this.emit('sessionChanged', id);
     }
 
@@ -266,6 +344,7 @@ class SessionManager extends EventEmitter {
             createdAt: Date.now(),
             order: this._getNextSessionOrder(),
             scrambleType: sanitizeSessionScrambleType(activeSession?.scrambleType ?? getLegacyScrambleTypeFallback()),
+            settings: settings.getSessionSettingsForNewSession(),
             solveCount: 0,
             solves: [],
             solvesLoaded: false,
@@ -311,9 +390,13 @@ class SessionManager extends EventEmitter {
         await db.deleteSession(id);
 
         if (this._sessions.length === 0) {
-            await this._createDefault();
+            await this._createDefault({
+                scrambleType: deletedSession?.scrambleType ?? getLegacyScrambleTypeFallback(),
+                sessionSettings: settings.getSessionSettingsForNewSession(),
+            });
             this._activeId = this._sessions[0].id;
             save('activeSessionId', this._activeId);
+            settings.setActiveSessionContext(this._activeId, this.getActiveSession()?.settings || {});
             this.emit('sessionDeleted', {
                 id,
                 solveIds: deletedSolveIds,

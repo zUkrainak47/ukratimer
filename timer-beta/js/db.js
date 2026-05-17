@@ -86,6 +86,7 @@ async function _migrateFromLocalStorage() {
             name: session.name,
             createdAt: session.createdAt,
             order: Number.isFinite(session.order) ? session.order : 0,
+            ...(session.settings && typeof session.settings === 'object' ? { settings: session.settings } : {}),
         });
 
         // Write individual solves

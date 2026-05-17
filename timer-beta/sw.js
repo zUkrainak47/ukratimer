@@ -27,6 +27,7 @@ const LOCAL_PRECACHE_PATHS = [
     './js/scramble.js?v=2026051402',
     './js/subset-scramblers.js?v=2026051402',
     './js/session.js?v=2026051402',
+    './js/setting-scopes.js?v=2026051402',
     './js/settings.js?v=2026051402',
     './js/stats.js?v=2026051402',
     './js/modal.js?v=2026051402',

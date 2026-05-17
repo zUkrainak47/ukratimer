@@ -1,4 +1,9 @@
 import * as db from './db.js?v=2026051402';
+import {
+    SETTING_SCOPE_SESSION,
+    SUMMARY_STATS_SCOPE_SETTING_KEYS,
+    normalizeSettingScopes,
+} from './setting-scopes.js?v=2026051402';
 
 const STORAGE_PREFIX = 'cubetimer_';
 const STORAGE_VERSION = 1;
@@ -10,6 +15,28 @@ const BACKUP_LOCAL_STORAGE_KEYS = Object.freeze([
 ]);
 const BACKUP_LOCAL_STORAGE_KEY_SET = new Set(BACKUP_LOCAL_STORAGE_KEYS);
 const IMPORT_PROGRESS_YIELD_INTERVAL = 2000;
+const LOCAL_ONLY_SETTING_KEYS = new Set(['zenMode']);
+const LOCAL_ONLY_SESSION_SETTING_KEYS = new Set(['zenMode']);
+const beforeDataExportHooks = new Set();
+
+export function registerBeforeDataExportHook(callback) {
+    if (typeof callback !== 'function') {
+        return () => { };
+    }
+
+    beforeDataExportHooks.add(callback);
+    return () => {
+        beforeDataExportHooks.delete(callback);
+    };
+}
+
+async function _runBeforeDataExportHooks() {
+    if (beforeDataExportHooks.size === 0) return;
+
+    await Promise.all(
+        Array.from(beforeDataExportHooks, (callback) => callback()),
+    );
+}
 
 /**
  * Load data from localStorage.
@@ -101,12 +128,61 @@ async function _replaceImportedData(
     });
 }
 
+function _stripLocalOnlySettingScopes(scopeMap) {
+    const source = scopeMap && typeof scopeMap === 'object' ? scopeMap : {};
+    const sanitized = { ...source };
+
+    LOCAL_ONLY_SESSION_SETTING_KEYS.forEach((key) => {
+        delete sanitized[key];
+    });
+
+    return sanitized;
+}
+
+function _sanitizeStoredSettingsForExport(settingsData) {
+    const source = settingsData && typeof settingsData === 'object' ? settingsData : {};
+    const sanitized = { ...source };
+
+    LOCAL_ONLY_SETTING_KEYS.forEach((key) => {
+        delete sanitized[key];
+    });
+
+    if (sanitized.settingScopes && typeof sanitized.settingScopes === 'object') {
+        sanitized.settingScopes = _normalizeStoredSettingScopes(
+            _stripLocalOnlySettingScopes(sanitized.settingScopes),
+        );
+    }
+
+    return sanitized;
+}
+
+function _sanitizeStoredSettingsForImport(settingsData) {
+    return {
+        ..._sanitizeStoredSettingsForExport(settingsData),
+        zenMode: false,
+    };
+}
+
+function _sanitizeSessionSettingsForTransport(sessionSettings) {
+    const source = sessionSettings && typeof sessionSettings === 'object' ? sessionSettings : {};
+    const sanitized = { ...source };
+
+    LOCAL_ONLY_SESSION_SETTING_KEYS.forEach((key) => {
+        delete sanitized[key];
+    });
+
+    return sanitized;
+}
+
 function _applyImportedBackupValues(data, { replaceMissing = false } = {}) {
     const nextValues = new Map();
 
     for (const [key, value] of Object.entries(data || {})) {
         if (key === 'version' || key === 'sessions' || !BACKUP_LOCAL_STORAGE_KEY_SET.has(key)) continue;
-        nextValues.set(key, value);
+        nextValues.set(
+            key,
+            key === 'settings' ? _sanitizeStoredSettingsForImport(value) : value,
+        );
     }
 
     if (replaceMissing) {
@@ -131,11 +207,15 @@ function _applyImportedBackupValues(data, { replaceMissing = false } = {}) {
  * @returns {Promise<object>}
  */
 export async function exportAll() {
+    await _runBeforeDataExportHooks();
     const { sessions, solves } = await db.getAllData();
 
     // Reconstruct the old embedded format for export compatibility
     const sessionsWithSolves = sessions.map(session => ({
         ...session,
+        ...(session.settings && typeof session.settings === 'object'
+            ? { settings: _sanitizeSessionSettingsForTransport(session.settings) }
+            : {}),
         solves: solves
             .filter(s => s.sessionId === session.id)
             .sort((a, b) => a.timestamp - b.timestamp)
@@ -146,7 +226,9 @@ export async function exportAll() {
 
     BACKUP_LOCAL_STORAGE_KEYS.forEach((key) => {
         if (hasStoredKey(key)) {
-            data[key] = load(key);
+            data[key] = key === 'settings'
+                ? _sanitizeStoredSettingsForExport(load(key))
+                : load(key);
         }
     });
 
@@ -190,6 +272,9 @@ export async function importAll(data, { onProgress = null } = {}) {
             createdAt: session.createdAt,
             order: Number.isFinite(session.order) ? session.order : dbSessions.length,
             ...(typeof session.scrambleType === 'string' ? { scrambleType: session.scrambleType } : {}),
+            ...(session.settings && typeof session.settings === 'object'
+                ? { settings: _sanitizeSessionSettingsForTransport(session.settings) }
+                : {}),
         });
         parseCompleted += 1;
 
@@ -503,6 +588,7 @@ export async function importSessionCsv(text, { onProgress = null } = {}) {
 
 const UKRA_TIMER_CSTIMER_META_KEY = 'ukraTimerMeta';
 const UKRA_TIMER_CSTIMER_META_VERSION = 1;
+const UKRA_TIMER_CSTIMER_SESSION_META_ID_KEY = 'ukraTimerSessionId';
 const CSTIMER_SCRAMBLE_TYPE_TO_INTERNAL = Object.freeze({
     '222so': '222',
     '444wca': '444',
@@ -515,7 +601,7 @@ const CSTIMER_SCRAMBLE_TYPE_TO_INTERNAL = Object.freeze({
     mgmp: 'minx',
     clkwca: 'clock',
     pll: 'pll',
-    oll: 'oll',
+    oll: 'll',
     lsll2: 'lsll',
     zbll: 'zbll',
 });
@@ -532,9 +618,24 @@ const INTERNAL_SCRAMBLE_TYPE_TO_CSTIMER = Object.freeze({
     minx: 'mgmp',
     clock: 'clkwca',
     pll: 'pll',
-    oll: 'oll',
+    ll: 'oll',
     lsll: 'lsll2',
     zbll: 'zbll',
+});
+const CSTIMER_IMPORT_SETTING_DEFAULTS = Object.freeze({
+    inspectionTime: 'off',
+    inspectionAlerts: 'voice',
+    timerUpdate: '0.1s',
+    timeEntryMode: 'timer',
+    hideUIWhileSolving: true,
+    pillSize: 'medium',
+    showDelta: true,
+    backgroundImageSource: 'none',
+    backgroundImageUrl: '',
+    summaryStatsPreset: 'basic',
+    summaryStatsCustom: 'mo3 ao5 ao12 ao100',
+    solvesTableStat1: 'ao5',
+    solvesTableStat2: 'ao12',
 });
 const CSTIMER_TRAINING_FILTER_LENGTHS = Object.freeze({
     pll: 21,
@@ -562,10 +663,93 @@ const CSTIMER_EXPORT_SETTING_DEFAULTS = Object.freeze({
     backgroundImageUrl: '',
     backgroundImageOverlayColor: 'rgba(0, 0, 0, 0.9)',
 });
+const CSTIMER_SESSION_SETTING_DEFAULTS = Object.freeze({
+    inspectionTime: 'off',
+    inspectionAlerts: 'voice',
+    timerUpdate: '0.1s',
+    timeEntryMode: 'timer',
+    summaryStatsPreset: 'basic',
+    summaryStatsCustom: 'mo3 ao5 ao12 ao100',
+    solvesTableStat1: 'ao5',
+    solvesTableStat2: 'ao12',
+    hideUIWhileSolving: true,
+    pillSize: 'medium',
+    showDelta: true,
+});
+const CSTIMER_NATIVE_SETTING_KEYS = Object.freeze([
+    'inspectionTime',
+    'inspectionAlerts',
+    'timerUpdate',
+    'timeEntryMode',
+    'hideUIWhileSolving',
+    'pillSize',
+    'showDelta',
+    'backgroundImageSource',
+    'backgroundImageUrl',
+    'summaryStatsPreset',
+    'summaryStatsCustom',
+    'solvesTableStat1',
+    'solvesTableStat2',
+]);
+const CSTIMER_NATIVE_SETTING_PROPERTY_KEYS = Object.freeze({
+    inspectionTime: Object.freeze(['useIns']),
+    inspectionAlerts: Object.freeze(['voiceIns']),
+    timerUpdate: Object.freeze(['timeU']),
+    timeEntryMode: Object.freeze(['input']),
+    hideUIWhileSolving: Object.freeze(['ahide']),
+    pillSize: Object.freeze(['showAvg']),
+    showDelta: Object.freeze(['showDiff']),
+    backgroundImageSource: Object.freeze(['bgImgS', 'bgImgSrc']),
+    backgroundImageUrl: Object.freeze(['bgImgS', 'bgImgSrc']),
+    summaryStatsPreset: Object.freeze(['statal', 'statalu']),
+    summaryStatsCustom: Object.freeze(['statal', 'statalu']),
+    solvesTableStat1: Object.freeze(['stat1l', 'stat1t']),
+    solvesTableStat2: Object.freeze(['stat2l', 'stat2t']),
+});
+const CSTIMER_NATIVE_PROPERTY_DEFAULTS = Object.freeze({
+    useIns: 'n',
+    voiceIns: '1',
+    timeU: 'c',
+    input: 't',
+    ahide: true,
+    showAvg: true,
+    showDiff: 'rg',
+    bgImgS: 'n',
+    bgImgSrc: '',
+    stat1l: 5,
+    stat1t: 0,
+    stat2l: 12,
+    stat2t: 0,
+    statal: 'mo3 ao5 ao12 ao100',
+    statalu: 'mo3 ao5 ao12 ao100',
+});
 const SUMMARY_STATS_PRESET_STRINGS = Object.freeze({
     extended: 'mo3 ao5 ao12 ao25 ao50 ao100',
     full: 'mo3 ao5 ao12 ao25 ao50 ao100 ao200 ao500 ao1000 ao2000 ao5000 ao10000',
 });
+const CSTIMER_SESSION_SCOPE_MAPPINGS = Object.freeze([
+    Object.freeze({ settingKeys: Object.freeze(['inspectionTime']), propertyKeys: Object.freeze(['useIns']) }),
+    Object.freeze({ settingKeys: Object.freeze(['inspectionAlerts']), propertyKeys: Object.freeze(['voiceIns']) }),
+    Object.freeze({ settingKeys: Object.freeze(['timerUpdate']), propertyKeys: Object.freeze(['timeU']) }),
+    Object.freeze({ settingKeys: Object.freeze(['timeEntryMode']), propertyKeys: Object.freeze(['input']) }),
+    Object.freeze({ settingKeys: Object.freeze(['hideUIWhileSolving']), propertyKeys: Object.freeze(['ahide']) }),
+    Object.freeze({ settingKeys: Object.freeze(['pillSize']), propertyKeys: Object.freeze(['showAvg']) }),
+    Object.freeze({ settingKeys: Object.freeze(['showDelta']), propertyKeys: Object.freeze(['showDiff']) }),
+    Object.freeze({ settingKeys: Object.freeze(['solvesTableStat1']), propertyKeys: Object.freeze(['stat1l', 'stat1t']) }),
+    Object.freeze({ settingKeys: Object.freeze(['solvesTableStat2']), propertyKeys: Object.freeze(['stat2l', 'stat2t']) }),
+    Object.freeze({ settingKeys: SUMMARY_STATS_SCOPE_SETTING_KEYS, propertyKeys: Object.freeze(['statal', 'statalu']) }),
+]);
+const CSTIMER_COMPATIBLE_SESSION_SETTING_KEYS = Object.freeze(
+    CSTIMER_SESSION_SCOPE_MAPPINGS.reduce((keys, mapping) => {
+        mapping.settingKeys.forEach((key) => {
+            if (!keys.includes(key)) {
+                keys.push(key);
+            }
+        });
+        return keys;
+    }, ['summaryStatsList']),
+);
+const CSTIMER_COMPATIBLE_SESSION_SETTING_KEY_SET = new Set(CSTIMER_COMPATIBLE_SESSION_SETTING_KEYS);
 
 function _genId() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -588,6 +772,10 @@ function _normalizeTokenListString(value) {
         .join(' ');
 }
 
+function _normalizeStoredSettingScopes(scopeMap) {
+    return normalizeSettingScopes(scopeMap);
+}
+
 function _parseUkraTimerCsTimerMeta(rawValue) {
     let parsed = rawValue;
 
@@ -603,10 +791,11 @@ function _parseUkraTimerCsTimerMeta(rawValue) {
     return parsed;
 }
 
-function _getUkraTimerCsTimerMetaPayload(settingsData) {
+function _getUkraTimerCsTimerMetaPayload(settingsData, sessionsData = []) {
     return JSON.stringify({
         version: UKRA_TIMER_CSTIMER_META_VERSION,
         settings: settingsData,
+        sessions: sessionsData,
     });
 }
 
@@ -721,6 +910,330 @@ function _buildCsTimerSummaryProperties(settingsData) {
     return result;
 }
 
+function _getEffectiveComparableCsTimerProperties(properties) {
+    const source = properties && typeof properties === 'object' ? properties : {};
+    return {
+        ...CSTIMER_NATIVE_PROPERTY_DEFAULTS,
+        ...source,
+    };
+}
+
+function _metadataSettingMatchesImportedCsTimerState(key, metadataSettings, properties, { treatMissingAsDefaults = true } = {}) {
+    if (!_hasOwn(metadataSettings, key)) return false;
+
+    const propertyKeys = CSTIMER_NATIVE_SETTING_PROPERTY_KEYS[key];
+    if (!Array.isArray(propertyKeys) || propertyKeys.length === 0) return false;
+
+    const metadataComparableProperties = _buildCsTimerCompatibleProperties(metadataSettings, {
+        includeBackgroundImage: true,
+    });
+    const importedComparableProperties = treatMissingAsDefaults
+        ? _getEffectiveComparableCsTimerProperties(properties)
+        : (properties && typeof properties === 'object' ? properties : {});
+
+    return propertyKeys.every((propertyKey) => {
+        const metadataValue = _hasOwn(metadataComparableProperties, propertyKey)
+            ? metadataComparableProperties[propertyKey]
+            : (treatMissingAsDefaults ? CSTIMER_NATIVE_PROPERTY_DEFAULTS[propertyKey] : undefined);
+        const importedValue = _hasOwn(importedComparableProperties, propertyKey)
+            ? importedComparableProperties[propertyKey]
+            : (treatMissingAsDefaults ? CSTIMER_NATIVE_PROPERTY_DEFAULTS[propertyKey] : undefined);
+        return Object.is(importedValue, metadataValue);
+    });
+}
+
+function _filterSessionScopeMap(scopeMap, predicate) {
+    const source = normalizeSettingScopes(scopeMap);
+    const filtered = {};
+
+    Object.entries(source).forEach(([key, scope]) => {
+        if (scope !== SETTING_SCOPE_SESSION || !predicate(key)) return;
+        filtered[key] = SETTING_SCOPE_SESSION;
+    });
+
+    return filtered;
+}
+
+function _stripCsTimerCompatibleSettingScopes(scopeMap) {
+    return _filterSessionScopeMap(scopeMap, (key) => !CSTIMER_COMPATIBLE_SESSION_SETTING_KEY_SET.has(key));
+}
+
+function _deriveSessionSettingScopesFromCsTimer(properties) {
+    const scopeMap = {};
+
+    CSTIMER_SESSION_SCOPE_MAPPINGS.forEach(({ settingKeys, propertyKeys }) => {
+        const hasSessionScopeFlag = propertyKeys.some((propertyKey) => properties?.[`sr_${propertyKey}`] === true);
+        if (!hasSessionScopeFlag) return;
+
+        settingKeys.forEach((settingKey) => {
+            scopeMap[settingKey] = SETTING_SCOPE_SESSION;
+        });
+    });
+
+    return scopeMap;
+}
+
+function _getEffectiveCsTimerExportSettings(storedSettingsData, session = null) {
+    const source = storedSettingsData && typeof storedSettingsData === 'object' ? storedSettingsData : {};
+    const effectiveSettings = {
+        ...CSTIMER_EXPORT_SETTING_DEFAULTS,
+        ...source,
+    };
+    const settingScopes = normalizeSettingScopes(source.settingScopes);
+    const sessionSettings = session?.settings && typeof session.settings === 'object'
+        ? session.settings
+        : {};
+
+    Object.entries(sessionSettings).forEach(([key, value]) => {
+        if (settingScopes[key] !== SETTING_SCOPE_SESSION) return;
+        effectiveSettings[key] = value;
+    });
+
+    const activeThemeId = typeof effectiveSettings.theme === 'string' ? effectiveSettings.theme : 'default';
+    const activeCustomThemeBackground = source.customThemeBackgrounds
+        && typeof source.customThemeBackgrounds === 'object'
+        ? source.customThemeBackgrounds[activeThemeId]
+        : null;
+    const activeBackgroundUrl = typeof activeCustomThemeBackground?.url === 'string'
+        ? activeCustomThemeBackground.url.trim()
+        : '';
+
+    effectiveSettings.backgroundImageSource = activeCustomThemeBackground?.source === 'link' && activeBackgroundUrl
+        ? 'link'
+        : 'none';
+    effectiveSettings.backgroundImageUrl = effectiveSettings.backgroundImageSource === 'link'
+        ? activeBackgroundUrl
+        : '';
+
+    return effectiveSettings;
+}
+
+function _buildCsTimerCompatibleProperties(settingsData, { includeBackgroundImage = false } = {}) {
+    const timerUpdate = settingsData?.timerUpdate || '0.01s';
+    let timeU = 'u';
+    if (timerUpdate === 'none') timeU = 'n';
+    else if (timerUpdate === '1s') timeU = 's';
+    else if (timerUpdate === '0.1s') timeU = 'c';
+    else if (timerUpdate === 'inspection') timeU = 'i';
+
+    const stat1 = _mapRollingStatTokenToCsTimer(settingsData?.solvesTableStat1);
+    const stat2 = _mapRollingStatTokenToCsTimer(settingsData?.solvesTableStat2);
+
+    return {
+        useIns: settingsData?.inspectionTime === '15s' ? 'ap' : 'n',
+        voiceIns: settingsData?.inspectionAlerts === 'voice' || settingsData?.inspectionAlerts === 'both' ? '1' : 'n',
+        timeU,
+        input: settingsData?.timeEntryMode === 'typing'
+            ? 'i'
+            : settingsData?.timeEntryMode === 'stackmat'
+                ? 's'
+                : settingsData?.timeEntryMode === 'bluetooth'
+                    ? 'b'
+                    : 't',
+        ahide: settingsData?.hideUIWhileSolving !== false,
+        showAvg: settingsData?.pillSize === 'hidden' ? false : true,
+        showDiff: settingsData?.showDelta === false ? 'n' : 'rg',
+        ...(includeBackgroundImage
+            && settingsData?.backgroundImageSource === 'link'
+            && typeof settingsData?.backgroundImageUrl === 'string'
+            && settingsData.backgroundImageUrl.trim()
+            ? { bgImgS: 'u', bgImgSrc: settingsData.backgroundImageUrl.trim() }
+            : {}),
+        ...(stat1 ? { stat1l: stat1.length } : {}),
+        ...(stat1?.type ? { stat1t: stat1.type } : {}),
+        ...(stat2 ? { stat2l: stat2.length } : {}),
+        ...(stat2?.type ? { stat2t: stat2.type } : {}),
+        ..._buildCsTimerSummaryProperties(settingsData),
+    };
+}
+
+function _buildCsTimerSessionScopeProperties(settingScopes) {
+    const source = normalizeSettingScopes(settingScopes);
+    const scopeProperties = {};
+
+    CSTIMER_SESSION_SCOPE_MAPPINGS.forEach(({ settingKeys, propertyKeys }) => {
+        if (!settingKeys.some((settingKey) => source[settingKey] === SETTING_SCOPE_SESSION)) return;
+        propertyKeys.forEach((propertyKey) => {
+            scopeProperties[`sr_${propertyKey}`] = true;
+        });
+    });
+
+    return scopeProperties;
+}
+
+function _buildCsTimerSessionScopedOptProperties(settingScopes, settingsData) {
+    const source = normalizeSettingScopes(settingScopes);
+    const scopedPropertyKeys = new Set();
+
+    CSTIMER_SESSION_SCOPE_MAPPINGS.forEach(({ settingKeys, propertyKeys }) => {
+        if (!settingKeys.some((settingKey) => source[settingKey] === SETTING_SCOPE_SESSION)) return;
+        propertyKeys.forEach((propertyKey) => scopedPropertyKeys.add(propertyKey));
+    });
+
+    if (scopedPropertyKeys.size === 0) return {};
+
+    const compatibleProperties = _buildCsTimerCompatibleProperties(settingsData);
+    return Object.fromEntries(
+        Object.entries(compatibleProperties).filter(([propertyKey]) => scopedPropertyKeys.has(propertyKey)),
+    );
+}
+
+function _buildCsTimerScopedSessionSettings(settingScopes) {
+    const source = normalizeSettingScopes(settingScopes);
+    const scopedSettings = {};
+
+    CSTIMER_SESSION_SCOPE_MAPPINGS.forEach(({ settingKeys }) => {
+        settingKeys.forEach((settingKey) => {
+            if (source[settingKey] !== SETTING_SCOPE_SESSION) return;
+            if (!_hasOwn(CSTIMER_SESSION_SETTING_DEFAULTS, settingKey)) return;
+            scopedSettings[settingKey] = CSTIMER_SESSION_SETTING_DEFAULTS[settingKey];
+        });
+    });
+
+    return scopedSettings;
+}
+
+function _getSessionScopedSettingKeySet(scopeMap, { compatibleOnly = false } = {}) {
+    const source = normalizeSettingScopes(scopeMap);
+    return new Set(
+        Object.entries(source)
+            .filter(([key, scope]) => (
+                scope === SETTING_SCOPE_SESSION
+                && (!compatibleOnly || CSTIMER_COMPATIBLE_SESSION_SETTING_KEY_SET.has(key))
+            ))
+            .map(([key]) => key),
+    );
+}
+
+function _filterSessionSettingsByAllowedKeys(sessionSettings, allowedKeySet) {
+    const source = _sanitizeSessionSettingsForTransport(sessionSettings);
+    if (!(allowedKeySet instanceof Set) || allowedKeySet.size === 0) return {};
+
+    return Object.fromEntries(
+        Object.entries(source).filter(([key]) => allowedKeySet.has(key)),
+    );
+}
+
+function _getSessionScopedSettings(sessionSettings, scopeMap, { compatibleOnly = false } = {}) {
+    return _filterSessionSettingsByAllowedKeys(
+        sessionSettings,
+        _getSessionScopedSettingKeySet(scopeMap, { compatibleOnly }),
+    );
+}
+
+function _buildCsTimerMetadataSettings(storedSettingsData) {
+    return _sanitizeStoredSettingsForExport(storedSettingsData);
+}
+
+function _getUkraTimerCsTimerMetadataSessionId(entry) {
+    if (!entry || typeof entry !== 'object') return '';
+
+    if (typeof entry.sessionId === 'string' && entry.sessionId) return entry.sessionId;
+    if (typeof entry.id === 'string' && entry.id) return entry.id;
+    return '';
+}
+
+function _buildUkraTimerCsTimerMetadataSessionResolver(metadataSessions) {
+    const entries = Array.isArray(metadataSessions)
+        ? metadataSessions.map((entry, index) => ({
+            index,
+            sessionId: _getUkraTimerCsTimerMetadataSessionId(entry),
+            name: entry?.name != null ? String(entry.name) : '',
+            entry,
+        }))
+        : [];
+    const usedIndexes = new Set();
+    const entriesBySessionId = new Map();
+
+    entries.forEach((entry) => {
+        if (!entry.sessionId || entriesBySessionId.has(entry.sessionId)) return;
+        entriesBySessionId.set(entry.sessionId, entry);
+    });
+
+    const claimEntry = (entry) => {
+        if (!entry || usedIndexes.has(entry.index)) return null;
+        usedIndexes.add(entry.index);
+        return entry.entry;
+    };
+
+    return {
+        takeBySessionId(sessionId) {
+            if (typeof sessionId !== 'string' || !sessionId) return null;
+            return claimEntry(entriesBySessionId.get(sessionId));
+        },
+        takeFallback({ slot = 0, name = '' } = {}) {
+            // Some round-trips preserve ukraTimerMeta.sessions but drop the sessionData
+            // session id. Fall back by slot/name even when the metadata entry still has
+            // its original sessionId.
+            const slotIndex = Number.isInteger(slot) ? slot - 1 : -1;
+            if (slotIndex >= 0 && slotIndex < entries.length && !usedIndexes.has(entries[slotIndex].index)) {
+                return claimEntry(entries[slotIndex]);
+            }
+
+            const normalizedName = name != null ? String(name) : '';
+            if (normalizedName) {
+                const nameMatch = entries.find((entry) => entry.name === normalizedName && !usedIndexes.has(entry.index));
+                if (nameMatch) return claimEntry(nameMatch);
+            }
+
+            return null;
+        },
+    };
+}
+
+function _stripCsTimerNativeSettings(settingsData) {
+    const source = settingsData && typeof settingsData === 'object' ? settingsData : {};
+    const stripped = { ...source };
+
+    CSTIMER_NATIVE_SETTING_KEYS.forEach((key) => {
+        delete stripped[key];
+    });
+
+    return stripped;
+}
+
+function _getMetadataSessionScrambleType(entry) {
+    if (!entry || typeof entry !== 'object') return '';
+
+    const normalized = typeof entry.scrambleType === 'string'
+        ? entry.scrambleType.trim().toLowerCase()
+        : '';
+    if (!normalized) return '';
+    if (_hasOwn(INTERNAL_SCRAMBLE_TYPE_TO_CSTIMER, normalized)) return normalized;
+    if (_hasOwn(CSTIMER_SCRAMBLE_TYPE_TO_INTERNAL, normalized)) {
+        return CSTIMER_SCRAMBLE_TYPE_TO_INTERNAL[normalized];
+    }
+
+    return '';
+}
+
+function _mergeImportedCsTimerSessionSettings(optProperties, metadataSessionSettings, sessionScopedSettingKeySet = new Set()) {
+    const nativeSettings = _deriveSettingsFromCsTimerProperties(optProperties);
+    const metadataSettings = metadataSessionSettings && typeof metadataSessionSettings === 'object'
+        ? _sanitizeSessionSettingsForTransport(metadataSessionSettings)
+        : {};
+    const mergedSettings = _stripCsTimerNativeSettings(metadataSettings);
+
+    CSTIMER_NATIVE_SETTING_KEYS.forEach((key) => {
+        const treatMissingAsDefaults = sessionScopedSettingKeySet.has(key);
+        const shouldPreferMetadata = _hasOwn(metadataSettings, key)
+            && _metadataSettingMatchesImportedCsTimerState(key, metadataSettings, optProperties, {
+                treatMissingAsDefaults,
+            });
+
+        if (shouldPreferMetadata) {
+            mergedSettings[key] = metadataSettings[key];
+            return;
+        }
+        if (_hasOwn(nativeSettings, key)) {
+            mergedSettings[key] = nativeSettings[key];
+            return;
+        }
+    });
+
+    return mergedSettings;
+}
+
 function _deriveSettingsFromCsTimerProperties(properties) {
     const summarySettings = _deriveSummarySettingsFromCsTimerProperties(properties);
     const stat1 = (_hasOwn(properties, 'stat1l') || _hasOwn(properties, 'stat1t'))
@@ -736,7 +1249,7 @@ function _deriveSettingsFromCsTimerProperties(properties) {
     };
 
     if (_hasOwn(properties, 'useIns')) {
-        settingsData.inspectionTime = '15s';
+        settingsData.inspectionTime = properties?.useIns === 'n' ? 'off' : '15s';
     }
 
     if (_hasOwn(properties, 'voiceIns')) {
@@ -841,12 +1354,23 @@ export async function importCsTimer(csData, { onProgress = null } = {}) {
 
     const hasGlobalScrambleType = _hasOwn(properties, 'scrType');
     const globalActiveScrambleType = _mapCsTimerScrambleTypeToInternal(properties.scrType);
+    const metadata = _parseUkraTimerCsTimerMeta(properties[UKRA_TIMER_CSTIMER_META_KEY]);
+    const hasMetadataSettings = metadata && typeof metadata.settings === 'object';
+    const metadataSettings = hasMetadataSettings
+        ? _sanitizeStoredSettingsForImport(metadata.settings)
+        : {};
+    const metadataSessionScopedSettingKeySet = _getSessionScopedSettingKeySet(
+        _stripCsTimerCompatibleSettingScopes(metadataSettings.settingScopes),
+    );
+    const metadataSessions = Array.isArray(metadata?.sessions) ? metadata.sessions : [];
+    const metadataSessionResolver = _buildUkraTimerCsTimerMetadataSessionResolver(metadataSessions);
     const importedSessions = [];
 
     for (let slot = 1; slot <= sessionCount; slot += 1) {
         const meta = sessionMeta[String(slot)] && typeof sessionMeta[String(slot)] === 'object'
             ? sessionMeta[String(slot)]
             : {};
+        const opt = meta?.opt && typeof meta.opt === 'object' ? meta.opt : {};
         const rawSolves = Array.isArray(csData[`session${slot}`]) ? csData[`session${slot}`] : [];
         if (!_isMeaningfulCsTimerSessionSlot(slot, meta, rawSolves, {
             isActiveSlot: slot === activeSessionSlot,
@@ -856,8 +1380,9 @@ export async function importCsTimer(csData, { onProgress = null } = {}) {
         }
         const sessionId = `${_genId()}${slot}`;
         const name = meta.name != null ? String(meta.name) : `Session ${slot}`;
-        const mappedScrambleType = _mapCsTimerScrambleTypeToInternal(meta?.opt?.scrType);
-        const scrambleType = slot === activeSessionSlot && !_hasOwn(meta?.opt || {}, 'scrType')
+        const mappedScrambleType = _mapCsTimerScrambleTypeToInternal(opt.scrType);
+        const hasNativeScrambleType = _hasOwn(opt, 'scrType') || (slot === activeSessionSlot && hasGlobalScrambleType);
+        const scrambleType = slot === activeSessionSlot && !_hasOwn(opt, 'scrType')
             ? globalActiveScrambleType
             : mappedScrambleType;
         const rank = Number.isFinite(meta?.rank) ? Number(meta.rank) : slot;
@@ -867,7 +1392,13 @@ export async function importCsTimer(csData, { onProgress = null } = {}) {
             rank,
             id: sessionId,
             name,
+            opt,
+            metadataSessionId: typeof meta?.[UKRA_TIMER_CSTIMER_SESSION_META_ID_KEY] === 'string'
+                ? meta[UKRA_TIMER_CSTIMER_SESSION_META_ID_KEY]
+                : '',
+            hasNativeScrambleType,
             scrambleType,
+            settings: _deriveSettingsFromCsTimerProperties(opt),
             solves: rawSolves,
         });
     }
@@ -876,6 +1407,41 @@ export async function importCsTimer(csData, { onProgress = null } = {}) {
         if (left.rank !== right.rank) return left.rank - right.rank;
         return left.slot - right.slot;
     });
+
+    const compatibleScopedSettingScopes = _deriveSessionSettingScopesFromCsTimer(properties);
+    const compatibleScopedSettingKeySet = new Set(Object.keys(compatibleScopedSettingScopes));
+    const importedSessionScopedSettingKeySet = new Set([
+        ...metadataSessionScopedSettingKeySet,
+        ...compatibleScopedSettingKeySet,
+    ]);
+
+    importedSessions.forEach((session) => {
+        const matchedMetadataSession = metadataSessionResolver.takeBySessionId(session.metadataSessionId)
+            || metadataSessionResolver.takeFallback({ slot: session.slot, name: session.name });
+        const metadataScrambleType = _getMetadataSessionScrambleType(matchedMetadataSession);
+
+        if (!session.hasNativeScrambleType && metadataScrambleType) {
+            session.scrambleType = metadataScrambleType;
+        }
+
+        session.settings = _mergeImportedCsTimerSessionSettings(
+            session.opt,
+            _filterSessionSettingsByAllowedKeys(
+                matchedMetadataSession?.settings,
+                importedSessionScopedSettingKeySet,
+            ),
+            compatibleScopedSettingKeySet,
+        );
+    });
+
+    const defaultScopedSessionSettings = _buildCsTimerScopedSessionSettings(compatibleScopedSettingScopes);
+    importedSessions.forEach((session) => {
+        session.settings = {
+            ...defaultScopedSessionSettings,
+            ...(session.settings && typeof session.settings === 'object' ? session.settings : {}),
+        };
+    });
+    const activeImportedSession = importedSessions.find((session) => session.slot === activeSessionSlot) || importedSessions[0] || null;
 
     const dbSessions = [];
     const dbSolves = [];
@@ -957,22 +1523,70 @@ export async function importCsTimer(csData, { onProgress = null } = {}) {
             createdAt: sessionCreatedAt,
             order: index,
             scrambleType: session.scrambleType,
+            ...(session.settings && typeof session.settings === 'object'
+                ? { settings: _sanitizeSessionSettingsForTransport(session.settings) }
+                : {}),
         });
     }
 
     if (importedSessions.length === 0) return;
 
-    const metadata = _parseUkraTimerCsTimerMeta(properties[UKRA_TIMER_CSTIMER_META_KEY]);
     const existingSettings = load('settings', {});
     const nativeSettings = _deriveSettingsFromCsTimerProperties(properties);
-    const metadataSettings = metadata && typeof metadata.settings === 'object' ? metadata.settings : {};
-    const newSettings = {
-        ...existingSettings,
-        ...nativeSettings,
-        ...metadataSettings,
+    const mergedSettingScopes = {
+        ..._stripCsTimerCompatibleSettingScopes(existingSettings.settingScopes),
+        ..._stripCsTimerCompatibleSettingScopes(metadataSettings.settingScopes),
+        ...compatibleScopedSettingScopes,
     };
+    const metadataSettingsWithoutScopes = _stripCsTimerNativeSettings(metadataSettings);
+    delete metadataSettingsWithoutScopes.settingScopes;
+    const nextSettings = {
+        ...existingSettings,
+        ...metadataSettingsWithoutScopes,
+        settingScopes: mergedSettingScopes,
+    };
+    const activeImportedSessionSettings = activeImportedSession?.settings && typeof activeImportedSession.settings === 'object'
+        ? activeImportedSession.settings
+        : {};
 
-    const activeImportedSession = importedSessions.find((session) => session.slot === activeSessionSlot) || importedSessions[0];
+    CSTIMER_NATIVE_SETTING_KEYS.forEach((key) => {
+        const shouldPreferMetadata = _hasOwn(metadataSettings, key)
+            && _metadataSettingMatchesImportedCsTimerState(key, metadataSettings, properties);
+
+        if (compatibleScopedSettingKeySet.has(key)) {
+            if (shouldPreferMetadata) {
+                nextSettings[key] = metadataSettings[key];
+                return;
+            }
+            if (_hasOwn(activeImportedSessionSettings, key)) {
+                nextSettings[key] = activeImportedSessionSettings[key];
+                return;
+            }
+            if (_hasOwn(nativeSettings, key)) {
+                nextSettings[key] = nativeSettings[key];
+                return;
+            }
+            if (_hasOwn(CSTIMER_IMPORT_SETTING_DEFAULTS, key)) {
+                nextSettings[key] = CSTIMER_IMPORT_SETTING_DEFAULTS[key];
+            }
+            return;
+        }
+
+        if (shouldPreferMetadata) {
+            nextSettings[key] = metadataSettings[key];
+            return;
+        }
+        if (_hasOwn(nativeSettings, key)) {
+            nextSettings[key] = nativeSettings[key];
+            return;
+        }
+        if (_hasOwn(CSTIMER_IMPORT_SETTING_DEFAULTS, key)) {
+            nextSettings[key] = CSTIMER_IMPORT_SETTING_DEFAULTS[key];
+        }
+    });
+
+    const newSettings = _sanitizeStoredSettingsForImport(nextSettings);
+
     const activeImportedSessionId = activeImportedSession?.id || dbSessions[0]?.id || null;
     const activeImportedScrambleType = activeImportedSession?.scrambleType || '333';
 
@@ -1008,32 +1622,29 @@ export async function importCsTimer(csData, { onProgress = null } = {}) {
  * Export internal data → csTimer JSON format.
  */
 export async function exportCsTimer() {
+    await _runBeforeDataExportHooks();
     const { sessions, solves } = await db.getAllData();
     const csData = {};
     const sessionMeta = {};
-    const storedSettingsData = load('settings', {});
-    const settingsData = {
-        ...CSTIMER_EXPORT_SETTING_DEFAULTS,
-        ...storedSettingsData,
-    };
-    const activeThemeId = typeof settingsData.theme === 'string' ? settingsData.theme : 'default';
-    const activeCustomThemeBackground = storedSettingsData.customThemeBackgrounds
-        && typeof storedSettingsData.customThemeBackgrounds === 'object'
-        ? storedSettingsData.customThemeBackgrounds[activeThemeId]
-        : null;
-    const activeBackgroundUrl = typeof activeCustomThemeBackground?.url === 'string'
-        ? activeCustomThemeBackground.url.trim()
-        : '';
-    settingsData.backgroundImageSource = activeCustomThemeBackground?.source === 'link' && activeBackgroundUrl ? 'link' : 'none';
-    settingsData.backgroundImageUrl = settingsData.backgroundImageSource === 'link' ? activeBackgroundUrl : '';
+    const storedSettingsData = _sanitizeStoredSettingsForExport(load('settings', {}));
     const activeSessionId = load('activeSessionId', null);
     const activeSessionIndex = Math.max(0, sessions.findIndex((session) => session.id === activeSessionId));
     const activeSession = sessions[activeSessionIndex] || sessions[0] || null;
+    const settingsData = _getEffectiveCsTimerExportSettings(storedSettingsData, activeSession);
+    const settingScopes = storedSettingsData.settingScopes && typeof storedSettingsData.settingScopes === 'object'
+        ? storedSettingsData.settingScopes
+        : {};
+    const metadataSettings = _buildCsTimerMetadataSettings(storedSettingsData);
     const activeCsScrambleType = _mapInternalScrambleTypeToCsTimer(activeSession?.scrambleType || '333');
 
     sessions.forEach((session, i) => {
         const num = i + 1;
         const key = `session${num}`;
+        const sanitizedSessionSettings = _sanitizeSessionSettingsForTransport(session.settings);
+        const effectiveSessionSettings = _getEffectiveCsTimerExportSettings(storedSettingsData, {
+            ...session,
+            settings: sanitizedSessionSettings,
+        });
 
         const sessionSolves = solves
             .filter(s => s.sessionId === session.id)
@@ -1059,27 +1670,20 @@ export async function exportCsTimer() {
 
         sessionMeta[String(num)] = {
             name: session.name || `Session ${num}`,
-            opt: activeCsScrambleType && session.id === activeSession?.id
-                ? { ...(session.scrambleType === '333' ? {} : { scrType: activeCsScrambleType }) }
-                : (() => {
-                    const csScrambleType = _mapInternalScrambleTypeToCsTimer(session.scrambleType || '333');
-                    return csScrambleType ? { scrType: csScrambleType } : {};
-                })(),
+            opt: {
+                ...(activeCsScrambleType && session.id === activeSession?.id
+                    ? { ...(session.scrambleType === '333' ? {} : { scrType: activeCsScrambleType }) }
+                    : (() => {
+                        const csScrambleType = _mapInternalScrambleTypeToCsTimer(session.scrambleType || '333');
+                        return csScrambleType ? { scrType: csScrambleType } : {};
+                    })()),
+                ..._buildCsTimerSessionScopedOptProperties(settingScopes, effectiveSessionSettings),
+            },
             rank: num,
+            [UKRA_TIMER_CSTIMER_SESSION_META_ID_KEY]: session.id,
         };
     });
 
-    // Map timer update frequency to csTimer
-    const timerUpdate = settingsData.timerUpdate || '0.01s';
-    let timeU = 'u';
-    if (timerUpdate === 'none') timeU = 'n';
-    else if (timerUpdate === '1s') timeU = 's';
-    else if (timerUpdate === '0.1s') timeU = null; // omitted
-    else if (timerUpdate === 'inspection') timeU = 'i';
-
-    const stat1 = _mapRollingStatTokenToCsTimer(settingsData.solvesTableStat1);
-    const stat2 = _mapRollingStatTokenToCsTimer(settingsData.solvesTableStat2);
-    const summaryProps = _buildCsTimerSummaryProperties(storedSettingsData);
     const activeScrambleFilter = _buildCsTimerScrambleFilter(activeCsScrambleType);
 
     csData.properties = {
@@ -1094,45 +1698,26 @@ export async function exportCsTimer() {
         'col-font': '#ffffff',
         'col-link': '#aaaaaa',
         'col-logoback': '#aaaaaa',
-        timeU,
         toolsfunc: '["trend","stats","cross","distribution"]',
         session: activeSessionIndex + 1,
         ...(sessions.length !== 15 ? { sessionN: sessions.length } : {}),
-        ...(_hasOwn(settingsData, 'inspectionTime') && settingsData.inspectionTime === '15s' ? { useIns: 'ap' } : {}),
-        ...(settingsData.inspectionAlerts === 'screen' ? { voiceIns: 'n' } : {}),
-        ...(settingsData.timeEntryMode === 'typing'
-            ? { input: 'i' }
-            : settingsData.timeEntryMode === 'stackmat'
-                ? { input: 's' }
-                : settingsData.timeEntryMode === 'bluetooth'
-                    ? { input: 'b' }
-                    : {}),
-        ...(settingsData.hideUIWhileSolving === false ? { ahide: false } : {}),
-        ...(settingsData.pillSize === 'hidden' ? { showAvg: false } : {}),
-        ...(settingsData.showDelta === false ? { showDiff: 'n' } : {}),
-        ...(settingsData.backgroundImageSource === 'link'
-            && typeof settingsData.backgroundImageUrl === 'string'
-            && settingsData.backgroundImageUrl.trim()
-            ? { bgImgS: 'u', bgImgSrc: settingsData.backgroundImageUrl.trim() }
-            : {}),
-        ...(stat1 ? { stat1l: stat1.length } : {}),
-        ...(stat1?.type ? { stat1t: stat1.type } : {}),
-        ...(stat2 ? { stat2l: stat2.length } : {}),
-        ...(stat2?.type ? { stat2t: stat2.type } : {}),
+        ..._buildCsTimerCompatibleProperties(settingsData, { includeBackgroundImage: true }),
+        ..._buildCsTimerSessionScopeProperties(settingScopes),
         ...(activeCsScrambleType ? {
             scrType: activeCsScrambleType,
             scrFlt: JSON.stringify(activeScrambleFilter),
             ...(CSTIMER_TRAINING_FILTER_LENGTHS[activeCsScrambleType] ? { isTrainScr: true } : {}),
         } : {}),
-        ...summaryProps,
-        [UKRA_TIMER_CSTIMER_META_KEY]: _getUkraTimerCsTimerMetaPayload({
-            ...storedSettingsData,
-            ...Object.fromEntries(
-                Object.entries(settingsData).filter(([key]) => _hasOwn(CSTIMER_EXPORT_SETTING_DEFAULTS, key)),
-            ),
-        }),
+        [UKRA_TIMER_CSTIMER_META_KEY]: _getUkraTimerCsTimerMetaPayload(
+            metadataSettings,
+            sessions.map((session) => ({
+                sessionId: session.id,
+                name: session.name || '',
+                scrambleType: session.scrambleType || '333',
+                settings: _getSessionScopedSettings(session.settings, settingScopes),
+            })),
+        ),
     };
-    if (timeU === null) delete csData.properties.timeU;
 
     return csData;
 }

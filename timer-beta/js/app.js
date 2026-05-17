@@ -1,7 +1,7 @@
 import { timer, State as TimerState } from './timer.js?v=2026051402';
 import { SCRAMBLE_TYPE_OPTIONS, generateScrambleBatchForType, generateScrambleForType, getScramble, getCurrentScramble, getCurrentScrambleType, getPrevScramble, getNextScramble, getSelectedScrambleType, setCurrentScramble, setScrambleType, isCurrentScrambleManual, hasPrevScramble, isViewingPreviousScramble, preloadScrambleEngines, needsCubingWarmup, runCubingWarmup } from './scramble.js?v=2026051402';
 import { sessionManager } from './session.js?v=2026051402';
-import { settings, DEFAULTS, THEME_OPTIONS, THEME_COLOR_SECTIONS, THEME_DEFAULT_ID, THEME_OLED_ID, THEME_CUSTOM_IDS, composeThemeColor, decomposeThemeColor, getThemePresetColors, isCustomThemeId } from './settings.js?v=2026051402';
+import { settings, DEFAULTS, THEME_OPTIONS, THEME_COLOR_SECTIONS, THEME_DEFAULT_ID, THEME_OLED_ID, THEME_CUSTOM_IDS, SETTING_SCOPE_GLOBAL, SETTING_SCOPE_SESSION, SESSION_SCOPABLE_SETTING_KEYS, composeThemeColor, decomposeThemeColor, getLinkedSessionScopeKeys, getThemePresetColors, isCustomThemeId } from './settings.js?v=2026051402';
 import { parseGraphStatType, parseRollingStatType, rollingStatAt, StatsCache } from './stats.js?v=2026051402';
 import { formatTime, formatSolveTime, formatTimerDisplayTime, getEffectiveTime, formatDate, formatDateTime, parseTimeInputToMs, truncateTimeDisplay } from './utils.js?v=2026051402';
 import { initModal, showSolveDetail, showAverageDetail, closeModal, closeMoveSessionMenus, customConfirm, customPrompt, getModalSelectionContext, setModalStatNavigator, setModalStatButtons, armModalGhostClickGuard } from './modal.js?v=2026051402';
@@ -334,6 +334,7 @@ const bluetoothSessionState = {
 
 let currentHardwareSelectionTask = 0;
 let pendingHardwareModeReconnect = false;
+let isSettingScopeModeVisible = false;
 
 function syncTimerPopupStacking() {
     const hasVisiblePopup = TIMER_POPUP_ELEMENT_IDS.some((elementId) =>
@@ -415,8 +416,18 @@ function getGoogleDriveBackupLastReminderSolveCount(checkpointSolveCount = getGo
 
 function buildGoogleDriveBackupCheckpointSettings(baseSettings, totalSolveCount) {
     const normalizedTotalSolveCount = normalizeNonNegativeInteger(totalSolveCount, 0);
+    const nextSettings = baseSettings && typeof baseSettings === 'object'
+        ? { ...baseSettings }
+        : {};
+
+    delete nextSettings.zenMode;
+    if (nextSettings.settingScopes && typeof nextSettings.settingScopes === 'object') {
+        nextSettings.settingScopes = { ...nextSettings.settingScopes };
+        delete nextSettings.settingScopes.zenMode;
+    }
+
     return {
-        ...(baseSettings && typeof baseSettings === 'object' ? baseSettings : {}),
+        ...nextSettings,
         googleDriveBackupCheckpointSolveCount: normalizedTotalSolveCount,
         googleDriveBackupLastReminderSolveCount: normalizedTotalSolveCount,
     };
@@ -2280,7 +2291,7 @@ function syncHardwareInputControls() {
             : 'Connect a supported Bluetooth timer in a Chromium-based browser.');
     status.classList.toggle('is-error', hardwareInputUiState.error);
 
-    button.disabled = hardwareInputUiState.busy;
+    button.disabled = hardwareInputUiState.busy || isSettingScopeModeVisible;
     if (hardwareInputUiState.busy) {
         button.textContent = 'Connecting...';
     } else if (hardwareInputUiState.connected) {
@@ -4962,22 +4973,25 @@ async function init() {
         refreshUI();
     });
 
-    settings.on('change', (key) => {
+    settings.on('change', (key, _value, signalType = 'modify') => {
+        const isSessionContextChange = signalType === 'session';
         if (key === 'inspectionAlerts') clearInspectionAlert();
         if (key === 'inspectionAlerts' || key === 'inspectionTime') {
             syncInspectionSpeechUnlockPromptVisibility();
         }
         if (key === 'newBestPopupEnabled' && !settings.get('newBestPopupEnabled')) clearNewBestAlert();
-        if (key === 'statsFilter' || key === 'customFilterDuration' || key === 'showDelta' || key === 'deltaReference' || key === 'theme' || key === 'customThemes' || key.startsWith('graphColor') || key.startsWith('graphLine') || key === 'graphTooltipDateEnabled' || key === 'newBestColor' || key === 'summaryStatsList' || key.startsWith('solvesTableStat') || key === 'dailyStreakGoal') {
+        if (key === 'statsFilter' || key === 'customFilterDuration' || key === 'showDelta' || key === 'deltaReference' || key === 'theme' || key === 'customThemes' || key.startsWith('graphColor') || key.startsWith('graphLine') || key === 'graphTooltipDateEnabled' || key === 'newBestColor' || key === 'summaryStatsPreset' || key === 'summaryStatsCustom' || key === 'summaryStatsList' || key.startsWith('solvesTableStat') || key === 'dailyStreakGoal') {
             if (key === 'statsFilter' || key === 'customFilterDuration') rebuildStatsCache();
-            if (key === 'summaryStatsList') {
+            if (key === 'summaryStatsPreset' || key === 'summaryStatsCustom' || key === 'summaryStatsList') {
                 syncModalStatNavigation();
                 renderKeyboardShortcuts();
             }
             if (key.startsWith('graphLine')) {
                 syncGraphLineLabels();
             }
-            refreshUI();
+            if (!isSessionContextChange) {
+                refreshUI();
+            }
         }
         if (key === 'timeEntryMode') {
             clearPenaltyShortcutAlert();
@@ -7160,12 +7174,6 @@ function getPresetSummaryTokens(preset) {
 }
 
 function getConfiguredSummaryStatTokens() {
-    const stored = settings.get('summaryStatsList');
-    if (Array.isArray(stored) && stored.length) {
-        const parsed = parseSummaryStatInput(stored.join(' '));
-        if (parsed.ok) return parsed.tokens;
-    }
-
     const preset = settings.get('summaryStatsPreset');
     if (preset && preset !== 'custom') {
         return getPresetSummaryTokens(preset);
@@ -7173,6 +7181,12 @@ function getConfiguredSummaryStatTokens() {
 
     const custom = parseSummaryStatInput(settings.get('summaryStatsCustom'));
     if (custom.ok) return custom.tokens;
+
+    const stored = settings.get('summaryStatsList');
+    if (Array.isArray(stored) && stored.length) {
+        const parsed = parseSummaryStatInput(stored.join(' '));
+        if (parsed.ok) return parsed.tokens;
+    }
 
     return [...SUMMARY_STAT_PRESETS.basic];
 }
@@ -7835,7 +7849,7 @@ function getDefaultHardwareStatusMessage(mode = getSelectedTimeEntryMode()) {
         const info = bluetoothTimerInput.getConnectionInfo();
         return info?.name
             ? `${info.name} connected.`
-            : 'Connect a supported Bluetooth timer (GAN or QiYi/QY).';
+            : 'Connect a supported GAN/QiYi Bluetooth timer.';
     }
 
     return '';
@@ -7929,9 +7943,6 @@ async function reconcileHardwareTimeEntryMode({ attemptConnect = false } = {}) {
 
     if (mode !== TIME_ENTRY_MODE_STACKMAT) {
         await disconnectHardwareInput(TIME_ENTRY_MODE_STACKMAT, { emitDisconnected: false });
-    }
-    if (mode !== TIME_ENTRY_MODE_BLUETOOTH) {
-        await disconnectHardwareInput(TIME_ENTRY_MODE_BLUETOOTH, { emitDisconnected: false });
     }
 
     if (selectionTaskId !== currentHardwareSelectionTask) return;
@@ -10918,6 +10929,8 @@ function initSettingsPanel() {
     settingsOverlayEl = document.getElementById('settings-overlay');
     themeCustomizationOverlayEl = document.getElementById('theme-customization-overlay');
     const btn = document.getElementById('btn-settings');
+    const settingsBoxEl = settingsOverlayEl?.querySelector('.settings-box');
+    const settingsScopeModeBtn = document.getElementById('settings-scope-mode');
     const themeCustomizationTitleEl = document.getElementById('theme-customization-title');
     const themeCustomizationSimpleSectionEl = document.getElementById('theme-customization-simple-section');
     const themeCustomizationSectionsEl = document.getElementById('theme-customization-sections');
@@ -11045,6 +11058,22 @@ function initSettingsPanel() {
         openKeyboardShortcutsOverlay({ closeSettings: true, isSwitching: true });
     };
     document.getElementById('settings-close').onclick = closeSettingsPanel;
+    const syncScopeModeHardwareButtons = () => {
+        syncHardwareInputControls();
+    };
+    const syncSettingScopeModeVisibility = () => {
+        settingsBoxEl?.classList.toggle('setting-scope-editing', isSettingScopeModeVisible);
+        settingsScopeModeBtn?.classList.toggle('active-toggle', isSettingScopeModeVisible);
+        settingsScopeModeBtn?.setAttribute('aria-pressed', isSettingScopeModeVisible ? 'true' : 'false');
+        settingsScopeModeBtn?.removeAttribute('title');
+        syncScopeModeHardwareButtons();
+    };
+    settingsScopeModeBtn?.addEventListener('click', () => {
+        isSettingScopeModeVisible = !isSettingScopeModeVisible;
+        syncSettingScopeModeVisibility();
+        settingsScopeModeBtn.blur();
+    });
+    syncSettingScopeModeVisibility();
     let _settingsMouseDownTarget = null;
     let _settingsMouseUpTarget = null;
     settingsOverlayEl.addEventListener('mousedown', (e) => {
@@ -12837,6 +12866,7 @@ function initSettingsPanel() {
     const stackmatInputSelect = document.getElementById('setting-stackmat-input-select');
     const swipeDownGestureToggle = document.getElementById('setting-swipe-down-gesture');
     const swipeDownGestureRow = document.getElementById('setting-swipe-down-gesture-row');
+    let syncSummarySettingsUI = () => { };
     const settingsGroupEls = Array.from(settingsOverlayEl?.querySelectorAll('.setting-group') || []);
 
     const syncSettingsGroupCollapseUI = () => {
@@ -12904,8 +12934,7 @@ function initSettingsPanel() {
         centerTimerToggle.disabled = shouldDisable;
         const row = centerTimerToggle.closest('.setting-row');
         if (row) {
-            row.style.opacity = shouldDisable ? '0.5' : '';
-            row.style.pointerEvents = shouldDisable ? 'none' : '';
+            row.classList.toggle('setting-row-disabled', shouldDisable);
         }
     };
 
@@ -12938,6 +12967,162 @@ function initSettingsPanel() {
         syncSettingsRowSeparators();
     };
 
+    const scopedSettingTargets = [
+        { key: 'timerUpdate', controlId: 'setting-timer-update' },
+        { key: 'timeEntryMode', controlId: 'setting-time-entry-mode', read: () => normalizeTimeEntryMode(settings.get('timeEntryMode')) },
+        { key: 'theme', controlId: 'setting-theme' },
+        { key: 'animationMode', controlId: 'setting-animations' },
+        { key: 'pillSize', controlId: 'setting-pill-size' },
+        { key: 'backgroundSpacebarEnabled', controlId: 'setting-background-spacebar' },
+        { key: 'showDelta', controlId: 'setting-show-delta' },
+        { key: 'deltaReference', controlId: 'setting-delta-reference', read: () => String(settings.get('deltaReference') || '') },
+        { key: 'newBestPopupEnabled', controlId: 'setting-new-best-popup' },
+        { key: 'inspectionTime', controlId: 'setting-inspection-time', read: () => settings.get('inspectionTime') === '15s' },
+        { key: 'inspectionAlerts', controlId: 'setting-inspection-alerts' },
+        { key: 'hideUIWhileSolving', controlId: 'setting-hide-ui' },
+        { key: 'centerTimer', controlId: 'setting-center-timer' },
+        { key: 'largeScrambleText', controlId: 'setting-large-scramble-text' },
+        { key: 'cameraBackgroundEnabled', controlId: 'setting-camera-background' },
+        { key: 'displayFont', controlId: 'setting-display-font' },
+        { key: 'summaryStatsPreset', controlId: 'setting-summary-stats-preset' },
+        { key: 'summaryStatsCustom', controlId: 'setting-summary-stats-custom' },
+        { key: 'solvesTableStat1', controlId: 'setting-solves-table-stat1', read: () => String(settings.get('solvesTableStat1') || DEFAULTS.solvesTableStat1) },
+        { key: 'solvesTableStat2', controlId: 'setting-solves-table-stat2', read: () => String(settings.get('solvesTableStat2') || DEFAULTS.solvesTableStat2) },
+        { key: 'graphTooltipDateEnabled', controlId: 'setting-graph-tooltip-date' },
+        { key: 'graphLine1Stat', controlId: 'setting-graph-line1-stat', read: () => String(settings.get('graphLine1Stat') || DEFAULTS.graphLine1Stat) },
+        { key: 'graphLine2Stat', controlId: 'setting-graph-line2-stat', read: () => String(settings.get('graphLine2Stat') || DEFAULTS.graphLine2Stat) },
+        { key: 'graphLine3Stat', controlId: 'setting-graph-line3-stat', read: () => String(settings.get('graphLine3Stat') || DEFAULTS.graphLine3Stat) },
+    ];
+    const getScopeKeysForTarget = (target) => getLinkedSessionScopeKeys(target.key);
+    const scopedSettingTargetKeys = new Set(scopedSettingTargets.flatMap((target) => getScopeKeysForTarget(target)));
+    const missingScopedControlKeys = SESSION_SCOPABLE_SETTING_KEYS.filter((key) => !scopedSettingTargetKeys.has(key));
+    if (missingScopedControlKeys.length > 0) {
+        console.warn('Session-scopable settings without scope UI controls:', missingScopedControlKeys);
+    }
+
+    const getScopedControlValue = ({ key, read }) => {
+        if (typeof read === 'function') return read();
+        return settings.get(key);
+    };
+
+    const syncScopedControlValue = (target) => {
+        const control = document.getElementById(target.controlId);
+        if (!(control instanceof HTMLInputElement || control instanceof HTMLSelectElement || control instanceof HTMLTextAreaElement)) return;
+        if (document.activeElement === control && (control.type === 'text' || control.tagName.toLowerCase() === 'textarea')) return;
+
+        const value = getScopedControlValue(target);
+        if (control instanceof HTMLInputElement && control.type === 'checkbox') {
+            control.checked = Boolean(value);
+            return;
+        }
+        control.value = String(value ?? '');
+    };
+
+    const syncScopedControlValues = (changedKey = '') => {
+        scopedSettingTargets.forEach((target) => {
+            if (changedKey && !getScopeKeysForTarget(target).includes(changedKey)) return;
+            syncScopedControlValue(target);
+        });
+        updateCenterTimerState();
+        updateTimeEntryVisibility();
+        syncScopeModeHardwareButtons();
+        syncSummarySettingsUI();
+        syncSettingsRowSeparators();
+    };
+
+    const syncSettingScopeControls = (changedKey = '') => {
+        scopedSettingTargets.forEach((target) => {
+            const { key, controlId } = target;
+            if (changedKey && !getScopeKeysForTarget(target).includes(changedKey)) return;
+            const control = document.getElementById(controlId);
+            const scopeControl = control?.closest('.setting-row')?.querySelector(`[data-setting-scope-control="${key}"]`);
+            if (!scopeControl) return;
+
+            const currentScope = settings.getSettingScope(key);
+            scopeControl.querySelectorAll('[data-setting-scope-value]').forEach((button) => {
+                const isActive = button.dataset.settingScopeValue === currentScope;
+                button.classList.toggle('active-toggle', isActive);
+                button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+            });
+        });
+    };
+
+    const createSettingScopeControl = (key, { muted = false } = {}) => {
+        const scopeControl = document.createElement('div');
+        scopeControl.className = `setting-scope-control${muted ? ' setting-scope-control-muted' : ''}`;
+        scopeControl.dataset.settingScopeControl = key;
+        scopeControl.setAttribute('aria-label', muted ? 'Setting storage scope unavailable' : 'Setting storage scope');
+        scopeControl.innerHTML = `
+                <button class="setting-scope-btn" type="button" data-setting-scope-value="${SETTING_SCOPE_GLOBAL}" aria-pressed="false">Global</button>
+                <button class="setting-scope-btn" type="button" data-setting-scope-value="${SETTING_SCOPE_SESSION}" aria-pressed="false">Session</button>
+            `;
+
+        if (muted) {
+            scopeControl.querySelectorAll('[data-setting-scope-value]').forEach((button) => {
+                button.disabled = true;
+                button.setAttribute('aria-disabled', 'true');
+                const isGlobal = button.dataset.settingScopeValue === SETTING_SCOPE_GLOBAL;
+                button.classList.toggle('active-toggle', isGlobal);
+                button.setAttribute('aria-pressed', isGlobal ? 'true' : 'false');
+            });
+        }
+
+        return scopeControl;
+    };
+
+    const installSettingScopeControls = () => {
+        scopedSettingTargets.forEach((target) => {
+            const { key, controlId } = target;
+            if (!settings.canScopeSetting(key)) return;
+            const control = document.getElementById(controlId);
+            const row = control?.closest('.setting-row');
+            if (!row || row.querySelector(`[data-setting-scope-control="${key}"]`)) return;
+
+            row.classList.add('setting-row-has-scope');
+            const scopeControl = createSettingScopeControl(key);
+            row.append(scopeControl);
+
+            scopeControl.addEventListener('click', (event) => {
+                const button = event.target instanceof Element
+                    ? event.target.closest('[data-setting-scope-value]')
+                    : null;
+                if (!(button instanceof HTMLButtonElement)) return;
+
+                settings.setSettingScope(key, button.dataset.settingScopeValue || SETTING_SCOPE_GLOBAL);
+                syncSettingScopeControls(key);
+                syncScopedControlValues(key);
+                button.blur();
+            });
+        });
+
+        settingsOverlayEl?.querySelectorAll('.settings-body .setting-row').forEach((row, index) => {
+            if (!(row instanceof HTMLElement)) return;
+            if (row.querySelector('.setting-scope-control')) return;
+            if (!row.querySelector(':scope > .setting-label')) return;
+            if (row.classList.contains('setting-row-no-divider')) return;
+            if (row.querySelector(':scope > button')) return;
+            if (row.id === 'setting-stackmat-device-row') return;
+
+            row.classList.add('setting-row-has-scope');
+            row.append(createSettingScopeControl(`unavailable-${index}`, { muted: true }));
+        });
+
+        syncSettingScopeControls();
+    };
+
+    settings.on('scopeChange', (key) => {
+        syncSettingScopeControls(key);
+        syncScopedControlValues(key);
+    });
+    settings.on('change', (key) => {
+        if (!scopedSettingTargetKeys.has(key)) return;
+        syncScopedControlValues(key);
+    });
+    settings.on('sessionContextChange', () => {
+        syncSettingScopeControls();
+        syncScopedControlValues();
+    });
+
     if (hideUIToggle) {
         hideUIToggle.checked = settings.get('hideUIWhileSolving');
 
@@ -12953,6 +13138,7 @@ function initSettingsPanel() {
     updateSwipeDownGestureVisibility();
     updateBackgroundSpacebarVisibility();
     updateTimeEntryVisibility();
+    syncScopeModeHardwareButtons();
     syncCameraBackgroundSettingControls();
 
     const handleSettingsViewportChange = () => {
@@ -12960,6 +13146,7 @@ function initSettingsPanel() {
         updateSwipeDownGestureVisibility();
         updateBackgroundSpacebarVisibility();
         updateTimeEntryVisibility();
+        syncScopeModeHardwareButtons();
         void syncCameraBackgroundMode();
         syncSettingsRowSeparators();
     };
@@ -13091,6 +13278,7 @@ function initSettingsPanel() {
                 : `Will show: ${parsed.tokens.join(', ')}`;
         syncSettingsRowSeparators();
     };
+    syncSummarySettingsUI = updateSummarySettingsUI;
 
     if (summaryPresetSelect && summaryCustomRow && summaryCustomInput && summaryFeedback) {
         const savedPreset = String(settings.get('summaryStatsPreset') || 'basic').toLowerCase();
@@ -13319,6 +13507,8 @@ function initSettingsPanel() {
         });
     });
 
+    installSettingScopeControls();
+    syncScopedControlValues();
     updateThemeSettingsUI();
     syncSettingsRowSeparators();
 
@@ -13391,6 +13581,8 @@ function initSettingsPanel() {
         if (googleDriveImportBtn) {
             googleDriveImportBtn.disabled = !configured || googleDriveBusy || !connected;
         }
+
+        syncScopeModeHardwareButtons();
     };
 
     const refreshGoogleDriveStatus = async () => {
@@ -13516,6 +13708,7 @@ function initSettingsPanel() {
                 closeSettingsPanel({ isPopState: true });
 
                 if (await customConfirm('This will replace all your current data with the Google Drive backup. Continue?')) {
+                    await settings.waitForPendingSessionSettingsPersistence();
                     await beginImportProgress('backup');
                     didBeginImport = true;
                     await importAll(data, {
@@ -13661,6 +13854,7 @@ function initSettingsPanel() {
             closeSettingsPanel({ isPopState: true });
 
             if (await customConfirm('This will replace all your current data. Continue?')) {
+                await settings.waitForPendingSessionSettingsPersistence();
                 const importSource = isJsonImport && isCsTimerFormat(data)
                     ? 'cstimer'
                     : isJsonImport && data && typeof data === 'object'

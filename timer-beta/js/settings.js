@@ -1,6 +1,22 @@
-import { load, save } from './storage.js?v=2026051402';
+import { load, registerBeforeDataExportHook, save } from './storage.js?v=2026051402';
 import { normalizeTimeEntryMode, TIME_ENTRY_MODE_TIMER, TIME_ENTRY_MODE_TYPING } from './time-entry.js?v=2026051402';
 import { EventEmitter } from './utils.js?v=2026051402';
+import {
+    SETTING_SCOPE_GLOBAL,
+    SETTING_SCOPE_SESSION,
+    SESSION_SCOPABLE_SETTING_KEYS,
+    canScopeSetting as canScopeSessionSetting,
+    getLinkedSessionScopeKeys,
+    getSessionScopedSettingKeys,
+    normalizeSettingScopes,
+} from './setting-scopes.js?v=2026051402';
+
+export {
+    SETTING_SCOPE_GLOBAL,
+    SETTING_SCOPE_SESSION,
+    SESSION_SCOPABLE_SETTING_KEYS,
+    getLinkedSessionScopeKeys,
+};
 
 export const THEME_DEFAULT_ID = 'default';
 export const THEME_OLED_ID = 'oled';
@@ -374,6 +390,7 @@ function normalizeThemeCustomizationCollapsedSections(value) {
 
 function createDefaultSettingsCollapsedSections() {
     return Object.freeze({
+        tools: false,
         timer: false,
         inspection: false,
         interface: false,
@@ -406,6 +423,7 @@ const DEFAULTS = {
     customThemeBases: createDefaultCustomThemeBases(),
     customThemeBackgrounds: createDefaultCustomThemeBackgrounds(),
     settingsCollapsedSections: createDefaultSettingsCollapsedSections(),
+    settingScopes: {},
     themeCustomizationMode: 'simple',
     themeCustomizationCollapsedSections: createDefaultThemeCustomizationCollapsedSections(),
     displayFont: 'jetbrains-mono',
@@ -460,6 +478,7 @@ export { DEFAULTS };
 
 const ANIMATION_MODES = new Set(['auto', 'on', 'off']);
 const BACKGROUND_IMAGE_SOURCES = new Set(['none', 'link', 'upload']);
+const SESSION_SCOPABLE_SETTING_KEY_SET = new Set(SESSION_SCOPABLE_SETTING_KEYS);
 
 const DISPLAY_FONT_STACKS = {
     arial: "Arial, 'Helvetica Neue', Helvetica, sans-serif",
@@ -754,12 +773,68 @@ function deepEqual(a, b) {
     return JSON.stringify(a) === JSON.stringify(b);
 }
 
+function cloneSettingValue(value) {
+    if (typeof value === 'object' && value !== null) {
+        return JSON.parse(JSON.stringify(value));
+    }
+    return value;
+}
+
+function normalizeSessionSettingValue(key, value) {
+    if (!SESSION_SCOPABLE_SETTING_KEY_SET.has(key)) return undefined;
+
+    if (key === 'timeEntryMode') {
+        return normalizeTimeEntryMode(value);
+    }
+
+    if (key === 'animationMode') {
+        if (value === true) return 'on';
+        if (value === false) return 'off';
+        return ANIMATION_MODES.has(value) ? value : DEFAULTS.animationMode;
+    }
+
+    if (key === 'theme') {
+        return normalizeThemeId(value);
+    }
+
+    return cloneSettingValue(value);
+}
+
+export function normalizeSessionSettings(value) {
+    const source = value && typeof value === 'object' ? value : {};
+    const normalized = {};
+
+    Object.entries(source).forEach(([key, rawValue]) => {
+        const nextValue = normalizeSessionSettingValue(key, rawValue);
+        if (nextValue === undefined) return;
+        normalized[key] = nextValue;
+    });
+
+    return normalized;
+}
+
+export function filterSessionSettingsByScopes(value, scopeMap = {}) {
+    const normalizedSettings = normalizeSessionSettings(value);
+    const normalizedScopes = normalizeSettingScopes(scopeMap);
+
+    return Object.fromEntries(
+        Object.entries(normalizedSettings).filter(([key]) => normalizedScopes[key] === SETTING_SCOPE_SESSION),
+    );
+}
+
 class Settings extends EventEmitter {
     constructor() {
         super();
         this._motionPreferenceQuery = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
             ? window.matchMedia('(prefers-reduced-motion: reduce)')
             : null;
+        this._activeSessionId = null;
+        this._storedActiveSessionSettings = {};
+        this._activeSessionSettings = {};
+        this._persistSessionSettings = null;
+        this._persistSessionScopePersistence = null;
+        this._pendingSessionPersistence = new Set();
+        registerBeforeDataExportHook(() => this.waitForPendingSessionSettingsPersistence());
         const loaded = load('settings', {});
         this._settings = {
             ...DEFAULTS,
@@ -771,6 +846,7 @@ class Settings extends EventEmitter {
             customThemeBases: createDefaultCustomThemeBases(),
             customThemeBackgrounds: createDefaultCustomThemeBackgrounds(),
             settingsCollapsedSections: loaded.settingsCollapsedSections,
+            settingScopes: loaded.settingScopes,
             themeCustomizationCollapsedSections: loaded.themeCustomizationCollapsedSections,
         };
 
@@ -798,6 +874,7 @@ class Settings extends EventEmitter {
         this._settings.settingsCollapsedSections = normalizeSettingsCollapsedSections(
             this._settings.settingsCollapsedSections,
         );
+        this._settings.settingScopes = normalizeSettingScopes(this._settings.settingScopes);
         this._settings.themeCustomizationCollapsedSections = normalizeThemeCustomizationCollapsedSections(
             this._settings.themeCustomizationCollapsedSections,
         );
@@ -809,11 +886,8 @@ class Settings extends EventEmitter {
     }
 
     get(key) {
-        const val = this._settings[key];
-        if (typeof val === 'object' && val !== null) {
-            return JSON.parse(JSON.stringify(val));
-        }
-        return val;
+        const val = this._getEffectiveValue(key);
+        return cloneSettingValue(val);
     }
 
     getAll() {
@@ -824,14 +898,142 @@ class Settings extends EventEmitter {
         return this._getActiveThemeColors();
     }
 
+    getSettingScope(key) {
+        if (!SESSION_SCOPABLE_SETTING_KEY_SET.has(key)) return SETTING_SCOPE_GLOBAL;
+        return this._settings.settingScopes?.[key] === SETTING_SCOPE_SESSION
+            ? SETTING_SCOPE_SESSION
+            : SETTING_SCOPE_GLOBAL;
+    }
+
+    isSessionScoped(key) {
+        return this.getSettingScope(key) === SETTING_SCOPE_SESSION;
+    }
+
+    canScopeSetting(key) {
+        return canScopeSessionSetting(key);
+    }
+
+    getSessionOverride(key) {
+        if (!SESSION_SCOPABLE_SETTING_KEY_SET.has(key)) return undefined;
+        if (!Object.prototype.hasOwnProperty.call(this._activeSessionSettings, key)) return undefined;
+        return cloneSettingValue(this._activeSessionSettings[key]);
+    }
+
+    configureSessionSettingsPersistence(callback) {
+        this._persistSessionSettings = typeof callback === 'function' ? callback : null;
+    }
+
+    configureSessionScopePersistence(callback) {
+        this._persistSessionScopePersistence = typeof callback === 'function' ? callback : null;
+    }
+
+    async waitForPendingSessionSettingsPersistence() {
+        while (this._pendingSessionPersistence.size > 0) {
+            await Promise.allSettled(Array.from(this._pendingSessionPersistence));
+        }
+    }
+
+    normalizeSessionSettings(value) {
+        return normalizeSessionSettings(value);
+    }
+
+    filterSessionSettingsByActiveScopes(value) {
+        return filterSessionSettingsByScopes(value, this._settings.settingScopes);
+    }
+
+    getSessionSettingsForNewSession() {
+        const nextSettings = {};
+        SESSION_SCOPABLE_SETTING_KEYS.forEach((key) => {
+            if (!this.isSessionScoped(key)) return;
+            nextSettings[key] = this.get(key);
+        });
+        return normalizeSessionSettings(nextSettings);
+    }
+
+    setActiveSessionContext(sessionId, sessionSettings = {}) {
+        const before = this._getEffectiveSnapshot();
+        const normalizedSessionSettings = normalizeSessionSettings(sessionSettings);
+        this._activeSessionId = sessionId || null;
+        this._storedActiveSessionSettings = normalizedSessionSettings;
+        this._activeSessionSettings = filterSessionSettingsByScopes(normalizedSessionSettings, this._settings.settingScopes);
+        this._apply();
+        this._emitEffectiveSettingChanges(before, this._getEffectiveSnapshot(), 'session');
+        this.emit('sessionContextChange', this._activeSessionId);
+    }
+
+    setSettingScope(key, scope) {
+        if (!SESSION_SCOPABLE_SETTING_KEY_SET.has(key)) return false;
+
+        const nextScope = scope === SETTING_SCOPE_SESSION ? SETTING_SCOPE_SESSION : SETTING_SCOPE_GLOBAL;
+        const linkedKeys = getLinkedSessionScopeKeys(key);
+        const keysNeedingScopeChange = linkedKeys.filter((linkedKey) => this.getSettingScope(linkedKey) !== nextScope);
+        if (keysNeedingScopeChange.length === 0) return false;
+
+        const before = this._getEffectiveSnapshot();
+        const previousEffectiveValues = Object.fromEntries(
+            linkedKeys.map((linkedKey) => [linkedKey, this.get(linkedKey)]),
+        );
+        const nextScopes = normalizeSettingScopes({
+            ...this._settings.settingScopes,
+            ...Object.fromEntries(linkedKeys.map((linkedKey) => [linkedKey, nextScope])),
+        });
+        let shouldPersistSessionSettings = false;
+
+        if (nextScope === SETTING_SCOPE_GLOBAL) {
+            const nextActiveSessionSettings = { ...this._activeSessionSettings };
+            const nextStoredActiveSessionSettings = { ...this._storedActiveSessionSettings };
+            linkedKeys.forEach((linkedKey) => {
+                delete nextScopes[linkedKey];
+                const promotedValue = normalizeSessionSettingValue(linkedKey, previousEffectiveValues[linkedKey]);
+                if (promotedValue !== undefined) {
+                    this._settings[linkedKey] = promotedValue;
+                }
+                delete nextStoredActiveSessionSettings[linkedKey];
+                if (Object.prototype.hasOwnProperty.call(nextActiveSessionSettings, linkedKey)) {
+                    delete nextActiveSessionSettings[linkedKey];
+                    shouldPersistSessionSettings = true;
+                }
+            });
+            if (shouldPersistSessionSettings) {
+                this._activeSessionSettings = normalizeSessionSettings(nextActiveSessionSettings);
+            }
+            this._storedActiveSessionSettings = normalizeSessionSettings(nextStoredActiveSessionSettings);
+        } else if (this._activeSessionId) {
+            linkedKeys.forEach((linkedKey) => {
+                if (Object.prototype.hasOwnProperty.call(this._activeSessionSettings, linkedKey)) return;
+                const restoredValue = Object.prototype.hasOwnProperty.call(this._storedActiveSessionSettings, linkedKey)
+                    ? this._storedActiveSessionSettings[linkedKey]
+                    : previousEffectiveValues[linkedKey];
+                this._activeSessionSettings[linkedKey] = normalizeSessionSettingValue(linkedKey, restoredValue);
+                this._storedActiveSessionSettings[linkedKey] = this._activeSessionSettings[linkedKey];
+                shouldPersistSessionSettings = true;
+            });
+        }
+
+        this._settings.settingScopes = nextScopes;
+        if (shouldPersistSessionSettings) {
+            this._persistActiveSessionSettings({ reconcileKeys: linkedKeys });
+        }
+        if (nextScope === SETTING_SCOPE_GLOBAL) {
+            this._persistSessionScopeChange(linkedKeys, nextScope);
+        }
+        this._saveAndApply();
+        linkedKeys.forEach((linkedKey) => {
+            this.emit('scopeChange', linkedKey, nextScope);
+        });
+        this.emit('change', 'settingScopes', this.get('settingScopes'));
+        this._emitEffectiveSettingChanges(before, this._getEffectiveSnapshot(), 'scope');
+        return true;
+    }
+
     _normalizeAnimationMode(value) {
         if (value === true) return 'on';
         if (value === false) return 'off';
         return ANIMATION_MODES.has(value) ? value : DEFAULTS.animationMode;
     }
 
-    _areAnimationsEnabled() {
-        const animationMode = this._normalizeAnimationMode(this._settings.animationMode);
+    _areAnimationsEnabled(animationModeValue = this._settings.animationMode) {
+        const animationMode = this._normalizeAnimationMode(animationModeValue);
         if (animationMode === 'on') return true;
         if (animationMode === 'off') return false;
         return !Boolean(this._motionPreferenceQuery?.matches);
@@ -848,6 +1050,7 @@ class Settings extends EventEmitter {
         this._settings.customThemeBases = normalizeCustomThemeBases(this._settings.customThemeBases);
         this._settings.customThemeBackgrounds = normalizeCustomThemeBackgrounds(this._settings.customThemeBackgrounds);
         this._settings.settingsCollapsedSections = normalizeSettingsCollapsedSections(this._settings.settingsCollapsedSections);
+        this._settings.settingScopes = normalizeSettingScopes(this._settings.settingScopes);
         this._settings.themeCustomizationCollapsedSections = normalizeThemeCustomizationCollapsedSections(
             this._settings.themeCustomizationCollapsedSections,
         );
@@ -865,22 +1068,150 @@ class Settings extends EventEmitter {
     }
 
     _getActiveThemeColors() {
-        if (isCustomThemeId(this._settings.theme)) {
-            return normalizeThemeColors(this._settings.customThemes[this._settings.theme], DEFAULT_THEME_COLORS);
+        const themeId = normalizeThemeId(this._getEffectiveValue('theme'));
+        if (isCustomThemeId(themeId)) {
+            return normalizeThemeColors(this._settings.customThemes[themeId], DEFAULT_THEME_COLORS);
         }
-        return getThemePresetColors(this._settings.theme);
+        return getThemePresetColors(themeId);
+    }
+
+    _getEffectiveValue(key) {
+        if (key === 'animationsEnabled') {
+            return this._areAnimationsEnabled(this._getEffectiveValue('animationMode'));
+        }
+
+        if (key === 'highContrastMode') {
+            return this._getEffectiveValue('theme') === THEME_OLED_ID;
+        }
+
+        if (this.isSessionScoped(key) && Object.prototype.hasOwnProperty.call(this._activeSessionSettings, key)) {
+            return this._activeSessionSettings[key];
+        }
+
+        return this._settings[key];
+    }
+
+    _getEffectiveSnapshot() {
+        const snapshot = {};
+        SESSION_SCOPABLE_SETTING_KEYS.forEach((key) => {
+            snapshot[key] = this.get(key);
+        });
+        snapshot.animationsEnabled = this.get('animationsEnabled');
+        snapshot.highContrastMode = this.get('highContrastMode');
+        return snapshot;
+    }
+
+    _emitEffectiveSettingChanges(before, after, signalType = 'modify') {
+        const changedKeys = new Set();
+        Object.keys(after).forEach((key) => {
+            if (!deepEqual(before?.[key], after[key])) {
+                changedKeys.add(key);
+            }
+        });
+
+        changedKeys.forEach((key) => {
+            this.emit('change', key, cloneSettingValue(after[key]), signalType);
+        });
+    }
+
+    _trackPendingSessionPersistence(taskFactory, errorLabel = 'Failed to save session settings:') {
+        let taskResult;
+        try {
+            // Run immediately so the session manager updates in-memory session state
+            // before other writes serialize the same session record.
+            taskResult = taskFactory();
+        } catch (error) {
+            console.warn(errorLabel, error);
+            return Promise.resolve();
+        }
+
+        const persistTask = Promise.resolve(taskResult)
+            .catch((error) => {
+                console.warn(errorLabel, error);
+            })
+            .finally(() => {
+                this._pendingSessionPersistence.delete(persistTask);
+            });
+        this._pendingSessionPersistence.add(persistTask);
+        return persistTask;
+    }
+
+    _persistActiveSessionSettings({ reconcileKeys = null } = {}) {
+        if (!this._activeSessionId || typeof this._persistSessionSettings !== 'function') return Promise.resolve();
+
+        const sessionId = this._activeSessionId;
+        const sessionSettings = filterSessionSettingsByScopes(this._activeSessionSettings, this._settings.settingScopes);
+        const normalizedReconcileKeys = Array.from(new Set(
+            (Array.isArray(reconcileKeys) && reconcileKeys.length > 0
+                ? reconcileKeys
+                : getSessionScopedSettingKeys(this._settings.settingScopes))
+                .filter((key) => SESSION_SCOPABLE_SETTING_KEY_SET.has(key)),
+        ));
+        return this._trackPendingSessionPersistence(
+            () => this._persistSessionSettings(sessionId, sessionSettings, {
+                reconcileKeys: normalizedReconcileKeys,
+            }),
+            'Failed to save session settings:',
+        );
+    }
+
+    _persistSessionScopeChange(keys, scope) {
+        if (typeof this._persistSessionScopePersistence !== 'function') return Promise.resolve();
+
+        const uniqueKeys = Array.from(new Set(
+            (Array.isArray(keys) ? keys : []).filter((key) => SESSION_SCOPABLE_SETTING_KEY_SET.has(key)),
+        ));
+        if (uniqueKeys.length === 0) return Promise.resolve();
+
+        return this._trackPendingSessionPersistence(
+            () => this._persistSessionScopePersistence(uniqueKeys, scope, { activeSessionId: this._activeSessionId }),
+            'Failed to update session scope persistence:',
+        );
+    }
+
+    _setSessionSetting(key, value) {
+        if (!SESSION_SCOPABLE_SETTING_KEY_SET.has(key) || !this._activeSessionId) {
+            this.setSettingScope(key, SETTING_SCOPE_GLOBAL);
+            this.set(key, value);
+            return;
+        }
+
+        const nextVal = normalizeSessionSettingValue(key, value);
+        if (nextVal === undefined) return;
+
+        if (deepEqual(this._activeSessionSettings[key], nextVal)) return;
+
+        this._activeSessionSettings = {
+            ...this._activeSessionSettings,
+            [key]: nextVal,
+        };
+        this._storedActiveSessionSettings = {
+            ...this._storedActiveSessionSettings,
+            [key]: nextVal,
+        };
+        this._persistActiveSessionSettings();
+        this._apply();
+        this.emit('change', key, cloneSettingValue(nextVal));
+
+        if (key === 'animationMode') {
+            this.emit('change', 'animationsEnabled', this.get('animationsEnabled'));
+        }
+
+        if (key === 'theme') {
+            this.emit('change', 'highContrastMode', this.get('highContrastMode'));
+        }
     }
 
     _bindMotionPreferenceListener() {
         if (!this._motionPreferenceQuery) return;
 
         const handleMotionPreferenceChange = () => {
-            if (this._settings.animationMode !== 'auto') return;
+            if (this.get('animationMode') !== 'auto') return;
 
-            const previousEnabled = this._settings.animationsEnabled;
+            const previousEnabled = this.get('animationsEnabled');
             this._syncAnimationSettings();
 
-            if (previousEnabled === this._settings.animationsEnabled) return;
+            if (previousEnabled === this.get('animationsEnabled')) return;
 
             this._syncThemeSettings();
             save('settings', this._settings);
@@ -909,6 +1240,11 @@ class Settings extends EventEmitter {
 
         if (key === 'highContrastMode') {
             this.set('theme', value ? THEME_OLED_ID : THEME_DEFAULT_ID);
+            return;
+        }
+
+        if (this.isSessionScoped(key)) {
+            this._setSessionSetting(key, value);
             return;
         }
 
@@ -1037,8 +1373,13 @@ class Settings extends EventEmitter {
             customThemeBases: createDefaultCustomThemeBases(),
             customThemeBackgrounds: createDefaultCustomThemeBackgrounds(),
             settingsCollapsedSections: createDefaultSettingsCollapsedSections(),
+            settingScopes: {},
             themeCustomizationCollapsedSections: createDefaultThemeCustomizationCollapsedSections(),
         };
+        this._storedActiveSessionSettings = {};
+        this._activeSessionSettings = {};
+        this._persistActiveSessionSettings({ reconcileKeys: SESSION_SCOPABLE_SETTING_KEYS });
+        this._persistSessionScopeChange(SESSION_SCOPABLE_SETTING_KEYS, SETTING_SCOPE_GLOBAL);
         this._syncAnimationSettings();
         this._syncThemeSettings();
         save('settings', this._settings);
@@ -1050,18 +1391,25 @@ class Settings extends EventEmitter {
         this._syncAnimationSettings();
         this._syncThemeSettings();
 
-        document.body.classList.toggle('no-animations', !this._settings.animationsEnabled);
-        document.body.classList.toggle('high-contrast-mode', this._settings.theme === THEME_OLED_ID);
-        document.body.classList.toggle('typing-entry-mode', this._settings.timeEntryMode === TIME_ENTRY_MODE_TYPING);
+        const effectiveAnimationEnabled = this.get('animationsEnabled');
+        const effectiveTheme = normalizeThemeId(this.get('theme'));
+        const effectiveTimeEntryMode = normalizeTimeEntryMode(this.get('timeEntryMode'));
+        const effectivePillSize = ['small', 'medium', 'large', 'hidden'].includes(this.get('pillSize'))
+            ? this.get('pillSize')
+            : DEFAULTS.pillSize;
+
+        document.body.classList.toggle('no-animations', !effectiveAnimationEnabled);
+        document.body.classList.toggle('high-contrast-mode', effectiveTheme === THEME_OLED_ID);
+        document.body.classList.toggle('typing-entry-mode', effectiveTimeEntryMode === TIME_ENTRY_MODE_TYPING);
         document.body.classList.toggle(
             'background-spacebar-enabled',
-            Boolean(this._settings.backgroundSpacebarEnabled) && this._settings.timeEntryMode === TIME_ENTRY_MODE_TIMER,
+            Boolean(this.get('backgroundSpacebarEnabled')) && effectiveTimeEntryMode === TIME_ENTRY_MODE_TIMER,
         );
 
         document.body.classList.remove('pill-size-small', 'pill-size-medium', 'pill-size-large', 'pill-size-hidden');
-        document.body.classList.add(`pill-size-${this._settings.pillSize}`);
+        document.body.classList.add(`pill-size-${effectivePillSize}`);
 
-        const displayFont = DISPLAY_FONT_STACKS[this._settings.displayFont] || DISPLAY_FONT_STACKS[DEFAULTS.displayFont];
+        const displayFont = DISPLAY_FONT_STACKS[this.get('displayFont')] || DISPLAY_FONT_STACKS[DEFAULTS.displayFont];
         document.documentElement.style.setProperty('--font-mono', displayFont);
         document.documentElement.style.setProperty('--font-timer', displayFont);
 
