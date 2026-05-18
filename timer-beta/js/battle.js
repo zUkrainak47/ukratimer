@@ -1,5 +1,5 @@
-import { load, remove, save } from './storage.js?v=2026051801';
-import { EventEmitter, formatTime, generateId } from './utils.js?v=2026051801';
+import { load, remove, save } from './storage.js?v=2026051802';
+import { EventEmitter, formatTime, generateId } from './utils.js?v=2026051802';
 
 const STORAGE_KEYS = Object.freeze({
     accountId: 'battleAccountId',
@@ -74,6 +74,17 @@ function normalizeRoomId(value) {
 
 function normalizeBattlePenalty(value) {
     return value === '+2' || value === 'DNF' ? value : null;
+}
+
+function getFiniteNumber(value) {
+    if (value == null || value === '') return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+}
+
+function getNonNegativeRoundedNumber(value, fallback = null) {
+    const number = getFiniteNumber(value);
+    return number == null ? fallback : Math.max(0, Math.round(number));
 }
 
 function getBattleStatusProgressRank(status) {
@@ -306,12 +317,12 @@ function mapRoomInfo(roomInfo) {
             ? roomInfo.players.map((player) => ({
                 accountId: String(player?.accountId ?? ''),
                 nickname: normalizeNickname(player?.nickname || player?.accountId || 'Player'),
-                elo: Number.isFinite(Number(player?.elo)) ? Number(player.elo) : 1000,
-                wins: Number.isFinite(Number(player?.wins)) ? Number(player.wins) : 0,
-                solveCount: Number.isFinite(Number(player?.solveCount)) ? Math.max(0, Math.round(Number(player.solveCount))) : null,
-                meanTimeMs: Number.isFinite(Number(player?.meanTimeMs)) ? Math.max(0, Math.round(Number(player.meanTimeMs))) : null,
-                meanTimeSum: Number.isFinite(Number(player?.meanTimeSum)) ? Math.max(0, Math.round(Number(player.meanTimeSum))) : null,
-                meanTimeCount: Number.isFinite(Number(player?.meanTimeCount)) ? Math.max(0, Math.round(Number(player.meanTimeCount))) : null,
+                elo: getFiniteNumber(player?.elo) ?? 1000,
+                wins: getFiniteNumber(player?.wins) ?? 0,
+                solveCount: getNonNegativeRoundedNumber(player?.solveCount),
+                meanTimeMs: getNonNegativeRoundedNumber(player?.meanTimeMs),
+                meanTimeSum: getNonNegativeRoundedNumber(player?.meanTimeSum),
+                meanTimeCount: getNonNegativeRoundedNumber(player?.meanTimeCount),
                 status: String(player?.status ?? BattlePresenceStatus.READY),
                 connected: player?.connected !== false,
             }))
@@ -319,11 +330,11 @@ function mapRoomInfo(roomInfo) {
         solves: Array.isArray(roomInfo?.solves)
             ? roomInfo.solves.map((solve) => ({
                 accountId: String(solve?.accountId ?? ''),
-                solveId: Number(solve?.solveId) || 0,
-                timeMs: Number.isFinite(Number(solve?.timeMs)) ? Math.max(0, Math.round(Number(solve.timeMs))) : null,
+                solveId: getFiniteNumber(solve?.solveId) || 0,
+                timeMs: getNonNegativeRoundedNumber(solve?.timeMs),
                 penalty: solve?.penalty === '+2' || solve?.penalty === 'DNF' ? solve.penalty : null,
-                localTimestamp: Number(solve?.localTimestamp) || 0,
-                submittedAt: Number(solve?.submittedAt) || 0,
+                localTimestamp: getFiniteNumber(solve?.localTimestamp) || 0,
+                submittedAt: getFiniteNumber(solve?.submittedAt) || 0,
                 origin: String(solve?.origin ?? ''),
             }))
             : [],
@@ -342,6 +353,93 @@ function getSolveMap(roomState) {
     });
 
     return byPlayer;
+}
+
+function getPlayerSolveCountFromSolves(roomState, accountId) {
+    if (!roomState || !accountId) return 0;
+    return roomState.solves.filter((solve) => solve?.accountId === accountId).length;
+}
+
+function getKnownBattleSolveCount(roomState, player) {
+    if (!player?.accountId) return 0;
+    const solveCount = getNonNegativeRoundedNumber(player.solveCount);
+    if (solveCount != null) {
+        return solveCount;
+    }
+    const meanTimeCount = getNonNegativeRoundedNumber(player.meanTimeCount);
+    if (meanTimeCount != null) {
+        return meanTimeCount;
+    }
+    return getPlayerSolveCountFromSolves(roomState, player.accountId);
+}
+
+function hasBattlePlayerAggregateStats(player) {
+    if (!player) return false;
+    if (getNonNegativeRoundedNumber(player.solveCount, 0) > 0) return true;
+    if (getNonNegativeRoundedNumber(player.meanTimeMs, 0) > 0) return true;
+    if (getNonNegativeRoundedNumber(player.meanTimeSum, 0) > 0) return true;
+    if (getNonNegativeRoundedNumber(player.meanTimeCount, 0) > 0) return true;
+    if (getNonNegativeRoundedNumber(player.wins, 0) > 0) return true;
+    const elo = getFiniteNumber(player.elo);
+    return Number.isFinite(elo) && elo !== 1000;
+}
+
+function isBattlePlayerProgressRollback(previousRoomState, nextRoomState, previousPlayer, nextPlayer) {
+    if (!previousPlayer?.accountId || previousPlayer.accountId !== nextPlayer?.accountId) return false;
+
+    const previousSolveCount = getKnownBattleSolveCount(previousRoomState, previousPlayer);
+    const previousWins = getNonNegativeRoundedNumber(previousPlayer.wins, 0);
+    const previousElo = getFiniteNumber(previousPlayer.elo);
+    const previousHasMean = getNonNegativeRoundedNumber(previousPlayer.meanTimeMs) != null
+        || (getNonNegativeRoundedNumber(previousPlayer.meanTimeSum) != null
+            && getNonNegativeRoundedNumber(previousPlayer.meanTimeCount, 0) > 0);
+    const previousHadProgress = previousSolveCount > 0
+        || previousWins > 0
+        || previousHasMean
+        || (Number.isFinite(previousElo) && previousElo !== 1000);
+
+    return previousHadProgress
+        && !hasBattlePlayerAggregateStats(nextPlayer)
+        && getPlayerSolveCountFromSolves(nextRoomState, nextPlayer.accountId) > 0;
+}
+
+function reconcileRoomState(previousRoomState, nextRoomState) {
+    if (!previousRoomState?.roomId
+        || previousRoomState.roomId !== nextRoomState?.roomId
+        || !previousRoomState.players.length
+        || !nextRoomState.players.length) {
+        return nextRoomState;
+    }
+
+    // Preserve local aggregate stats only when a snapshot still has solves but lacks
+    // the matching player totals. Lower totals can be legitimate penalty/delete updates.
+    const previousPlayers = new Map(previousRoomState.players.map((player) => [player.accountId, player]));
+    let preservedProgressCount = 0;
+    const players = nextRoomState.players.map((nextPlayer) => {
+        const previousPlayer = previousPlayers.get(nextPlayer.accountId);
+        if (!previousPlayer || !isBattlePlayerProgressRollback(previousRoomState, nextRoomState, previousPlayer, nextPlayer)) {
+            return nextPlayer;
+        }
+
+        preservedProgressCount++;
+        return {
+            ...nextPlayer,
+            elo: previousPlayer.elo,
+            wins: previousPlayer.wins,
+            solveCount: previousPlayer.solveCount ?? getKnownBattleSolveCount(previousRoomState, previousPlayer),
+            meanTimeMs: previousPlayer.meanTimeMs,
+            meanTimeSum: previousPlayer.meanTimeSum,
+            meanTimeCount: previousPlayer.meanTimeCount,
+        };
+    });
+
+    if (!preservedProgressCount) return nextRoomState;
+
+    return {
+        ...nextRoomState,
+        players,
+        preservedProgressCount,
+    };
 }
 
 export function formatBattleSolve(solve) {
@@ -372,13 +470,16 @@ function getBattleMeanTimeText(solves) {
 }
 
 function getBattlePlayerMeanTimeText(player, fallbackSolves) {
-    if (Number.isFinite(Number(player.meanTimeMs))) {
-        return formatTime(Math.max(0, Math.round(Number(player.meanTimeMs))));
+    const meanTimeMs = getNonNegativeRoundedNumber(player.meanTimeMs);
+    if (meanTimeMs != null) {
+        return formatTime(meanTimeMs);
     }
-    if (Number.isFinite(Number(player.meanTimeSum)) && Number(player.meanTimeCount) > 0) {
-        return formatTime(Math.round(Number(player.meanTimeSum) / Number(player.meanTimeCount)));
+    const meanTimeSum = getNonNegativeRoundedNumber(player.meanTimeSum);
+    const meanTimeCount = getNonNegativeRoundedNumber(player.meanTimeCount);
+    if (meanTimeSum != null && meanTimeCount > 0) {
+        return formatTime(Math.round(meanTimeSum / meanTimeCount));
     }
-    if (Number.isFinite(Number(player.solveCount)) || Number.isFinite(Number(player.meanTimeCount))) {
+    if (getNonNegativeRoundedNumber(player.solveCount) != null || meanTimeCount != null) {
         return '-';
     }
     return getBattleMeanTimeText(fallbackSolves);
@@ -402,9 +503,7 @@ export function buildBattleRows(roomState, localAccountId = '') {
         const previousSolve = playerSolves.get(roomState.lastRoundId) || null;
         const shownSolve = currentSolve || previousSolve;
         const shouldDimSolve = hasCurrentSolve && player.status !== BattlePresenceStatus.SOLVED && !currentSolve && previousSolve;
-        const solveCount = Number.isFinite(Number(player.solveCount))
-            ? Math.max(0, Math.round(Number(player.solveCount)))
-            : solveList.length;
+        const solveCount = getNonNegativeRoundedNumber(player.solveCount) ?? solveList.length;
         const winCount = Math.max(0, Math.round(Number(player.wins) || 0));
         const isDisconnected = player.connected === false;
 
@@ -1739,7 +1838,16 @@ class BattleManager extends EventEmitter {
         const previousRoundId = this._roomState.currentRoundId;
         const previousScramble = this._roomState.currentScramble;
         const previousScrambleType = this._roomState.scrambleType;
-        const nextRoomState = mapRoomInfo(roomInfo);
+        const mappedRoomState = mapRoomInfo(roomInfo);
+        const nextRoomState = reconcileRoomState(this._roomState, mappedRoomState);
+        if (nextRoomState.preservedProgressCount) {
+            this._log('warn', 'Preserved battle player progress from a regressive room snapshot.', {
+                preservedProgressCount: nextRoomState.preservedProgressCount,
+                currentRoundId: nextRoomState.currentRoundId,
+                previousRoundId,
+            });
+            delete nextRoomState.preservedProgressCount;
+        }
         const pendingSolveUpload = this._pendingSolveUpload;
         const uploadedPendingSolve = pendingSolveUpload && nextRoomState.solves.find((solve) => (
             solve.accountId === this._accountId
