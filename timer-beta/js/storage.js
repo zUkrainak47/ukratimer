@@ -1,12 +1,17 @@
-import * as db from './db.js?v=2026051802';
+import * as db from './db.js?v=2026051901';
 import {
     SETTING_SCOPE_SESSION,
     SUMMARY_STATS_SCOPE_SETTING_KEYS,
     normalizeSettingScopes,
-} from './setting-scopes.js?v=2026051802';
+} from './setting-scopes.js?v=2026051901';
 
 const STORAGE_PREFIX = 'cubetimer_';
 const STORAGE_VERSION = 1;
+export const IMPORT_MODE_REWRITE = 'rewrite';
+export const IMPORT_MODE_MERGE = 'merge';
+const SOLVE_MATCH_MODE_ID = 'id';
+const SOLVE_MATCH_MODE_LOGICAL_EXACT = 'logical';
+const SOLVE_MATCH_MODE_LOGICAL_CSTIMER = 'logical-cstimer';
 const SESSION_CSV_HEADERS = ['Puzzle', 'Category', 'Time(millis)', 'Date(millis)', 'Scramble', 'Penalty', 'Comment'];
 const BACKUP_LOCAL_STORAGE_KEYS = Object.freeze([
     'settings',
@@ -102,6 +107,10 @@ function _countEmbeddedSolves(sessions) {
     return sessions.reduce((count, session) => (
         count + (Array.isArray(session.solves) ? session.solves.length : 0)
     ), 0);
+}
+
+function _normalizeImportMode(mode) {
+    return mode === IMPORT_MODE_MERGE ? IMPORT_MODE_MERGE : IMPORT_MODE_REWRITE;
 }
 
 async function _replaceImportedData(
@@ -201,6 +210,276 @@ function _applyImportedBackupValues(data, { replaceMissing = false } = {}) {
     });
 }
 
+function _normalizeImportSessionName(name) {
+    return String(name ?? '').trim().toLocaleLowerCase();
+}
+
+function _groupSolvesBySessionId(solves) {
+    const solvesBySessionId = new Map();
+
+    solves.forEach((solve) => {
+        const sessionId = solve?.sessionId;
+        if (typeof sessionId !== 'string' || sessionId.length === 0) return;
+
+        if (!solvesBySessionId.has(sessionId)) {
+            solvesBySessionId.set(sessionId, []);
+        }
+        solvesBySessionId.get(sessionId).push(solve);
+    });
+
+    return solvesBySessionId;
+}
+
+function _buildSolveIdentityKey(solve, {
+    roundTimestampToSecond = false,
+    includeScramble = false,
+} = {}) {
+    const timestamp = Number.isFinite(solve?.timestamp) ? solve.timestamp : '';
+    const timestampKey = roundTimestampToSecond && timestamp !== ''
+        ? Math.floor(timestamp / 1000)
+        : timestamp;
+    const time = Number.isFinite(solve?.time) ? solve.time : '';
+    const baseKey = `${timestampKey}\u0000${time}`;
+
+    if (!includeScramble) return baseKey;
+
+    return `${baseKey}\u0000${String(solve?.scramble ?? '').trim()}`;
+}
+
+function _mergeLogicalSessionSolves(importedSolves, existingSolves, targetSessionId, {
+    roundTimestampToSecond = false,
+    includeScramble = false,
+} = {}) {
+    const remainingExistingQueues = new Map();
+    const mergedSolves = [];
+
+    existingSolves.forEach((solve) => {
+        const key = _buildSolveIdentityKey(solve, {
+            roundTimestampToSecond,
+            includeScramble,
+        });
+        if (!remainingExistingQueues.has(key)) {
+            remainingExistingQueues.set(key, []);
+        }
+        remainingExistingQueues.get(key).push(solve);
+    });
+
+    importedSolves.forEach((solve) => {
+        const key = _buildSolveIdentityKey(solve, {
+            roundTimestampToSecond,
+            includeScramble,
+        });
+        const queue = remainingExistingQueues.get(key);
+        const matchedSolve = Array.isArray(queue) && queue.length > 0
+            ? queue.shift()
+            : null;
+
+        if (matchedSolve) {
+            mergedSolves.push({
+                ...matchedSolve,
+                ...solve,
+                id: matchedSolve.id,
+                sessionId: targetSessionId,
+            });
+            return;
+        }
+
+        mergedSolves.push({
+            ...solve,
+            sessionId: targetSessionId,
+        });
+    });
+
+    remainingExistingQueues.forEach((queue) => {
+        queue.forEach((solve) => {
+            mergedSolves.push({
+                ...solve,
+                sessionId: targetSessionId,
+            });
+        });
+    });
+
+    return mergedSolves;
+}
+
+function _normalizeMergedSessionOrder(sessions) {
+    return sessions.map((session, index) => ({
+        ...session,
+        order: index,
+    }));
+}
+
+function _mergeImportedDataset(
+    importedSessions,
+    importedSolves,
+    {
+        existingData = null,
+        findExistingSessionMatch = null,
+        solveMatchMode = SOLVE_MATCH_MODE_ID,
+    } = {},
+) {
+    if (!existingData) {
+        return {
+            dbSessions: importedSessions,
+            dbSolves: importedSolves,
+            sessionIdMap: new Map(importedSessions.map((session) => [session.id, session.id])),
+        };
+    }
+
+    const existingSessions = Array.isArray(existingData.sessions) ? existingData.sessions : [];
+    const existingSolves = Array.isArray(existingData.solves) ? existingData.solves : [];
+    const existingSessionsById = new Map(
+        existingSessions.map((session) => [session.id, session]),
+    );
+    const importedSolvesBySessionId = _groupSolvesBySessionId(importedSolves);
+    const existingSolvesBySessionId = _groupSolvesBySessionId(existingSolves);
+    const importedSessionEntries = [];
+    const matchedExistingSessionIds = new Set();
+    const finalSessionIdSet = new Set();
+    const sessionIdMap = new Map();
+
+    importedSessions.forEach((importedSession) => {
+        const matchedExistingSession = typeof findExistingSessionMatch === 'function'
+            ? findExistingSessionMatch(importedSession)
+            : (existingSessionsById.get(importedSession.id) || null);
+        const targetSessionId = matchedExistingSession?.id || importedSession.id;
+        const mergedSession = {
+            ...importedSession,
+            id: targetSessionId,
+        };
+
+        if (matchedExistingSession) {
+            matchedExistingSessionIds.add(matchedExistingSession.id);
+        }
+
+        importedSessionEntries.push({
+            importedSession,
+            matchedExistingSession,
+            mergedSession,
+        });
+        sessionIdMap.set(importedSession.id, targetSessionId);
+        finalSessionIdSet.add(targetSessionId);
+    });
+
+    const remainingExistingSessions = existingSessions.filter((session) => (
+        !matchedExistingSessionIds.has(session.id)
+        && !finalSessionIdSet.has(session.id)
+    ));
+    const finalSessions = _normalizeMergedSessionOrder([
+        ...importedSessionEntries.map(({ mergedSession }) => mergedSession),
+        ...remainingExistingSessions,
+    ]);
+    const finalSolves = [];
+
+    importedSessionEntries.forEach(({ importedSession, matchedExistingSession, mergedSession }) => {
+        const importedSessionSolves = importedSolvesBySessionId.get(importedSession.id) || [];
+        const existingSessionSolves = matchedExistingSession
+            ? (existingSolvesBySessionId.get(matchedExistingSession.id) || [])
+            : [];
+
+        if (existingSessionSolves.length === 0) {
+            importedSessionSolves.forEach((solve) => {
+                finalSolves.push({
+                    ...solve,
+                    sessionId: mergedSession.id,
+                });
+            });
+            return;
+        }
+
+        if (solveMatchMode === SOLVE_MATCH_MODE_LOGICAL_EXACT) {
+            finalSolves.push(
+                ..._mergeLogicalSessionSolves(importedSessionSolves, existingSessionSolves, mergedSession.id),
+            );
+            return;
+        }
+
+        if (solveMatchMode === SOLVE_MATCH_MODE_LOGICAL_CSTIMER) {
+            finalSolves.push(
+                ..._mergeLogicalSessionSolves(importedSessionSolves, existingSessionSolves, mergedSession.id, {
+                    roundTimestampToSecond: true,
+                    includeScramble: true,
+                }),
+            );
+            return;
+        }
+
+        const importedSolveIds = new Set(importedSessionSolves.map((solve) => solve.id));
+        importedSessionSolves.forEach((solve) => {
+            finalSolves.push({
+                ...solve,
+                sessionId: mergedSession.id,
+            });
+        });
+        existingSessionSolves.forEach((solve) => {
+            if (importedSolveIds.has(solve.id)) return;
+            finalSolves.push({
+                ...solve,
+                sessionId: mergedSession.id,
+            });
+        });
+    });
+
+    remainingExistingSessions.forEach((session) => {
+        const sessionSolves = existingSolvesBySessionId.get(session.id) || [];
+        sessionSolves.forEach((solve) => {
+            finalSolves.push(solve);
+        });
+    });
+
+    return {
+        dbSessions: finalSessions,
+        dbSolves: finalSolves,
+        sessionIdMap,
+    };
+}
+
+function _buildSessionNameMergeResolver(existingSessions) {
+    const sessionQueuesByName = new Map();
+
+    existingSessions.forEach((session) => {
+        const normalizedName = _normalizeImportSessionName(session?.name);
+        if (!normalizedName) return;
+
+        if (!sessionQueuesByName.has(normalizedName)) {
+            sessionQueuesByName.set(normalizedName, []);
+        }
+        sessionQueuesByName.get(normalizedName).push(session);
+    });
+
+    return (importedSession) => {
+        const normalizedName = _normalizeImportSessionName(importedSession?.name);
+        const queue = normalizedName ? sessionQueuesByName.get(normalizedName) : null;
+        if (!Array.isArray(queue) || queue.length === 0) return null;
+        return queue.shift() || null;
+    };
+}
+
+function _buildCsTimerSessionMergeResolver(existingSessions, sessionMatchHints = new Map()) {
+    const existingSessionsById = new Map(
+        existingSessions.map((session) => [session.id, session]),
+    );
+    const resolveByName = _buildSessionNameMergeResolver(existingSessions);
+    const usedSessionIds = new Set();
+
+    return (importedSession) => {
+        const hintedSessionId = sessionMatchHints.get(importedSession.id) || '';
+        if (hintedSessionId && existingSessionsById.has(hintedSessionId) && !usedSessionIds.has(hintedSessionId)) {
+            usedSessionIds.add(hintedSessionId);
+            return existingSessionsById.get(hintedSessionId) || null;
+        }
+
+        let matchedSession = resolveByName(importedSession);
+        while (matchedSession && usedSessionIds.has(matchedSession.id)) {
+            matchedSession = resolveByName(importedSession);
+        }
+
+        if (!matchedSession) return null;
+        usedSessionIds.add(matchedSession.id);
+        return matchedSession;
+    };
+}
+
 /**
  * Export all timer data as a single JSON object.
  * Reads sessions + solves from IndexedDB, settings from localStorage.
@@ -239,8 +518,13 @@ export async function exportAll() {
  * Import data from a JSON object, overwriting existing data.
  * @param {object} data
  */
-export async function importAll(data, { onProgress = null } = {}) {
+export async function importAll(data, { mode = IMPORT_MODE_REWRITE, onProgress = null } = {}) {
     if (!data || typeof data !== 'object') return;
+
+    const importMode = _normalizeImportMode(mode);
+    const existingData = importMode === IMPORT_MODE_MERGE
+        ? await db.getAllData()
+        : null;
 
     // Separate sessions from other data
     const sessions = data.sessions || [];
@@ -248,8 +532,12 @@ export async function importAll(data, { onProgress = null } = {}) {
     const dbSessions = [];
     const dbSolves = [];
     const parseTotal = sessions.length + totalSolveCount;
-    const writeTotal = 1 + sessions.length + totalSolveCount;
-    const totalWork = parseTotal + writeTotal;
+    const estimatedWriteTotal = 1 + sessions.length + totalSolveCount + (
+        importMode === IMPORT_MODE_MERGE
+            ? ((existingData?.sessions?.length || 0) + (existingData?.solves?.length || 0))
+            : 0
+    );
+    const estimatedTotalWork = parseTotal + estimatedWriteTotal;
     let parseCompleted = 0;
 
     _reportImportProgress(onProgress, {
@@ -259,8 +547,8 @@ export async function importAll(data, { onProgress = null } = {}) {
         completed: 0,
         total: parseTotal,
         processed: 0,
-        totalWork,
-        percent: totalWork > 0 ? 0 : 100,
+        totalWork: estimatedTotalWork,
+        percent: estimatedTotalWork > 0 ? 0 : 100,
         sessionCount: sessions.length,
         solveCount: totalSolveCount,
     });
@@ -294,8 +582,8 @@ export async function importAll(data, { onProgress = null } = {}) {
                         completed: parseCompleted,
                         total: parseTotal,
                         processed: parseCompleted,
-                        totalWork,
-                        percent: totalWork > 0 ? (parseCompleted / totalWork) * 100 : 100,
+                        totalWork: estimatedTotalWork,
+                        percent: estimatedTotalWork > 0 ? (parseCompleted / estimatedTotalWork) * 100 : 100,
                         sessionCount: sessions.length,
                         solveCount: totalSolveCount,
                     });
@@ -308,7 +596,33 @@ export async function importAll(data, { onProgress = null } = {}) {
         }
     }
 
-    await _replaceImportedData(dbSessions, dbSolves, {
+    let finalSessions = dbSessions;
+    let finalSolves = dbSolves;
+
+    if (importMode === IMPORT_MODE_MERGE) {
+        _reportImportProgress(onProgress, {
+            source: 'backup',
+            phase: 'merging',
+            stage: 'solves',
+            completed: parseCompleted,
+            total: parseTotal,
+            processed: parseCompleted,
+            totalWork: estimatedTotalWork,
+            percent: estimatedTotalWork > 0 ? (parseCompleted / estimatedTotalWork) * 100 : 100,
+            sessionCount: dbSessions.length,
+            solveCount: dbSolves.length,
+        });
+
+        const mergedData = _mergeImportedDataset(dbSessions, dbSolves, {
+            existingData,
+        });
+        finalSessions = mergedData.dbSessions;
+        finalSolves = mergedData.dbSolves;
+    }
+
+    const totalWork = parseTotal + 1 + finalSessions.length + finalSolves.length;
+
+    await _replaceImportedData(finalSessions, finalSolves, {
         source: 'backup',
         onProgress,
         processedOffset: parseTotal,
@@ -328,8 +642,8 @@ export async function importAll(data, { onProgress = null } = {}) {
         processed: totalWork,
         totalWork,
         percent: 100,
-        sessionCount: dbSessions.length,
-        solveCount: dbSolves.length,
+        sessionCount: finalSessions.length,
+        solveCount: finalSolves.length,
     });
 }
 
@@ -538,7 +852,8 @@ export async function convertSessionCsv(text, { onProgress = null } = {}) {
     };
 }
 
-export async function importSessionCsv(text, { onProgress = null } = {}) {
+export async function importSessionCsv(text, { mode = IMPORT_MODE_REWRITE, onProgress = null } = {}) {
+    const importMode = _normalizeImportMode(mode);
     const PARSE_PERCENT = 45;
     const WRITE_PERCENT = 55;
     const csvParseProgress = (snapshot) => {
@@ -563,12 +878,45 @@ export async function importSessionCsv(text, { onProgress = null } = {}) {
         });
     };
 
-    await _replaceImportedData(dbSessions, dbSolves, {
+    let finalSessions = dbSessions;
+    let finalSolves = dbSolves;
+    let activeSessionId = backupValues.activeSessionId ?? null;
+
+    if (importMode === IMPORT_MODE_MERGE) {
+        _reportImportProgress(onProgress, {
+            source: 'csv',
+            phase: 'merging',
+            stage: 'solves',
+            completed: 0,
+            total: 0,
+            processed: 45,
+            totalWork: 100,
+            percent: PARSE_PERCENT,
+            sessionCount: dbSessions.length,
+            solveCount: dbSolves.length,
+        });
+
+        const existingData = await db.getAllData();
+        const mergedData = _mergeImportedDataset(dbSessions, dbSolves, {
+            existingData,
+            findExistingSessionMatch: _buildSessionNameMergeResolver(existingData.sessions || []),
+            solveMatchMode: SOLVE_MATCH_MODE_LOGICAL_EXACT,
+        });
+
+        finalSessions = mergedData.dbSessions;
+        finalSolves = mergedData.dbSolves;
+        activeSessionId = mergedData.sessionIdMap.get(activeSessionId) || activeSessionId;
+    }
+
+    await _replaceImportedData(finalSessions, finalSolves, {
         source: 'csv',
         onProgress: writeProgress,
     });
 
-    _applyImportedBackupValues(backupValues);
+    _applyImportedBackupValues({
+        ...backupValues,
+        activeSessionId,
+    });
 
     _reportImportProgress(onProgress, {
         source: 'csv',
@@ -579,8 +927,8 @@ export async function importSessionCsv(text, { onProgress = null } = {}) {
         processed: 100,
         totalWork: 100,
         percent: 100,
-        sessionCount: dbSessions.length,
-        solveCount: dbSolves.length,
+        sessionCount: finalSessions.length,
+        solveCount: finalSolves.length,
     });
 }
 
@@ -1319,8 +1667,13 @@ export function isCsTimerFormat(data) {
 /**
  * Convert csTimer JSON → internal format and import it.
  */
-export async function importCsTimer(csData, { onProgress = null } = {}) {
+export async function importCsTimer(csData, { mode = IMPORT_MODE_REWRITE, onProgress = null } = {}) {
     if (!csData || typeof csData !== 'object') return;
+
+    const importMode = _normalizeImportMode(mode);
+    const existingData = importMode === IMPORT_MODE_MERGE
+        ? await db.getAllData()
+        : null;
 
     const properties = (csData.properties && typeof csData.properties === 'object')
         ? csData.properties
@@ -1445,9 +1798,14 @@ export async function importCsTimer(csData, { onProgress = null } = {}) {
 
     const dbSessions = [];
     const dbSolves = [];
+    const sessionMatchHints = new Map();
     const totalRawSolveCount = importedSessions.reduce((count, session) => count + session.solves.length, 0);
     const parseTotal = importedSessions.length + totalRawSolveCount;
-    const estimatedTotalWork = parseTotal + 1 + importedSessions.length + totalRawSolveCount;
+    const estimatedTotalWork = parseTotal + 1 + importedSessions.length + totalRawSolveCount + (
+        importMode === IMPORT_MODE_MERGE
+            ? ((existingData?.sessions?.length || 0) + (existingData?.solves?.length || 0))
+            : 0
+    );
     let parseCompleted = 0;
 
     _reportImportProgress(onProgress, {
@@ -1527,6 +1885,7 @@ export async function importCsTimer(csData, { onProgress = null } = {}) {
                 ? { settings: _sanitizeSessionSettingsForTransport(session.settings) }
                 : {}),
         });
+        sessionMatchHints.set(session.id, session.metadataSessionId || '');
     }
 
     if (importedSessions.length === 0) return;
@@ -1587,12 +1946,38 @@ export async function importCsTimer(csData, { onProgress = null } = {}) {
 
     const newSettings = _sanitizeStoredSettingsForImport(nextSettings);
 
-    const activeImportedSessionId = activeImportedSession?.id || dbSessions[0]?.id || null;
+    let activeImportedSessionId = activeImportedSession?.id || dbSessions[0]?.id || null;
     const activeImportedScrambleType = activeImportedSession?.scrambleType || '333';
+    let finalSessions = dbSessions;
+    let finalSolves = dbSolves;
 
-    const totalWork = parseTotal + 1 + dbSessions.length + dbSolves.length;
+    if (importMode === IMPORT_MODE_MERGE) {
+        _reportImportProgress(onProgress, {
+            source: 'cstimer',
+            phase: 'merging',
+            stage: 'solves',
+            completed: parseCompleted,
+            total: parseTotal,
+            processed: parseCompleted,
+            totalWork: estimatedTotalWork,
+            percent: estimatedTotalWork > 0 ? (parseCompleted / estimatedTotalWork) * 100 : 100,
+            sessionCount: dbSessions.length,
+            solveCount: dbSolves.length,
+        });
 
-    await _replaceImportedData(dbSessions, dbSolves, {
+        const mergedData = _mergeImportedDataset(dbSessions, dbSolves, {
+            existingData,
+            findExistingSessionMatch: _buildCsTimerSessionMergeResolver(existingData.sessions || [], sessionMatchHints),
+            solveMatchMode: SOLVE_MATCH_MODE_LOGICAL_CSTIMER,
+        });
+        finalSessions = mergedData.dbSessions;
+        finalSolves = mergedData.dbSolves;
+        activeImportedSessionId = mergedData.sessionIdMap.get(activeImportedSessionId) || activeImportedSessionId;
+    }
+
+    const totalWork = parseTotal + 1 + finalSessions.length + finalSolves.length;
+
+    await _replaceImportedData(finalSessions, finalSolves, {
         source: 'cstimer',
         onProgress,
         processedOffset: parseTotal,
@@ -1613,8 +1998,8 @@ export async function importCsTimer(csData, { onProgress = null } = {}) {
         processed: totalWork,
         totalWork,
         percent: 100,
-        sessionCount: dbSessions.length,
-        solveCount: dbSolves.length,
+        sessionCount: finalSessions.length,
+        solveCount: finalSolves.length,
     });
 }
 

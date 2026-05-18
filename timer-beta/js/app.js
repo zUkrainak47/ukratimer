@@ -1,20 +1,20 @@
-import { timer, State as TimerState } from './timer.js?v=2026051802';
-import { SCRAMBLE_TYPE_OPTIONS, generateScrambleBatchForType, generateScrambleForType, getScramble, getCurrentScramble, getCurrentScrambleType, getPrevScramble, getNextScramble, getSelectedScrambleType, setCurrentScramble, setScrambleType, isCurrentScrambleManual, hasPrevScramble, isViewingPreviousScramble, preloadScrambleEngines, needsCubingWarmup, runCubingWarmup } from './scramble.js?v=2026051802';
-import { sessionManager } from './session.js?v=2026051802';
-import { settings, DEFAULTS, THEME_OPTIONS, THEME_COLOR_SECTIONS, THEME_DEFAULT_ID, THEME_OLED_ID, THEME_CUSTOM_IDS, SETTING_SCOPE_GLOBAL, SETTING_SCOPE_SESSION, SESSION_SCOPABLE_SETTING_KEYS, composeThemeColor, decomposeThemeColor, getLinkedSessionScopeKeys, getThemePresetColors, isCustomThemeId } from './settings.js?v=2026051802';
-import { parseGraphStatType, parseRollingStatType, rollingStatAt, StatsCache } from './stats.js?v=2026051802';
-import { formatTime, formatSolveTime, formatTimerDisplayTime, getEffectiveTime, formatDate, formatDateTime, parseTimeInputToMs, truncateTimeDisplay } from './utils.js?v=2026051802';
-import { initModal, showSolveDetail, showAverageDetail, closeModal, closeMoveSessionMenus, customConfirm, customPrompt, getModalSelectionContext, setModalStatNavigator, setModalStatButtons, armModalGhostClickGuard } from './modal.js?v=2026051802';
-import { applyMegaminxScramble, applyPyraminxScramble, applyScramble, applySquare1Scramble, applySkewbScramble, applyClockScramble, clearCubeDisplay, drawMegaminxFacePreview, drawSquare1, drawClock, initCubeDisplay, updateCubeDisplay, updateMegaminxDisplay, updatePyraminxDisplay, updateSquare1Display, updateSkewbDisplay, updateClockDisplay } from './cube-display.js?v=2026051802';
-import { initGraph, updateGraph, updateGraphData, setLineVisibility, getLineVisibility, applyAction, graphEvents, getGraphLineDefinitions } from './graph.js?v=2026051802';
-import { closeTimeDistributionModal, initTimeDistributionModal, isTimeDistributionModalOpen, refreshTimeDistributionData, refreshTimeDistributionTheme, showTimeDistributionModal } from './distribution.js?v=2026051802';
-import { exportAll, importAll, isCsTimerFormat, importCsTimer, exportCsTimer, importSessionCsv } from './storage.js?v=2026051802';
-import { connectGoogleDrive, consumeAuthSession, exportBackupToGoogleDrive, getGoogleDriveBackupInfo, hasGoogleDriveSession, importBackupFromGoogleDrive, isGoogleDriveSyncConfigured, restoreGoogleDriveSession, signOutOfGoogleDrive } from './google-drive-sync.js?v=2026051802';
-import { dailyStreakStore, normalizeDailyStreakGoal } from './streaks.js?v=2026051802';
-import { bluetoothTimerInput, BluetoothTimerState } from './hardware-bluetooth-timer.js?v=2026051802';
-import { stackmatInput } from './hardware-stackmat.js?v=2026051802';
-import { isHardwareTimeEntryMode, isTypingTimeEntryMode, normalizeTimeEntryMode, TIME_ENTRY_MODE_BLUETOOTH, TIME_ENTRY_MODE_STACKMAT, TIME_ENTRY_MODE_TIMER } from './time-entry.js?v=2026051802';
-import { battleManager } from './battle.js?v=2026051802';
+import { timer, State as TimerState } from './timer.js?v=2026051901';
+import { SCRAMBLE_TYPE_OPTIONS, generateScrambleBatchForType, generateScrambleForType, getScramble, getCurrentScramble, getCurrentScrambleType, getPrevScramble, getNextScramble, getSelectedScrambleType, setCurrentScramble, setScrambleType, isCurrentScrambleManual, hasPrevScramble, isViewingPreviousScramble, preloadScrambleEngines, needsCubingWarmup, runCubingWarmup } from './scramble.js?v=2026051901';
+import { sessionManager } from './session.js?v=2026051901';
+import { settings, DEFAULTS, THEME_OPTIONS, THEME_COLOR_SECTIONS, THEME_DEFAULT_ID, THEME_OLED_ID, THEME_CUSTOM_IDS, SETTING_SCOPE_GLOBAL, SETTING_SCOPE_SESSION, SESSION_SCOPABLE_SETTING_KEYS, composeThemeColor, decomposeThemeColor, getLinkedSessionScopeKeys, getThemePresetColors, isCustomThemeId } from './settings.js?v=2026051901';
+import { parseGraphStatType, parseRollingStatType, rollingStatAt, StatsCache } from './stats.js?v=2026051901';
+import { formatTime, formatSolveTime, formatTimerDisplayTime, getEffectiveTime, formatDate, formatDateTime, parseTimeInputToMs, truncateTimeDisplay } from './utils.js?v=2026051901';
+import { initModal, showSolveDetail, showAverageDetail, closeModal, closeMoveSessionMenus, customConfirm, customConfirmChoice, customPrompt, getModalSelectionContext, setModalStatNavigator, setModalStatButtons, armModalGhostClickGuard } from './modal.js?v=2026051901';
+import { applyMegaminxScramble, applyPyraminxScramble, applyScramble, applySquare1Scramble, applySkewbScramble, applyClockScramble, clearCubeDisplay, drawMegaminxFacePreview, drawSquare1, drawClock, initCubeDisplay, updateCubeDisplay, updateMegaminxDisplay, updatePyraminxDisplay, updateSquare1Display, updateSkewbDisplay, updateClockDisplay } from './cube-display.js?v=2026051901';
+import { initGraph, updateGraph, updateGraphData, setLineVisibility, getLineVisibility, applyAction, graphEvents, getGraphLineDefinitions } from './graph.js?v=2026051901';
+import { closeTimeDistributionModal, initTimeDistributionModal, isTimeDistributionModalOpen, refreshTimeDistributionData, refreshTimeDistributionTheme, showTimeDistributionModal } from './distribution.js?v=2026051901';
+import { exportAll, importAll, isCsTimerFormat, importCsTimer, exportCsTimer, importSessionCsv, IMPORT_MODE_MERGE, IMPORT_MODE_REWRITE } from './storage.js?v=2026051901';
+import { connectGoogleDrive, consumeAuthSession, exportBackupToGoogleDrive, getGoogleDriveBackupInfo, hasGoogleDriveSession, importBackupFromGoogleDrive, isGoogleDriveSyncConfigured, restoreGoogleDriveSession, signOutOfGoogleDrive } from './google-drive-sync.js?v=2026051901';
+import { dailyStreakStore, normalizeDailyStreakGoal } from './streaks.js?v=2026051901';
+import { bluetoothTimerInput, BluetoothTimerState } from './hardware-bluetooth-timer.js?v=2026051901';
+import { stackmatInput } from './hardware-stackmat.js?v=2026051901';
+import { isHardwareTimeEntryMode, isTypingTimeEntryMode, normalizeTimeEntryMode, TIME_ENTRY_MODE_BLUETOOTH, TIME_ENTRY_MODE_STACKMAT, TIME_ENTRY_MODE_TIMER } from './time-entry.js?v=2026051901';
+import { battleManager } from './battle.js?v=2026051901';
 
 let currentScramble = '';
 let currentSortCol = null;
@@ -282,7 +282,7 @@ async function registerServiceWorker() {
     if (window.location?.protocol === 'file:') return;
 
     try {
-        const serviceWorkerUrl = new URL('../sw.js?v=2026051802', import.meta.url);
+        const serviceWorkerUrl = new URL('../sw.js?v=2026051901', import.meta.url);
         await navigator.serviceWorker.register(serviceWorkerUrl);
     } catch (error) {
         console.warn('Service worker registration failed:', error);
@@ -522,6 +522,8 @@ function formatImportProgressText(snapshot = importProgressState) {
     switch (snapshot.phase) {
         case 'parsing':
             return `Importing ${sourceLabel}: parsing data`;
+        case 'merging':
+            return `Importing ${sourceLabel}: merging with current data`;
         case 'writing':
             if (snapshot.stage === 'clearing') return `Importing ${sourceLabel}: replacing existing data`;
             if (snapshot.stage === 'sessions') return `Importing ${sourceLabel}: saving sessions`;
@@ -703,6 +705,20 @@ async function beginImportProgress(source = 'backup') {
     });
 
     await waitForNextPaint();
+}
+
+async function confirmImportMode(message) {
+    const choice = await customConfirmChoice(message, {
+        optionLabel: 'Merge',
+        optionValue: IMPORT_MODE_MERGE,
+        okLabel: 'Rewrite',
+        okValue: IMPORT_MODE_REWRITE,
+        defaultAction: 'option',
+    });
+
+    return choice === IMPORT_MODE_MERGE || choice === IMPORT_MODE_REWRITE
+        ? choice
+        : null;
 }
 
 function applyImportProgress(snapshot) {
@@ -13707,11 +13723,16 @@ function initSettingsPanel() {
 
                 closeSettingsPanel({ isPopState: true });
 
-                if (await customConfirm('This will replace all your current data with the Google Drive backup. Continue?')) {
+                const importMode = await confirmImportMode(
+                    'Choose how to import this Google Drive backup. Merge keeps solves that are missing from the backup. Rewrite replaces everything.',
+                );
+
+                if (importMode) {
                     await settings.waitForPendingSessionSettingsPersistence();
                     await beginImportProgress('backup');
                     didBeginImport = true;
                     await importAll(data, {
+                        mode: importMode,
                         onProgress: applyImportProgress,
                     });
                     await waitForNextPaint();
@@ -13853,7 +13874,11 @@ function initSettingsPanel() {
             // and ensure confirmation is visible (history state is reused by customConfirm)
             closeSettingsPanel({ isPopState: true });
 
-            if (await customConfirm('This will replace all your current data. Continue?')) {
+            const importMode = await confirmImportMode(
+                'Choose how to import this file. Merge keeps solves that are missing from the import. Rewrite replaces everything.',
+            );
+
+            if (importMode) {
                 await settings.waitForPendingSessionSettingsPersistence();
                 const importSource = isJsonImport && isCsTimerFormat(data)
                     ? 'cstimer'
@@ -13864,14 +13889,17 @@ function initSettingsPanel() {
 
                 if (isJsonImport && isCsTimerFormat(data)) {
                     await importCsTimer(data, {
+                        mode: importMode,
                         onProgress: applyImportProgress,
                     });
                 } else if (isJsonImport && data && typeof data === 'object') {
                     await importAll(data, {
+                        mode: importMode,
                         onProgress: applyImportProgress,
                     });
                 } else {
                     await importSessionCsv(text, {
+                        mode: importMode,
                         onProgress: applyImportProgress,
                     });
                 }

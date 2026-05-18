@@ -1,5 +1,5 @@
-import { formatTime, formatSolveTime, formatReadableDate, formatDateTime, getEffectiveTime } from './utils.js?v=2026051802';
-import { sessionManager } from './session.js?v=2026051802';
+import { formatTime, formatSolveTime, formatReadableDate, formatDateTime, getEffectiveTime } from './utils.js?v=2026051901';
+import { sessionManager } from './session.js?v=2026051901';
 
 let _overlay = null;
 let _textarea = null;
@@ -1009,18 +1009,35 @@ function expandReadableStatLabel(rawLabel) {
 
 /**
  * Custom async confirm modal matching the application aesthetics.
- * Returns a Promise that resolves to true (OK) or false (Cancel).
+ * Resolves to the configured action value or null when cancelled.
  */
-export function customConfirm(message) {
+export function customConfirmChoice(message, {
+    cancelLabel = 'Cancel',
+    optionLabel = '',
+    optionValue = null,
+    optionClassName = 'btn-primary-action',
+    okLabel = 'OK',
+    okValue = true,
+    okClassName = 'btn-danger',
+    defaultAction = 'ok',
+} = {}) {
     return new Promise((resolve) => {
         const overlay = document.getElementById('confirm-overlay');
         const msgEl = document.getElementById('confirm-message');
         const btnOk = document.getElementById('confirm-btn-ok');
+        const btnOption = document.getElementById('confirm-btn-option');
         const btnCancel = document.getElementById('confirm-btn-cancel');
         const btnClose = document.getElementById('confirm-btn-close');
+        const hasOption = typeof optionLabel === 'string' && optionLabel.trim().length > 0;
 
         // Set message
         msgEl.textContent = message;
+        btnCancel.textContent = cancelLabel;
+        btnOk.textContent = okLabel;
+        btnOk.className = `btn ${okClassName}`;
+        btnOption.textContent = optionLabel;
+        btnOption.className = `btn ${optionClassName}`;
+        btnOption.hidden = !hasOption;
 
         if (!window.history.state?.isBackIntercepted) {
             window.history.pushState({ isBackIntercepted: true }, '');
@@ -1034,6 +1051,7 @@ export function customConfirm(message) {
         const cleanup = () => {
             overlay.classList.remove('active');
             btnOk.removeEventListener('click', onOk);
+            btnOption.removeEventListener('click', onOption);
             btnCancel.removeEventListener('click', onCancel);
             btnClose.removeEventListener('click', onCancel);
             overlay.removeEventListener('mousedown', onOverlayMouseDown);
@@ -1044,12 +1062,18 @@ export function customConfirm(message) {
         };
 
         // Handlers
-        const onOk = () => { cleanup(); resolve(true); };
-        const onCancel = () => { cleanup(); resolve(false); };
+        const onOk = () => { cleanup(); resolve(okValue); };
+        const onOption = () => { cleanup(); resolve(optionValue); };
+        const onCancel = () => { cleanup(); resolve(null); };
         const onOverlayClick = (e) => {
             if (confirmMouseDownTarget === overlay && confirmMouseUpTarget === overlay) onCancel();
             confirmMouseDownTarget = null;
             confirmMouseUpTarget = null;
+        };
+        const getDefaultHandler = () => {
+            if (defaultAction === 'option' && hasOption) return onOption;
+            if (defaultAction === 'cancel') return onCancel;
+            return onOk;
         };
         const onKeydown = (e) => {
             if (!overlay.classList.contains('active')) return;
@@ -1057,13 +1081,34 @@ export function customConfirm(message) {
                 e.stopImmediatePropagation();
                 e.preventDefault();
                 onCancel();
+                return;
             }
-            if (e.key === 'Enter') onOk();
+            if (e.key === 'Enter') {
+                e.stopImmediatePropagation();
+                e.preventDefault();
+                if (document.activeElement === btnCancel) {
+                    onCancel();
+                    return;
+                }
+                if (hasOption && document.activeElement === btnOption) {
+                    onOption();
+                    return;
+                }
+                if (document.activeElement === btnOk) {
+                    onOk();
+                    return;
+                }
+                getDefaultHandler()();
+                return;
+            }
             e.stopPropagation();
         };
 
         // Attach listeners
         btnOk.addEventListener('click', onOk);
+        if (hasOption) {
+            btnOption.addEventListener('click', onOption);
+        }
         btnCancel.addEventListener('click', onCancel);
         btnClose.addEventListener('click', onCancel);
         overlay.addEventListener('mousedown', onOverlayMouseDown);
@@ -1076,9 +1121,17 @@ export function customConfirm(message) {
         // Show modal and wait for user interaction
         overlay.classList.add('active');
 
-        // Focus OK button for enter key support
-        requestAnimationFrame(() => btnOk.focus());
+        const focusTarget = defaultAction === 'option' && hasOption
+            ? btnOption
+            : defaultAction === 'cancel'
+                ? btnCancel
+                : btnOk;
+        requestAnimationFrame(() => focusTarget.focus());
     });
+}
+
+export function customConfirm(message) {
+    return customConfirmChoice(message).then((result) => result === true);
 }
 
 /**
