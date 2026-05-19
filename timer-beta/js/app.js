@@ -1,20 +1,20 @@
-import { timer, State as TimerState } from './timer.js?v=2026051903';
-import { SCRAMBLE_TYPE_OPTIONS, generateScrambleBatchForType, generateScrambleForType, getScramble, getCurrentScramble, getCurrentScrambleType, getPrevScramble, getNextScramble, getSelectedScrambleType, setCurrentScramble, setScrambleType, isCurrentScrambleManual, hasPrevScramble, isViewingPreviousScramble, preloadScrambleEngines, needsCubingWarmup, runCubingWarmup } from './scramble.js?v=2026051903';
-import { sessionManager } from './session.js?v=2026051903';
-import { settings, DEFAULTS, THEME_OPTIONS, THEME_COLOR_SECTIONS, THEME_DEFAULT_ID, THEME_OLED_ID, THEME_CUSTOM_IDS, SETTING_SCOPE_GLOBAL, SETTING_SCOPE_SESSION, SESSION_SCOPABLE_SETTING_KEYS, composeThemeColor, decomposeThemeColor, getLinkedSessionScopeKeys, getThemePresetColors, isCustomThemeId } from './settings.js?v=2026051903';
-import { parseGraphStatType, parseRollingStatType, rollingStatAt, StatsCache } from './stats.js?v=2026051903';
-import { formatTime, formatSolveTime, formatTimerDisplayTime, getEffectiveTime, formatDate, formatDateTime, parseTimeInputToMs, truncateTimeDisplay } from './utils.js?v=2026051903';
-import { initModal, showSolveDetail, showAverageDetail, closeModal, closeMoveSessionMenus, customConfirm, customConfirmChoice, customPrompt, getModalSelectionContext, setModalStatNavigator, setModalStatButtons, armModalGhostClickGuard } from './modal.js?v=2026051903';
-import { applyMegaminxScramble, applyPyraminxScramble, applyScramble, applySquare1Scramble, applySkewbScramble, applyClockScramble, clearCubeDisplay, drawMegaminxFacePreview, drawSquare1, drawClock, initCubeDisplay, updateCubeDisplay, updateMegaminxDisplay, updatePyraminxDisplay, updateSquare1Display, updateSkewbDisplay, updateClockDisplay } from './cube-display.js?v=2026051903';
-import { initGraph, updateGraph, updateGraphData, setLineVisibility, getLineVisibility, applyAction, graphEvents, getGraphLineDefinitions } from './graph.js?v=2026051903';
-import { closeTimeDistributionModal, initTimeDistributionModal, isTimeDistributionModalOpen, refreshTimeDistributionData, refreshTimeDistributionTheme, showTimeDistributionModal } from './distribution.js?v=2026051903';
-import { exportAll, importAll, isCsTimerFormat, importCsTimer, exportCsTimer, importSessionCsv, IMPORT_MODE_MERGE, IMPORT_MODE_REWRITE } from './storage.js?v=2026051903';
-import { connectGoogleDrive, consumeAuthSession, exportBackupToGoogleDrive, getGoogleDriveBackupInfo, hasGoogleDriveSession, importBackupFromGoogleDrive, isGoogleDriveSyncConfigured, restoreGoogleDriveSession, signOutOfGoogleDrive } from './google-drive-sync.js?v=2026051903';
-import { dailyStreakStore, normalizeDailyStreakGoal } from './streaks.js?v=2026051903';
-import { bluetoothTimerInput, BluetoothTimerState } from './hardware-bluetooth-timer.js?v=2026051903';
-import { stackmatInput } from './hardware-stackmat.js?v=2026051903';
-import { isHardwareTimeEntryMode, isTypingTimeEntryMode, normalizeTimeEntryMode, TIME_ENTRY_MODE_BLUETOOTH, TIME_ENTRY_MODE_STACKMAT, TIME_ENTRY_MODE_TIMER } from './time-entry.js?v=2026051903';
-import { battleManager } from './battle.js?v=2026051903';
+import { timer, State as TimerState } from './timer.js?v=2026051904';
+import { SCRAMBLE_TYPE_OPTIONS, generateScrambleBatchForType, generateScrambleForType, getScramble, getCurrentScramble, getCurrentScrambleType, getPrevScramble, getNextScramble, getSelectedScrambleType, setCurrentScramble, setScrambleType, isCurrentScrambleManual, hasPrevScramble, isViewingPreviousScramble, preloadScrambleEngines, needsCubingWarmup, runCubingWarmup } from './scramble.js?v=2026051904';
+import { sessionManager } from './session.js?v=2026051904';
+import { settings, DEFAULTS, THEME_OPTIONS, THEME_COLOR_SECTIONS, THEME_DEFAULT_ID, THEME_OLED_ID, THEME_CUSTOM_IDS, SETTING_SCOPE_GLOBAL, SETTING_SCOPE_SESSION, SESSION_SCOPABLE_SETTING_KEYS, composeThemeColor, decomposeThemeColor, getLinkedSessionScopeKeys, getThemePresetColors, isCustomThemeId } from './settings.js?v=2026051904';
+import { parseGraphStatType, parseRollingStatType, rollingStatAt, StatsCache } from './stats.js?v=2026051904';
+import { formatTime, formatSolveTime, formatTimerDisplayTime, getEffectiveTime, formatDate, formatDateTime, parseTimeInputToMs, truncateTimeDisplay } from './utils.js?v=2026051904';
+import { initModal, showSolveDetail, showAverageDetail, closeModal, closeMoveSessionMenus, customConfirm, customConfirmChoice, customPrompt, getModalSelectionContext, setModalStatNavigator, setModalStatButtons, armModalGhostClickGuard } from './modal.js?v=2026051904';
+import { applyMegaminxScramble, applyPyraminxScramble, applyScramble, applySquare1Scramble, applySkewbScramble, applyClockScramble, clearCubeDisplay, drawMegaminxFacePreview, drawSquare1, drawClock, initCubeDisplay, updateCubeDisplay, updateMegaminxDisplay, updatePyraminxDisplay, updateSquare1Display, updateSkewbDisplay, updateClockDisplay } from './cube-display.js?v=2026051904';
+import { initGraph, updateGraph, updateGraphData, setLineVisibility, getLineVisibility, applyAction, graphEvents, getGraphLineDefinitions } from './graph.js?v=2026051904';
+import { closeTimeDistributionModal, initTimeDistributionModal, isTimeDistributionModalOpen, refreshTimeDistributionData, refreshTimeDistributionTheme, showTimeDistributionModal } from './distribution.js?v=2026051904';
+import { exportAll, importAll, isCsTimerFormat, importCsTimer, exportCsTimer, importSessionCsv, IMPORT_MODE_MERGE, IMPORT_MODE_REWRITE } from './storage.js?v=2026051904';
+import { connectGoogleDrive, consumeAuthSession, exportBackupToGoogleDrive, getGoogleDriveBackupInfo, hasGoogleDriveSession, importBackupFromGoogleDrive, isGoogleDriveSyncConfigured, restoreGoogleDriveSession, signOutOfGoogleDrive } from './google-drive-sync.js?v=2026051904';
+import { dailyStreakStore, normalizeDailyStreakGoal } from './streaks.js?v=2026051904';
+import { bluetoothTimerInput, BluetoothTimerState } from './hardware-bluetooth-timer.js?v=2026051904';
+import { stackmatInput } from './hardware-stackmat.js?v=2026051904';
+import { isHardwareTimeEntryMode, isTypingTimeEntryMode, normalizeTimeEntryMode, TIME_ENTRY_MODE_BLUETOOTH, TIME_ENTRY_MODE_STACKMAT, TIME_ENTRY_MODE_TIMER } from './time-entry.js?v=2026051904';
+import { battleManager } from './battle.js?v=2026051904';
 
 let currentScramble = '';
 let currentSortCol = null;
@@ -282,7 +282,7 @@ async function registerServiceWorker() {
     if (window.location?.protocol === 'file:') return;
 
     try {
-        const serviceWorkerUrl = new URL('../sw.js?v=2026051903', import.meta.url);
+        const serviceWorkerUrl = new URL('../sw.js?v=2026051904', import.meta.url);
         await navigator.serviceWorker.register(serviceWorkerUrl);
     } catch (error) {
         console.warn('Service worker registration failed:', error);

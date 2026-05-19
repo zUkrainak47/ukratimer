@@ -1,9 +1,9 @@
-import * as db from './db.js?v=2026051903';
+import * as db from './db.js?v=2026051904';
 import {
     SETTING_SCOPE_SESSION,
     SUMMARY_STATS_SCOPE_SETTING_KEYS,
     normalizeSettingScopes,
-} from './setting-scopes.js?v=2026051903';
+} from './setting-scopes.js?v=2026051904';
 
 const STORAGE_PREFIX = 'cubetimer_';
 const STORAGE_VERSION = 1;
@@ -889,12 +889,31 @@ function _buildBackupSessionMergeResolver(existingSessions, existingSolves = [],
     };
 }
 
-function _buildCsTimerSessionMergeResolver(existingSessions, sessionMatchHints = new Map()) {
+function _buildCsTimerSessionMergeResolver(
+    existingSessions,
+    sessionMatchHints = new Map(),
+    existingSolves = [],
+    importedSolves = [],
+    solveMatchOptions = {},
+) {
     const existingSessionsById = new Map(
         existingSessions.map((session) => [session.id, session]),
     );
+    const existingSolvesBySessionId = _groupSolvesBySessionId(existingSolves);
+    const importedSolvesBySessionId = _groupSolvesBySessionId(importedSolves);
     const resolveByName = _buildSessionNameMergeResolver(existingSessions);
     const usedSessionIds = new Set();
+    const chooseRenamedCandidate = (importedSession) => {
+        const importedSessionSolves = importedSolvesBySessionId.get(importedSession.id) || [];
+        if (importedSessionSolves.length === 0) return null;
+
+        return _pickUnambiguousSessionByCompleteSolveOverlap(
+            importedSessionSolves,
+            existingSessions.filter((session) => !usedSessionIds.has(session.id)),
+            existingSolvesBySessionId,
+            solveMatchOptions,
+        );
+    };
 
     return (importedSession) => {
         const hintedSessionId = sessionMatchHints.get(importedSession.id) || '';
@@ -906,6 +925,10 @@ function _buildCsTimerSessionMergeResolver(existingSessions, sessionMatchHints =
         let matchedSession = resolveByName(importedSession);
         while (matchedSession && usedSessionIds.has(matchedSession.id)) {
             matchedSession = resolveByName(importedSession);
+        }
+
+        if (!matchedSession) {
+            matchedSession = chooseRenamedCandidate(importedSession);
         }
 
         if (!matchedSession) return null;
@@ -1352,8 +1375,16 @@ export async function importSessionCsv(text, { mode = IMPORT_MODE_REWRITE, onPro
         const existingData = await db.getAllData();
         const mergedData = _mergeImportedDataset(dbSessions, dbSolves, {
             existingData,
-            findExistingSessionMatch: _buildSessionNameMergeResolver(existingData.sessions || []),
+            findExistingSessionMatch: _buildBackupSessionMergeResolver(
+                existingData.sessions || [],
+                existingData.solves || [],
+                dbSolves,
+                { includeScramble: true },
+            ),
             solveMatchMode: SOLVE_MATCH_MODE_LOGICAL_EXACT,
+            solveMatchOptions: {
+                includeScramble: true,
+            },
         });
 
         finalSessions = mergedData.dbSessions;
@@ -2420,7 +2451,16 @@ export async function importCsTimer(csData, { mode = IMPORT_MODE_REWRITE, onProg
 
         const mergedData = _mergeImportedDataset(dbSessions, dbSolves, {
             existingData,
-            findExistingSessionMatch: _buildCsTimerSessionMergeResolver(existingData.sessions || [], sessionMatchHints),
+            findExistingSessionMatch: _buildCsTimerSessionMergeResolver(
+                existingData.sessions || [],
+                sessionMatchHints,
+                existingData.solves || [],
+                dbSolves,
+                {
+                    roundTimestampToSecond: true,
+                    includeScramble: true,
+                },
+            ),
             solveMatchMode: SOLVE_MATCH_MODE_LOGICAL_CSTIMER,
         });
         finalSessions = mergedData.dbSessions;
