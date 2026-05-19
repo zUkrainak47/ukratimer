@@ -10,6 +10,7 @@ const STORAGE_VERSION = 1;
 export const IMPORT_MODE_REWRITE = 'rewrite';
 export const IMPORT_MODE_MERGE = 'merge';
 const SOLVE_MATCH_MODE_ID = 'id';
+const SOLVE_MATCH_MODE_ID_OR_LOGICAL_EXACT = 'id-or-logical';
 const SOLVE_MATCH_MODE_LOGICAL_EXACT = 'logical';
 const SOLVE_MATCH_MODE_LOGICAL_CSTIMER = 'logical-cstimer';
 const SESSION_CSV_HEADERS = ['Puzzle', 'Category', 'Time(millis)', 'Date(millis)', 'Scramble', 'Penalty', 'Comment'];
@@ -302,6 +303,88 @@ function _mergeLogicalSessionSolves(importedSolves, existingSolves, targetSessio
     return mergedSolves;
 }
 
+function _mergeIdOrLogicalSessionSolves(importedSolves, existingSolves, targetSessionId, {
+    roundTimestampToSecond = false,
+    includeScramble = false,
+} = {}) {
+    const existingQueuesById = new Map();
+    const existingQueuesByLogicalKey = new Map();
+    const matchedExistingSolves = new Set();
+    const mergedSolves = [];
+
+    existingSolves.forEach((solve) => {
+        const id = typeof solve?.id === 'string' ? solve.id : '';
+        if (id) {
+            if (!existingQueuesById.has(id)) {
+                existingQueuesById.set(id, []);
+            }
+            existingQueuesById.get(id).push(solve);
+        }
+
+        const logicalKey = _buildSolveIdentityKey(solve, {
+            roundTimestampToSecond,
+            includeScramble,
+        });
+        if (!existingQueuesByLogicalKey.has(logicalKey)) {
+            existingQueuesByLogicalKey.set(logicalKey, []);
+        }
+        existingQueuesByLogicalKey.get(logicalKey).push(solve);
+    });
+
+    const takeUnmatchedSolve = (queue) => {
+        if (!Array.isArray(queue)) return null;
+
+        while (queue.length > 0) {
+            const candidate = queue.shift();
+            if (!matchedExistingSolves.has(candidate)) return candidate;
+        }
+
+        return null;
+    };
+
+    importedSolves.forEach((solve) => {
+        const importedId = typeof solve?.id === 'string' ? solve.id : '';
+        let matchedSolve = importedId
+            ? takeUnmatchedSolve(existingQueuesById.get(importedId))
+            : null;
+
+        if (!matchedSolve) {
+            const logicalKey = _buildSolveIdentityKey(solve, {
+                roundTimestampToSecond,
+                includeScramble,
+            });
+            matchedSolve = takeUnmatchedSolve(existingQueuesByLogicalKey.get(logicalKey));
+        }
+
+        if (matchedSolve) {
+            matchedExistingSolves.add(matchedSolve);
+            mergedSolves.push({
+                ...matchedSolve,
+                ...solve,
+                id: matchedSolve.id,
+                sessionId: targetSessionId,
+            });
+            return;
+        }
+
+        mergedSolves.push({
+            ...solve,
+            sessionId: targetSessionId,
+        });
+    });
+
+    existingSolves.forEach((solve) => {
+        if (matchedExistingSolves.has(solve)) return;
+
+        mergedSolves.push({
+            ...solve,
+            sessionId: targetSessionId,
+        });
+    });
+
+    return mergedSolves;
+}
+
 function _normalizeMergedSessionOrder(sessions) {
     return sessions.map((session, index) => ({
         ...session,
@@ -394,6 +477,13 @@ function _mergeImportedDataset(
             return;
         }
 
+        if (solveMatchMode === SOLVE_MATCH_MODE_ID_OR_LOGICAL_EXACT) {
+            finalSolves.push(
+                ..._mergeIdOrLogicalSessionSolves(importedSessionSolves, existingSessionSolves, mergedSession.id),
+            );
+            return;
+        }
+
         if (solveMatchMode === SOLVE_MATCH_MODE_LOGICAL_CSTIMER) {
             finalSolves.push(
                 ..._mergeLogicalSessionSolves(importedSessionSolves, existingSessionSolves, mergedSession.id, {
@@ -452,6 +542,80 @@ function _buildSessionNameMergeResolver(existingSessions) {
         const queue = normalizedName ? sessionQueuesByName.get(normalizedName) : null;
         if (!Array.isArray(queue) || queue.length === 0) return null;
         return queue.shift() || null;
+    };
+}
+
+function _buildBackupSessionMergeResolver(existingSessions) {
+    const existingSessionsById = new Map(
+        existingSessions.map((session) => [session.id, session]),
+    );
+    const sessionQueuesByNameAndScrambleType = new Map();
+    const sessionQueuesByNameWithoutScrambleType = new Map();
+    const sessionQueuesByName = new Map();
+    const usedSessionIds = new Set();
+
+    const getScrambleType = (session) => (
+        typeof session?.scrambleType === 'string' && session.scrambleType
+            ? session.scrambleType
+            : ''
+    );
+    const buildTypedKey = (name, scrambleType) => `${name}\u0000${scrambleType}`;
+    const pushSessionQueue = (map, key, session) => {
+        if (!key) return;
+        if (!map.has(key)) {
+            map.set(key, []);
+        }
+        map.get(key).push(session);
+    };
+    const takeUnusedSession = (queue) => {
+        if (!Array.isArray(queue)) return null;
+
+        while (queue.length > 0) {
+            const candidate = queue.shift();
+            if (!usedSessionIds.has(candidate.id)) return candidate;
+        }
+
+        return null;
+    };
+
+    existingSessions.forEach((session) => {
+        const normalizedName = _normalizeImportSessionName(session?.name);
+        if (!normalizedName) return;
+
+        const scrambleType = getScrambleType(session);
+        pushSessionQueue(sessionQueuesByName, normalizedName, session);
+
+        if (scrambleType) {
+            pushSessionQueue(sessionQueuesByNameAndScrambleType, buildTypedKey(normalizedName, scrambleType), session);
+        } else {
+            pushSessionQueue(sessionQueuesByNameWithoutScrambleType, normalizedName, session);
+        }
+    });
+
+    return (importedSession) => {
+        const importedSessionId = typeof importedSession?.id === 'string' ? importedSession.id : '';
+        if (importedSessionId && existingSessionsById.has(importedSessionId) && !usedSessionIds.has(importedSessionId)) {
+            usedSessionIds.add(importedSessionId);
+            return existingSessionsById.get(importedSessionId) || null;
+        }
+
+        const normalizedName = _normalizeImportSessionName(importedSession?.name);
+        if (!normalizedName) return null;
+
+        const importedScrambleType = getScrambleType(importedSession);
+        let matchedSession = importedScrambleType
+            ? takeUnusedSession(sessionQueuesByNameAndScrambleType.get(buildTypedKey(normalizedName, importedScrambleType)))
+            : null;
+
+        if (!matchedSession) {
+            matchedSession = importedScrambleType
+                ? takeUnusedSession(sessionQueuesByNameWithoutScrambleType.get(normalizedName))
+                : takeUnusedSession(sessionQueuesByName.get(normalizedName));
+        }
+
+        if (!matchedSession) return null;
+        usedSessionIds.add(matchedSession.id);
+        return matchedSession;
     };
 }
 
@@ -598,6 +762,7 @@ export async function importAll(data, { mode = IMPORT_MODE_REWRITE, onProgress =
 
     let finalSessions = dbSessions;
     let finalSolves = dbSolves;
+    let importedBackupValues = data;
 
     if (importMode === IMPORT_MODE_MERGE) {
         _reportImportProgress(onProgress, {
@@ -615,9 +780,15 @@ export async function importAll(data, { mode = IMPORT_MODE_REWRITE, onProgress =
 
         const mergedData = _mergeImportedDataset(dbSessions, dbSolves, {
             existingData,
+            findExistingSessionMatch: _buildBackupSessionMergeResolver(existingData.sessions || []),
+            solveMatchMode: SOLVE_MATCH_MODE_ID_OR_LOGICAL_EXACT,
         });
         finalSessions = mergedData.dbSessions;
         finalSolves = mergedData.dbSolves;
+        importedBackupValues = { ...data };
+        if (_hasOwn(data, 'activeSessionId')) {
+            importedBackupValues.activeSessionId = mergedData.sessionIdMap.get(data.activeSessionId) || data.activeSessionId;
+        }
     }
 
     const totalWork = parseTotal + 1 + finalSessions.length + finalSolves.length;
@@ -631,7 +802,7 @@ export async function importAll(data, { mode = IMPORT_MODE_REWRITE, onProgress =
 
     // Write remaining import-backed localStorage keys (settings, active session,
     // selected scramble type). Cache/runtime keys stay device-local.
-    _applyImportedBackupValues(data, { replaceMissing: true });
+    _applyImportedBackupValues(importedBackupValues, { replaceMissing: true });
 
     _reportImportProgress(onProgress, {
         source: 'backup',
