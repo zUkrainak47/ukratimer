@@ -251,6 +251,32 @@ function _buildSolveIdentityKey(solve, {
     return `${baseKey}\u0000${String(solve?.scramble ?? '').trim()}`;
 }
 
+function _isTimestampSecondAligned(timestamp) {
+    return Number.isFinite(timestamp) && timestamp % 1000 === 0;
+}
+
+function _pushSolveIdentityQueue(queueMap, key, solve) {
+    if (key === null) return;
+    if (!queueMap.has(key)) {
+        queueMap.set(key, []);
+    }
+    queueMap.get(key).push(solve);
+}
+
+function _getTimestampSecondFallbackQueue(solve, anySecondQueues, secondAlignedQueues, {
+    includeScramble = false,
+} = {}) {
+    const secondKey = _buildSolveIdentityKey(solve, {
+        roundTimestampToSecond: true,
+        includeScramble,
+    });
+    if (secondKey === null) return null;
+
+    return _isTimestampSecondAligned(solve.timestamp)
+        ? anySecondQueues.get(secondKey)
+        : secondAlignedQueues.get(secondKey);
+}
+
 function _mergeLogicalSessionSolves(importedSolves, existingSolves, targetSessionId, {
     roundTimestampToSecond = false,
     includeScramble = false,
@@ -321,30 +347,37 @@ function _mergeLogicalSessionSolves(importedSolves, existingSolves, targetSessio
 function _mergeIdOrLogicalSessionSolves(importedSolves, existingSolves, targetSessionId, {
     roundTimestampToSecond = false,
     includeScramble = false,
+    allowTimestampSecondFallback = false,
 } = {}) {
     const existingQueuesById = new Map();
     const existingQueuesByLogicalKey = new Map();
+    const existingQueuesByAnySecondKey = new Map();
+    const existingQueuesBySecondAlignedKey = new Map();
     const matchedExistingSolves = new Set();
     const mergedSolves = [];
 
     existingSolves.forEach((solve) => {
         const id = typeof solve?.id === 'string' ? solve.id : '';
         if (id) {
-            if (!existingQueuesById.has(id)) {
-                existingQueuesById.set(id, []);
-            }
-            existingQueuesById.get(id).push(solve);
+            _pushSolveIdentityQueue(existingQueuesById, id, solve);
         }
 
         const logicalKey = _buildSolveIdentityKey(solve, {
             roundTimestampToSecond,
             includeScramble,
         });
-        if (logicalKey === null) return;
-        if (!existingQueuesByLogicalKey.has(logicalKey)) {
-            existingQueuesByLogicalKey.set(logicalKey, []);
+        _pushSolveIdentityQueue(existingQueuesByLogicalKey, logicalKey, solve);
+
+        if (allowTimestampSecondFallback) {
+            const secondKey = _buildSolveIdentityKey(solve, {
+                roundTimestampToSecond: true,
+                includeScramble,
+            });
+            _pushSolveIdentityQueue(existingQueuesByAnySecondKey, secondKey, solve);
+            if (_isTimestampSecondAligned(solve?.timestamp)) {
+                _pushSolveIdentityQueue(existingQueuesBySecondAlignedKey, secondKey, solve);
+            }
         }
-        existingQueuesByLogicalKey.get(logicalKey).push(solve);
     });
 
     const takeUnmatchedSolve = (queue) => {
@@ -372,6 +405,15 @@ function _mergeIdOrLogicalSessionSolves(importedSolves, existingSolves, targetSe
             matchedSolve = logicalKey === null
                 ? null
                 : takeUnmatchedSolve(existingQueuesByLogicalKey.get(logicalKey));
+        }
+
+        if (!matchedSolve && allowTimestampSecondFallback) {
+            matchedSolve = takeUnmatchedSolve(_getTimestampSecondFallbackQueue(
+                solve,
+                existingQueuesByAnySecondKey,
+                existingQueuesBySecondAlignedKey,
+                { includeScramble },
+            ));
         }
 
         if (matchedSolve) {
@@ -403,49 +445,62 @@ function _mergeIdOrLogicalSessionSolves(importedSolves, existingSolves, targetSe
     return mergedSolves;
 }
 
-function _decrementIdentityCount(counts, key) {
-    const count = counts.get(key) || 0;
-    if (count <= 0) return false;
-
-    if (count === 1) {
-        counts.delete(key);
-    } else {
-        counts.set(key, count - 1);
-    }
-    return true;
-}
-
-function _incrementIdentityCount(counts, key) {
-    counts.set(key, (counts.get(key) || 0) + 1);
-}
-
 function _scoreSolveIdentityOverlap(importedSolves, existingSolves, {
     roundTimestampToSecond = false,
     includeScramble = false,
+    allowTimestampSecondFallback = false,
 } = {}) {
-    const existingIds = new Map();
-    const existingLogicalKeys = new Map();
+    const existingQueuesById = new Map();
+    const existingQueuesByLogicalKey = new Map();
+    const existingQueuesByAnySecondKey = new Map();
+    const existingQueuesBySecondAlignedKey = new Map();
+    const matchedExistingSolves = new Set();
     let idMatches = 0;
     let logicalMatches = 0;
 
     existingSolves.forEach((solve) => {
         const id = typeof solve?.id === 'string' ? solve.id : '';
         if (id) {
-            _incrementIdentityCount(existingIds, id);
+            _pushSolveIdentityQueue(existingQueuesById, id, solve);
         }
 
         const logicalKey = _buildSolveIdentityKey(solve, {
             roundTimestampToSecond,
             includeScramble,
         });
-        if (logicalKey !== null) {
-            _incrementIdentityCount(existingLogicalKeys, logicalKey);
+        _pushSolveIdentityQueue(existingQueuesByLogicalKey, logicalKey, solve);
+
+        if (allowTimestampSecondFallback) {
+            const secondKey = _buildSolveIdentityKey(solve, {
+                roundTimestampToSecond: true,
+                includeScramble,
+            });
+            _pushSolveIdentityQueue(existingQueuesByAnySecondKey, secondKey, solve);
+            if (_isTimestampSecondAligned(solve?.timestamp)) {
+                _pushSolveIdentityQueue(existingQueuesBySecondAlignedKey, secondKey, solve);
+            }
         }
     });
 
+    const takeUnmatchedSolve = (queue) => {
+        if (!Array.isArray(queue)) return null;
+
+        while (queue.length > 0) {
+            const candidate = queue.shift();
+            if (!matchedExistingSolves.has(candidate)) return candidate;
+        }
+
+        return null;
+    };
+
     importedSolves.forEach((solve) => {
         const id = typeof solve?.id === 'string' ? solve.id : '';
-        if (id && _decrementIdentityCount(existingIds, id)) {
+        let matchedSolve = id
+            ? takeUnmatchedSolve(existingQueuesById.get(id))
+            : null;
+
+        if (matchedSolve) {
+            matchedExistingSolves.add(matchedSolve);
             idMatches += 1;
             return;
         }
@@ -454,7 +509,21 @@ function _scoreSolveIdentityOverlap(importedSolves, existingSolves, {
             roundTimestampToSecond,
             includeScramble,
         });
-        if (logicalKey !== null && _decrementIdentityCount(existingLogicalKeys, logicalKey)) {
+        matchedSolve = logicalKey === null
+            ? null
+            : takeUnmatchedSolve(existingQueuesByLogicalKey.get(logicalKey));
+
+        if (!matchedSolve && allowTimestampSecondFallback) {
+            matchedSolve = takeUnmatchedSolve(_getTimestampSecondFallbackQueue(
+                solve,
+                existingQueuesByAnySecondKey,
+                existingQueuesBySecondAlignedKey,
+                { includeScramble },
+            ));
+        }
+
+        if (matchedSolve) {
+            matchedExistingSolves.add(matchedSolve);
             logicalMatches += 1;
         }
     });
@@ -466,14 +535,17 @@ function _scoreSolveIdentityOverlap(importedSolves, existingSolves, {
     };
 }
 
-function _pickUnambiguousSessionBySolveOverlap(importedSolves, candidateSessions, existingSolvesBySessionId) {
+function _pickUnambiguousSessionBySolveOverlap(importedSolves, candidateSessions, existingSolvesBySessionId, solveMatchOptions = {}) {
     const rankedCandidates = candidateSessions
         .map((session) => ({
             session,
             ..._scoreSolveIdentityOverlap(
                 importedSolves,
                 existingSolvesBySessionId.get(session.id) || [],
-                { includeScramble: true },
+                {
+                    includeScramble: true,
+                    ...solveMatchOptions,
+                },
             ),
         }))
         .sort((a, b) => (
@@ -668,7 +740,7 @@ function _buildSessionNameMergeResolver(existingSessions) {
     };
 }
 
-function _buildBackupSessionMergeResolver(existingSessions, existingSolves = [], importedSolves = []) {
+function _buildBackupSessionMergeResolver(existingSessions, existingSolves = [], importedSolves = [], solveMatchOptions = {}) {
     const existingSessionsById = new Map(
         existingSessions.map((session) => [session.id, session]),
     );
@@ -701,6 +773,7 @@ function _buildBackupSessionMergeResolver(existingSessions, existingSolves = [],
             importedSolvesBySessionId.get(importedSession.id) || [],
             candidates,
             existingSolvesBySessionId,
+            solveMatchOptions,
         );
     };
 
@@ -912,10 +985,15 @@ export async function importAll(data, { mode = IMPORT_MODE_REWRITE, onProgress =
                 existingData.sessions || [],
                 existingData.solves || [],
                 dbSolves,
+                {
+                    includeScramble: true,
+                    allowTimestampSecondFallback: true,
+                },
             ),
             solveMatchMode: SOLVE_MATCH_MODE_ID_OR_LOGICAL_EXACT,
             solveMatchOptions: {
                 includeScramble: true,
+                allowTimestampSecondFallback: true,
             },
         });
         finalSessions = mergedData.dbSessions;
