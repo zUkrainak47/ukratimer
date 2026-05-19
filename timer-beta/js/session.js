@@ -1,8 +1,8 @@
-import * as db from './db.js?v=2026051902';
-import { load, save } from './storage.js?v=2026051902';
-import { generateId, EventEmitter, getStartOfToday, getStartOfWeek, getStartOfMonth, parseCustomStatsFilter } from './utils.js?v=2026051902';
-import { settings, SETTING_SCOPE_GLOBAL } from './settings.js?v=2026051902';
-import { SCRAMBLE_TYPE_OPTIONS } from './scramble.js?v=2026051902';
+import * as db from './db.js?v=2026051903';
+import { load, save } from './storage.js?v=2026051903';
+import { generateId, EventEmitter, getStartOfToday, getStartOfWeek, getStartOfMonth, parseCustomStatsFilter } from './utils.js?v=2026051903';
+import { settings, SETTING_SCOPE_GLOBAL } from './settings.js?v=2026051903';
+import { SCRAMBLE_TYPE_OPTIONS } from './scramble.js?v=2026051903';
 
 const DEFAULT_SCRAMBLE_TYPE = '333';
 const LEGACY_SCRAMBLE_TYPE_STORAGE_KEY = 'scrambleType';

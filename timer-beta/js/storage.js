@@ -1,9 +1,9 @@
-import * as db from './db.js?v=2026051902';
+import * as db from './db.js?v=2026051903';
 import {
     SETTING_SCOPE_SESSION,
     SUMMARY_STATS_SCOPE_SETTING_KEYS,
     normalizeSettingScopes,
-} from './setting-scopes.js?v=2026051902';
+} from './setting-scopes.js?v=2026051903';
 
 const STORAGE_PREFIX = 'cubetimer_';
 const STORAGE_VERSION = 1;
@@ -535,26 +535,65 @@ function _scoreSolveIdentityOverlap(importedSolves, existingSolves, {
     };
 }
 
-function _pickUnambiguousSessionBySolveOverlap(importedSolves, candidateSessions, existingSolvesBySessionId, solveMatchOptions = {}) {
-    const rankedCandidates = candidateSessions
-        .map((session) => ({
-            session,
-            ..._scoreSolveIdentityOverlap(
-                importedSolves,
-                existingSolvesBySessionId.get(session.id) || [],
-                {
-                    includeScramble: true,
-                    ...solveMatchOptions,
-                },
-            ),
-        }))
+function _rankSessionsBySolveOverlap(importedSolves, candidateSessions, existingSolvesBySessionId, solveMatchOptions = {}) {
+    return candidateSessions
+        .map((session) => {
+            const existingSolves = existingSolvesBySessionId.get(session.id) || [];
+            return {
+                session,
+                existingSolveCount: existingSolves.length,
+                ..._scoreSolveIdentityOverlap(
+                    importedSolves,
+                    existingSolves,
+                    {
+                        includeScramble: true,
+                        ...solveMatchOptions,
+                    },
+                ),
+            };
+        })
         .sort((a, b) => (
             (b.idMatches - a.idMatches)
             || (b.logicalMatches - a.logicalMatches)
         ));
+}
 
+function _pickUnambiguousSessionBySolveOverlap(importedSolves, candidateSessions, existingSolvesBySessionId, solveMatchOptions = {}) {
+    const rankedCandidates = _rankSessionsBySolveOverlap(
+        importedSolves,
+        candidateSessions,
+        existingSolvesBySessionId,
+        solveMatchOptions,
+    );
     const best = rankedCandidates[0] || null;
     if (!best || best.score <= 0) return null;
+
+    const runnerUp = rankedCandidates[1] || null;
+    if (
+        runnerUp
+        && runnerUp.idMatches === best.idMatches
+        && runnerUp.logicalMatches === best.logicalMatches
+    ) {
+        return null;
+    }
+
+    return best.session;
+}
+
+function _pickUnambiguousSessionByCompleteSolveOverlap(importedSolves, candidateSessions, existingSolvesBySessionId, solveMatchOptions = {}) {
+    if (!Array.isArray(importedSolves) || importedSolves.length === 0) return null;
+
+    const rankedCandidates = _rankSessionsBySolveOverlap(
+        importedSolves,
+        candidateSessions,
+        existingSolvesBySessionId,
+        solveMatchOptions,
+    ).filter((candidate) => candidate.existingSolveCount > 0);
+    const best = rankedCandidates[0] || null;
+    if (!best || best.score <= 0) return null;
+
+    const requiredOverlap = Math.min(importedSolves.length, best.existingSolveCount);
+    if (best.score < requiredOverlap) return null;
 
     const runnerUp = rankedCandidates[1] || null;
     if (
@@ -776,6 +815,31 @@ function _buildBackupSessionMergeResolver(existingSessions, existingSolves = [],
             solveMatchOptions,
         );
     };
+    const chooseRenamedCandidate = (importedSession) => {
+        const importedSessionSolves = importedSolvesBySessionId.get(importedSession.id) || [];
+        if (importedSessionSolves.length === 0) return null;
+
+        const unusedSessions = existingSessions.filter((session) => !usedSessionIds.has(session.id));
+        const importedScrambleType = getScrambleType(importedSession);
+        const candidateGroups = importedScrambleType
+            ? [
+                unusedSessions.filter((session) => getScrambleType(session) === importedScrambleType),
+                unusedSessions.filter((session) => getScrambleType(session) === ''),
+            ]
+            : [unusedSessions];
+
+        for (const candidates of candidateGroups) {
+            const matchedSession = _pickUnambiguousSessionByCompleteSolveOverlap(
+                importedSessionSolves,
+                candidates,
+                existingSolvesBySessionId,
+                solveMatchOptions,
+            );
+            if (matchedSession) return matchedSession;
+        }
+
+        return null;
+    };
 
     existingSessions.forEach((session) => {
         const normalizedName = _normalizeImportSessionName(session?.name);
@@ -792,10 +856,11 @@ function _buildBackupSessionMergeResolver(existingSessions, existingSolves = [],
         }
 
         const normalizedName = _normalizeImportSessionName(importedSession?.name);
-        if (!normalizedName) return null;
 
         const importedScrambleType = getScrambleType(importedSession);
-        const sameNameSessions = getUnusedSessions(sessionsByName.get(normalizedName)) || [];
+        const sameNameSessions = normalizedName
+            ? (getUnusedSessions(sessionsByName.get(normalizedName)) || [])
+            : [];
         let matchedSession = null;
 
         if (importedScrambleType) {
@@ -812,6 +877,10 @@ function _buildBackupSessionMergeResolver(existingSessions, existingSolves = [],
             }
         } else {
             matchedSession = chooseCandidate(sameNameSessions, importedSession);
+        }
+
+        if (!matchedSession) {
+            matchedSession = chooseRenamedCandidate(importedSession);
         }
 
         if (!matchedSession) return null;
