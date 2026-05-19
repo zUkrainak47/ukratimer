@@ -535,6 +535,20 @@ function _scoreSolveIdentityOverlap(importedSolves, existingSolves, {
     };
 }
 
+function _hasEnoughRenamedSessionOverlapEvidence(importedSolves, existingSolves, solveMatchOptions = {}) {
+    const importedSessionSolves = Array.isArray(importedSolves) ? importedSolves : [];
+    const overlap = _scoreSolveIdentityOverlap(
+        importedSessionSolves,
+        Array.isArray(existingSolves) ? existingSolves : [],
+        solveMatchOptions,
+    );
+
+    if (overlap.idMatches > 0 || overlap.score >= 2) return true;
+    return overlap.logicalMatches === 1
+        && importedSessionSolves.length === 1
+        && String(importedSessionSolves[0]?.scramble ?? '').trim().length > 0;
+}
+
 function _rankSessionsBySolveOverlap(importedSolves, candidateSessions, existingSolvesBySessionId, solveMatchOptions = {}) {
     return candidateSessions
         .map((session) => {
@@ -607,6 +621,35 @@ function _pickUnambiguousSessionByCompleteSolveOverlap(importedSolves, candidate
     return best.session;
 }
 
+function _buildSessionMatchResult(session, { preserveExistingName = false } = {}) {
+    if (!session) return null;
+    return {
+        session,
+        preserveExistingName,
+    };
+}
+
+function _normalizeSessionMatchResult(matchResult) {
+    if (!matchResult) {
+        return {
+            session: null,
+            preserveExistingName: false,
+        };
+    }
+
+    if (matchResult.session && typeof matchResult.session === 'object') {
+        return {
+            session: matchResult.session,
+            preserveExistingName: matchResult.preserveExistingName === true,
+        };
+    }
+
+    return {
+        session: matchResult,
+        preserveExistingName: false,
+    };
+}
+
 function _normalizeMergedSessionOrder(sessions) {
     return sessions.map((session, index) => ({
         ...session,
@@ -645,13 +688,20 @@ function _mergeImportedDataset(
     const sessionIdMap = new Map();
 
     importedSessions.forEach((importedSession) => {
-        const matchedExistingSession = typeof findExistingSessionMatch === 'function'
+        const rawSessionMatch = typeof findExistingSessionMatch === 'function'
             ? findExistingSessionMatch(importedSession)
             : (existingSessionsById.get(importedSession.id) || null);
+        const {
+            session: matchedExistingSession,
+            preserveExistingName,
+        } = _normalizeSessionMatchResult(rawSessionMatch);
         const targetSessionId = matchedExistingSession?.id || importedSession.id;
         const mergedSession = {
             ...importedSession,
             id: targetSessionId,
+            ...(preserveExistingName && typeof matchedExistingSession?.name === 'string'
+                ? { name: matchedExistingSession.name }
+                : {}),
         };
 
         if (matchedExistingSession) {
@@ -758,27 +808,6 @@ function _mergeImportedDataset(
     };
 }
 
-function _buildSessionNameMergeResolver(existingSessions) {
-    const sessionQueuesByName = new Map();
-
-    existingSessions.forEach((session) => {
-        const normalizedName = _normalizeImportSessionName(session?.name);
-        if (!normalizedName) return;
-
-        if (!sessionQueuesByName.has(normalizedName)) {
-            sessionQueuesByName.set(normalizedName, []);
-        }
-        sessionQueuesByName.get(normalizedName).push(session);
-    });
-
-    return (importedSession) => {
-        const normalizedName = _normalizeImportSessionName(importedSession?.name);
-        const queue = normalizedName ? sessionQueuesByName.get(normalizedName) : null;
-        if (!Array.isArray(queue) || queue.length === 0) return null;
-        return queue.shift() || null;
-    };
-}
-
 function _buildBackupSessionMergeResolver(existingSessions, existingSolves = [], importedSolves = [], solveMatchOptions = {}) {
     const existingSessionsById = new Map(
         existingSessions.map((session) => [session.id, session]),
@@ -835,7 +864,16 @@ function _buildBackupSessionMergeResolver(existingSessions, existingSolves = [],
                 existingSolvesBySessionId,
                 solveMatchOptions,
             );
-            if (matchedSession) return matchedSession;
+            if (
+                matchedSession
+                && _hasEnoughRenamedSessionOverlapEvidence(
+                    importedSessionSolves,
+                    existingSolvesBySessionId.get(matchedSession.id) || [],
+                    solveMatchOptions,
+                )
+            ) {
+                return matchedSession;
+            }
         }
 
         return null;
@@ -881,10 +919,16 @@ function _buildBackupSessionMergeResolver(existingSessions, existingSolves = [],
 
         if (!matchedSession) {
             matchedSession = chooseRenamedCandidate(importedSession);
+            if (matchedSession) {
+                matchedSession = _buildSessionMatchResult(matchedSession, {
+                    preserveExistingName: true,
+                });
+            }
         }
 
-        if (!matchedSession) return null;
-        usedSessionIds.add(matchedSession.id);
+        const { session } = _normalizeSessionMatchResult(matchedSession);
+        if (!session) return null;
+        usedSessionIds.add(session.id);
         return matchedSession;
     };
 }
@@ -901,19 +945,103 @@ function _buildCsTimerSessionMergeResolver(
     );
     const existingSolvesBySessionId = _groupSolvesBySessionId(existingSolves);
     const importedSolvesBySessionId = _groupSolvesBySessionId(importedSolves);
-    const resolveByName = _buildSessionNameMergeResolver(existingSessions);
+    const sessionsByName = new Map();
     const usedSessionIds = new Set();
-    const chooseRenamedCandidate = (importedSession) => {
-        const importedSessionSolves = importedSolvesBySessionId.get(importedSession.id) || [];
-        if (importedSessionSolves.length === 0) return null;
 
-        return _pickUnambiguousSessionByCompleteSolveOverlap(
-            importedSessionSolves,
-            existingSessions.filter((session) => !usedSessionIds.has(session.id)),
+    const getScrambleType = (session) => (
+        typeof session?.scrambleType === 'string' && session.scrambleType
+            ? session.scrambleType
+            : ''
+    );
+    const pushSessionQueue = (map, key, session) => {
+        if (!key) return;
+        if (!map.has(key)) {
+            map.set(key, []);
+        }
+        map.get(key).push(session);
+    };
+    const getUnusedSessions = (queue) => {
+        if (!Array.isArray(queue)) return null;
+        return queue.filter((candidate) => !usedSessionIds.has(candidate.id));
+    };
+    const chooseCandidate = (candidates, importedSession) => {
+        if (!Array.isArray(candidates) || candidates.length === 0) return null;
+        if (candidates.length === 1) return candidates[0];
+
+        return _pickUnambiguousSessionBySolveOverlap(
+            importedSolvesBySessionId.get(importedSession.id) || [],
+            candidates,
             existingSolvesBySessionId,
             solveMatchOptions,
         );
     };
+    const chooseNameCandidate = (importedSession) => {
+        const normalizedName = _normalizeImportSessionName(importedSession?.name);
+        const sameNameSessions = normalizedName
+            ? (getUnusedSessions(sessionsByName.get(normalizedName)) || [])
+            : [];
+        const importedScrambleType = getScrambleType(importedSession);
+
+        if (importedScrambleType) {
+            const exactTypeCandidates = sameNameSessions.filter(
+                (session) => getScrambleType(session) === importedScrambleType,
+            );
+            const matchedSession = chooseCandidate(exactTypeCandidates, importedSession);
+            if (matchedSession) return matchedSession;
+
+            if (exactTypeCandidates.length === 0) {
+                return chooseCandidate(
+                    sameNameSessions.filter((session) => getScrambleType(session) === ''),
+                    importedSession,
+                );
+            }
+
+            return null;
+        }
+
+        return chooseCandidate(sameNameSessions, importedSession);
+    };
+    const chooseRenamedCandidate = (importedSession) => {
+        const importedSessionSolves = importedSolvesBySessionId.get(importedSession.id) || [];
+        if (importedSessionSolves.length === 0) return null;
+
+        const unusedSessions = existingSessions.filter((session) => !usedSessionIds.has(session.id));
+        const importedScrambleType = getScrambleType(importedSession);
+        const candidateGroups = importedScrambleType
+            ? [
+                unusedSessions.filter((session) => getScrambleType(session) === importedScrambleType),
+                unusedSessions.filter((session) => getScrambleType(session) === ''),
+            ]
+            : [unusedSessions];
+
+        for (const candidates of candidateGroups) {
+            const matchedSession = _pickUnambiguousSessionByCompleteSolveOverlap(
+                importedSessionSolves,
+                candidates,
+                existingSolvesBySessionId,
+                solveMatchOptions,
+            );
+            if (
+                matchedSession
+                && _hasEnoughRenamedSessionOverlapEvidence(
+                    importedSessionSolves,
+                    existingSolvesBySessionId.get(matchedSession.id) || [],
+                    solveMatchOptions,
+                )
+            ) {
+                return matchedSession;
+            }
+        }
+
+        return null;
+    };
+
+    existingSessions.forEach((session) => {
+        const normalizedName = _normalizeImportSessionName(session?.name);
+        if (!normalizedName) return;
+
+        pushSessionQueue(sessionsByName, normalizedName, session);
+    });
 
     return (importedSession) => {
         const hintedSessionId = sessionMatchHints.get(importedSession.id) || '';
@@ -922,17 +1050,20 @@ function _buildCsTimerSessionMergeResolver(
             return existingSessionsById.get(hintedSessionId) || null;
         }
 
-        let matchedSession = resolveByName(importedSession);
-        while (matchedSession && usedSessionIds.has(matchedSession.id)) {
-            matchedSession = resolveByName(importedSession);
-        }
+        let matchedSession = chooseNameCandidate(importedSession);
 
         if (!matchedSession) {
             matchedSession = chooseRenamedCandidate(importedSession);
+            if (matchedSession) {
+                matchedSession = _buildSessionMatchResult(matchedSession, {
+                    preserveExistingName: true,
+                });
+            }
         }
 
-        if (!matchedSession) return null;
-        usedSessionIds.add(matchedSession.id);
+        const { session } = _normalizeSessionMatchResult(matchedSession);
+        if (!session) return null;
+        usedSessionIds.add(session.id);
         return matchedSession;
     };
 }
