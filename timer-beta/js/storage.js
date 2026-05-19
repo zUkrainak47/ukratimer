@@ -235,11 +235,15 @@ function _buildSolveIdentityKey(solve, {
     roundTimestampToSecond = false,
     includeScramble = false,
 } = {}) {
-    const timestamp = Number.isFinite(solve?.timestamp) ? solve.timestamp : '';
-    const timestampKey = roundTimestampToSecond && timestamp !== ''
+    if (!Number.isFinite(solve?.timestamp) || !Number.isFinite(solve?.time)) {
+        return null;
+    }
+
+    const timestamp = solve.timestamp;
+    const timestampKey = roundTimestampToSecond
         ? Math.floor(timestamp / 1000)
         : timestamp;
-    const time = Number.isFinite(solve?.time) ? solve.time : '';
+    const time = solve.time;
     const baseKey = `${timestampKey}\u0000${time}`;
 
     if (!includeScramble) return baseKey;
@@ -252,6 +256,7 @@ function _mergeLogicalSessionSolves(importedSolves, existingSolves, targetSessio
     includeScramble = false,
 } = {}) {
     const remainingExistingQueues = new Map();
+    const unkeyedExistingSolves = [];
     const mergedSolves = [];
 
     existingSolves.forEach((solve) => {
@@ -259,6 +264,10 @@ function _mergeLogicalSessionSolves(importedSolves, existingSolves, targetSessio
             roundTimestampToSecond,
             includeScramble,
         });
+        if (key === null) {
+            unkeyedExistingSolves.push(solve);
+            return;
+        }
         if (!remainingExistingQueues.has(key)) {
             remainingExistingQueues.set(key, []);
         }
@@ -270,7 +279,7 @@ function _mergeLogicalSessionSolves(importedSolves, existingSolves, targetSessio
             roundTimestampToSecond,
             includeScramble,
         });
-        const queue = remainingExistingQueues.get(key);
+        const queue = key === null ? null : remainingExistingQueues.get(key);
         const matchedSolve = Array.isArray(queue) && queue.length > 0
             ? queue.shift()
             : null;
@@ -299,6 +308,12 @@ function _mergeLogicalSessionSolves(importedSolves, existingSolves, targetSessio
             });
         });
     });
+    unkeyedExistingSolves.forEach((solve) => {
+        mergedSolves.push({
+            ...solve,
+            sessionId: targetSessionId,
+        });
+    });
 
     return mergedSolves;
 }
@@ -325,6 +340,7 @@ function _mergeIdOrLogicalSessionSolves(importedSolves, existingSolves, targetSe
             roundTimestampToSecond,
             includeScramble,
         });
+        if (logicalKey === null) return;
         if (!existingQueuesByLogicalKey.has(logicalKey)) {
             existingQueuesByLogicalKey.set(logicalKey, []);
         }
@@ -353,7 +369,9 @@ function _mergeIdOrLogicalSessionSolves(importedSolves, existingSolves, targetSe
                 roundTimestampToSecond,
                 includeScramble,
             });
-            matchedSolve = takeUnmatchedSolve(existingQueuesByLogicalKey.get(logicalKey));
+            matchedSolve = logicalKey === null
+                ? null
+                : takeUnmatchedSolve(existingQueuesByLogicalKey.get(logicalKey));
         }
 
         if (matchedSolve) {
@@ -385,6 +403,99 @@ function _mergeIdOrLogicalSessionSolves(importedSolves, existingSolves, targetSe
     return mergedSolves;
 }
 
+function _decrementIdentityCount(counts, key) {
+    const count = counts.get(key) || 0;
+    if (count <= 0) return false;
+
+    if (count === 1) {
+        counts.delete(key);
+    } else {
+        counts.set(key, count - 1);
+    }
+    return true;
+}
+
+function _incrementIdentityCount(counts, key) {
+    counts.set(key, (counts.get(key) || 0) + 1);
+}
+
+function _scoreSolveIdentityOverlap(importedSolves, existingSolves, {
+    roundTimestampToSecond = false,
+    includeScramble = false,
+} = {}) {
+    const existingIds = new Map();
+    const existingLogicalKeys = new Map();
+    let idMatches = 0;
+    let logicalMatches = 0;
+
+    existingSolves.forEach((solve) => {
+        const id = typeof solve?.id === 'string' ? solve.id : '';
+        if (id) {
+            _incrementIdentityCount(existingIds, id);
+        }
+
+        const logicalKey = _buildSolveIdentityKey(solve, {
+            roundTimestampToSecond,
+            includeScramble,
+        });
+        if (logicalKey !== null) {
+            _incrementIdentityCount(existingLogicalKeys, logicalKey);
+        }
+    });
+
+    importedSolves.forEach((solve) => {
+        const id = typeof solve?.id === 'string' ? solve.id : '';
+        if (id && _decrementIdentityCount(existingIds, id)) {
+            idMatches += 1;
+            return;
+        }
+
+        const logicalKey = _buildSolveIdentityKey(solve, {
+            roundTimestampToSecond,
+            includeScramble,
+        });
+        if (logicalKey !== null && _decrementIdentityCount(existingLogicalKeys, logicalKey)) {
+            logicalMatches += 1;
+        }
+    });
+
+    return {
+        idMatches,
+        logicalMatches,
+        score: idMatches + logicalMatches,
+    };
+}
+
+function _pickUnambiguousSessionBySolveOverlap(importedSolves, candidateSessions, existingSolvesBySessionId) {
+    const rankedCandidates = candidateSessions
+        .map((session) => ({
+            session,
+            ..._scoreSolveIdentityOverlap(
+                importedSolves,
+                existingSolvesBySessionId.get(session.id) || [],
+                { includeScramble: true },
+            ),
+        }))
+        .sort((a, b) => (
+            (b.idMatches - a.idMatches)
+            || (b.logicalMatches - a.logicalMatches)
+        ));
+
+    const best = rankedCandidates[0] || null;
+    if (!best || best.score <= 0) return null;
+
+    const runnerUp = rankedCandidates[1] || null;
+    if (
+        runnerUp
+        && runnerUp.idMatches === best.idMatches
+        && runnerUp.logicalMatches === best.logicalMatches
+    ) {
+        return null;
+    }
+
+    return best.session;
+}
+
 function _normalizeMergedSessionOrder(sessions) {
     return sessions.map((session, index) => ({
         ...session,
@@ -399,6 +510,7 @@ function _mergeImportedDataset(
         existingData = null,
         findExistingSessionMatch = null,
         solveMatchMode = SOLVE_MATCH_MODE_ID,
+        solveMatchOptions = {},
     } = {},
 ) {
     if (!existingData) {
@@ -472,14 +584,24 @@ function _mergeImportedDataset(
 
         if (solveMatchMode === SOLVE_MATCH_MODE_LOGICAL_EXACT) {
             finalSolves.push(
-                ..._mergeLogicalSessionSolves(importedSessionSolves, existingSessionSolves, mergedSession.id),
+                ..._mergeLogicalSessionSolves(
+                    importedSessionSolves,
+                    existingSessionSolves,
+                    mergedSession.id,
+                    solveMatchOptions,
+                ),
             );
             return;
         }
 
         if (solveMatchMode === SOLVE_MATCH_MODE_ID_OR_LOGICAL_EXACT) {
             finalSolves.push(
-                ..._mergeIdOrLogicalSessionSolves(importedSessionSolves, existingSessionSolves, mergedSession.id),
+                ..._mergeIdOrLogicalSessionSolves(
+                    importedSessionSolves,
+                    existingSessionSolves,
+                    mergedSession.id,
+                    solveMatchOptions,
+                ),
             );
             return;
         }
@@ -487,6 +609,7 @@ function _mergeImportedDataset(
         if (solveMatchMode === SOLVE_MATCH_MODE_LOGICAL_CSTIMER) {
             finalSolves.push(
                 ..._mergeLogicalSessionSolves(importedSessionSolves, existingSessionSolves, mergedSession.id, {
+                    ...solveMatchOptions,
                     roundTimestampToSecond: true,
                     includeScramble: true,
                 }),
@@ -545,13 +668,13 @@ function _buildSessionNameMergeResolver(existingSessions) {
     };
 }
 
-function _buildBackupSessionMergeResolver(existingSessions) {
+function _buildBackupSessionMergeResolver(existingSessions, existingSolves = [], importedSolves = []) {
     const existingSessionsById = new Map(
         existingSessions.map((session) => [session.id, session]),
     );
-    const sessionQueuesByNameAndScrambleType = new Map();
-    const sessionQueuesByNameWithoutScrambleType = new Map();
-    const sessionQueuesByName = new Map();
+    const existingSolvesBySessionId = _groupSolvesBySessionId(existingSolves);
+    const importedSolvesBySessionId = _groupSolvesBySessionId(importedSolves);
+    const sessionsByName = new Map();
     const usedSessionIds = new Set();
 
     const getScrambleType = (session) => (
@@ -559,7 +682,6 @@ function _buildBackupSessionMergeResolver(existingSessions) {
             ? session.scrambleType
             : ''
     );
-    const buildTypedKey = (name, scrambleType) => `${name}\u0000${scrambleType}`;
     const pushSessionQueue = (map, key, session) => {
         if (!key) return;
         if (!map.has(key)) {
@@ -567,29 +689,26 @@ function _buildBackupSessionMergeResolver(existingSessions) {
         }
         map.get(key).push(session);
     };
-    const takeUnusedSession = (queue) => {
+    const getUnusedSessions = (queue) => {
         if (!Array.isArray(queue)) return null;
+        return queue.filter((candidate) => !usedSessionIds.has(candidate.id));
+    };
+    const chooseCandidate = (candidates, importedSession) => {
+        if (!Array.isArray(candidates) || candidates.length === 0) return null;
+        if (candidates.length === 1) return candidates[0];
 
-        while (queue.length > 0) {
-            const candidate = queue.shift();
-            if (!usedSessionIds.has(candidate.id)) return candidate;
-        }
-
-        return null;
+        return _pickUnambiguousSessionBySolveOverlap(
+            importedSolvesBySessionId.get(importedSession.id) || [],
+            candidates,
+            existingSolvesBySessionId,
+        );
     };
 
     existingSessions.forEach((session) => {
         const normalizedName = _normalizeImportSessionName(session?.name);
         if (!normalizedName) return;
 
-        const scrambleType = getScrambleType(session);
-        pushSessionQueue(sessionQueuesByName, normalizedName, session);
-
-        if (scrambleType) {
-            pushSessionQueue(sessionQueuesByNameAndScrambleType, buildTypedKey(normalizedName, scrambleType), session);
-        } else {
-            pushSessionQueue(sessionQueuesByNameWithoutScrambleType, normalizedName, session);
-        }
+        pushSessionQueue(sessionsByName, normalizedName, session);
     });
 
     return (importedSession) => {
@@ -603,14 +722,23 @@ function _buildBackupSessionMergeResolver(existingSessions) {
         if (!normalizedName) return null;
 
         const importedScrambleType = getScrambleType(importedSession);
-        let matchedSession = importedScrambleType
-            ? takeUnusedSession(sessionQueuesByNameAndScrambleType.get(buildTypedKey(normalizedName, importedScrambleType)))
-            : null;
+        const sameNameSessions = getUnusedSessions(sessionsByName.get(normalizedName)) || [];
+        let matchedSession = null;
 
-        if (!matchedSession) {
-            matchedSession = importedScrambleType
-                ? takeUnusedSession(sessionQueuesByNameWithoutScrambleType.get(normalizedName))
-                : takeUnusedSession(sessionQueuesByName.get(normalizedName));
+        if (importedScrambleType) {
+            const exactTypeCandidates = sameNameSessions.filter(
+                (session) => getScrambleType(session) === importedScrambleType,
+            );
+            matchedSession = chooseCandidate(exactTypeCandidates, importedSession);
+
+            if (!matchedSession && exactTypeCandidates.length === 0) {
+                matchedSession = chooseCandidate(
+                    sameNameSessions.filter((session) => getScrambleType(session) === ''),
+                    importedSession,
+                );
+            }
+        } else {
+            matchedSession = chooseCandidate(sameNameSessions, importedSession);
         }
 
         if (!matchedSession) return null;
@@ -780,8 +908,15 @@ export async function importAll(data, { mode = IMPORT_MODE_REWRITE, onProgress =
 
         const mergedData = _mergeImportedDataset(dbSessions, dbSolves, {
             existingData,
-            findExistingSessionMatch: _buildBackupSessionMergeResolver(existingData.sessions || []),
+            findExistingSessionMatch: _buildBackupSessionMergeResolver(
+                existingData.sessions || [],
+                existingData.solves || [],
+                dbSolves,
+            ),
             solveMatchMode: SOLVE_MATCH_MODE_ID_OR_LOGICAL_EXACT,
+            solveMatchOptions: {
+                includeScramble: true,
+            },
         });
         finalSessions = mergedData.dbSessions;
         finalSolves = mergedData.dbSolves;
