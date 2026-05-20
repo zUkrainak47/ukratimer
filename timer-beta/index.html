@@ -1443,13 +1443,15 @@
           <div class="setting-group-content">
             <div class="setting-row">
               <div class="setting-label">
-                Google Drive backup reminder
-                <small>Reminder to cloud save every 100 solves</small>
+                Auto export (every 100 solves)
+                <!-- <small>Choose whether to do nothing, remind, export to file, or export to Google Drive</small> -->
               </div>
-              <label class="toggle">
-                <input type="checkbox" id="setting-google-drive-backup-reminder">
-                <span class="toggle-slider"></span>
-              </label>
+              <select id="setting-auto-export-every-100-solves">
+                <option value="n">Never</option>
+                <option value="a">Remind</option>
+                <option value="ggl">Google Drive</option>
+                <option value="f">To file</option>
+              </select>
             </div>
             <div class="setting-row setting-row-no-divider">
               <div class="setting-label">

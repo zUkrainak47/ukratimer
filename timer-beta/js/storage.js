@@ -24,6 +24,17 @@ const IMPORT_PROGRESS_YIELD_INTERVAL = 2000;
 const LOCAL_ONLY_SETTING_KEYS = new Set(['zenMode']);
 const LOCAL_ONLY_SESSION_SETTING_KEYS = new Set(['zenMode']);
 const beforeDataExportHooks = new Set();
+const AUTO_EXPORT_EVERY_100_SOLVES_NEVER = 'n';
+const AUTO_EXPORT_EVERY_100_SOLVES_REMIND = 'a';
+const AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE = 'ggl';
+const AUTO_EXPORT_EVERY_100_SOLVES_FILE = 'f';
+const LEGACY_AUTO_EXPORT_EVERY_100_SOLVES_KEY = 'googleDriveBackupReminderEvery100Solves';
+const AUTO_EXPORT_EVERY_100_SOLVES_VALUES = new Set([
+    AUTO_EXPORT_EVERY_100_SOLVES_NEVER,
+    AUTO_EXPORT_EVERY_100_SOLVES_REMIND,
+    AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE,
+    AUTO_EXPORT_EVERY_100_SOLVES_FILE,
+]);
 
 export function registerBeforeDataExportHook(callback) {
     if (typeof callback !== 'function') {
@@ -149,9 +160,43 @@ function _stripLocalOnlySettingScopes(scopeMap) {
     return sanitized;
 }
 
-function _sanitizeStoredSettingsForExport(settingsData) {
+function _normalizeAutoExportEvery100Solves(
+    value,
+    {
+        defaultValue = AUTO_EXPORT_EVERY_100_SOLVES_NEVER,
+        invalidValue = AUTO_EXPORT_EVERY_100_SOLVES_REMIND,
+    } = {},
+) {
+    if (value === true) return AUTO_EXPORT_EVERY_100_SOLVES_REMIND;
+    if (value === false) return AUTO_EXPORT_EVERY_100_SOLVES_NEVER;
+    if (value == null) return defaultValue;
+
+    const normalized = typeof value === 'string'
+        ? value.trim().toLowerCase()
+        : String(value).trim().toLowerCase();
+
+    // csTimer supports destinations UkraTimer does not implement (`id`, `wca`),
+    // so unsupported values intentionally fall back to "Remind".
+    return AUTO_EXPORT_EVERY_100_SOLVES_VALUES.has(normalized)
+        ? normalized
+        : invalidValue;
+}
+
+function _sanitizeAutoExportEvery100SolvesSetting(settingsData) {
     const source = settingsData && typeof settingsData === 'object' ? settingsData : {};
     const sanitized = { ...source };
+    sanitized.autoExportEvery100Solves = _normalizeAutoExportEvery100Solves(
+        _hasOwn(source, 'autoExportEvery100Solves')
+            ? source.autoExportEvery100Solves
+            : source[LEGACY_AUTO_EXPORT_EVERY_100_SOLVES_KEY],
+        { defaultValue: AUTO_EXPORT_EVERY_100_SOLVES_NEVER },
+    );
+    delete sanitized[LEGACY_AUTO_EXPORT_EVERY_100_SOLVES_KEY];
+    return sanitized;
+}
+
+function _sanitizeStoredSettingsForExport(settingsData) {
+    const sanitized = _sanitizeAutoExportEvery100SolvesSetting(settingsData);
 
     LOCAL_ONLY_SETTING_KEYS.forEach((key) => {
         delete sanitized[key];
@@ -170,6 +215,15 @@ function _sanitizeStoredSettingsForImport(settingsData) {
     return {
         ..._sanitizeStoredSettingsForExport(settingsData),
         zenMode: false,
+    };
+}
+
+function _stampAutoExportCheckpointSettings(settingsData, totalSolveCount = 0) {
+    const normalizedTotalSolveCount = Math.max(0, Math.floor(Number(totalSolveCount) || 0));
+    return {
+        ...(settingsData && typeof settingsData === 'object' ? settingsData : {}),
+        googleDriveBackupCheckpointSolveCount: normalizedTotalSolveCount,
+        googleDriveBackupLastReminderSolveCount: normalizedTotalSolveCount,
     };
 }
 
@@ -1590,6 +1644,7 @@ const CSTIMER_IMPORT_SETTING_DEFAULTS = Object.freeze({
     inspectionAlerts: 'voice',
     timerUpdate: '0.1s',
     timeEntryMode: 'timer',
+    autoExportEvery100Solves: AUTO_EXPORT_EVERY_100_SOLVES_REMIND,
     hideUIWhileSolving: true,
     pillSize: 'medium',
     showDelta: true,
@@ -1611,6 +1666,7 @@ const CSTIMER_EXPORT_SETTING_DEFAULTS = Object.freeze({
     inspectionAlerts: 'off',
     timerUpdate: '0.01s',
     timeEntryMode: 'timer',
+    autoExportEvery100Solves: AUTO_EXPORT_EVERY_100_SOLVES_NEVER,
     dailyStreakGoal: 0,
     summaryStatsPreset: 'basic',
     summaryStatsCustom: 'mo3 ao5 ao12 ao100',
@@ -1644,6 +1700,7 @@ const CSTIMER_NATIVE_SETTING_KEYS = Object.freeze([
     'inspectionAlerts',
     'timerUpdate',
     'timeEntryMode',
+    'autoExportEvery100Solves',
     'hideUIWhileSolving',
     'pillSize',
     'showDelta',
@@ -1659,6 +1716,7 @@ const CSTIMER_NATIVE_SETTING_PROPERTY_KEYS = Object.freeze({
     inspectionAlerts: Object.freeze(['voiceIns']),
     timerUpdate: Object.freeze(['timeU']),
     timeEntryMode: Object.freeze(['input']),
+    autoExportEvery100Solves: Object.freeze(['atexpa']),
     hideUIWhileSolving: Object.freeze(['ahide']),
     pillSize: Object.freeze(['showAvg']),
     showDelta: Object.freeze(['showDiff']),
@@ -1674,6 +1732,7 @@ const CSTIMER_NATIVE_PROPERTY_DEFAULTS = Object.freeze({
     voiceIns: '1',
     timeU: 'c',
     input: 't',
+    atexpa: 'a',
     ahide: true,
     showAvg: true,
     showDiff: 'rg',
@@ -1993,6 +2052,9 @@ function _buildCsTimerCompatibleProperties(settingsData, { includeBackgroundImag
                 : settingsData?.timeEntryMode === 'bluetooth'
                     ? 'b'
                     : 't',
+        atexpa: _normalizeAutoExportEvery100Solves(settingsData?.autoExportEvery100Solves, {
+            defaultValue: AUTO_EXPORT_EVERY_100_SOLVES_NEVER,
+        }),
         ahide: settingsData?.hideUIWhileSolving !== false,
         showAvg: settingsData?.pillSize === 'hidden' ? false : true,
         showDiff: settingsData?.showDelta === false ? 'n' : 'rg',
@@ -2233,6 +2295,13 @@ function _deriveSettingsFromCsTimerProperties(properties) {
         else if (properties?.input === 's' || properties?.input === 'm') settingsData.timeEntryMode = 'stackmat';
         else if (properties?.input === 'b') settingsData.timeEntryMode = 'bluetooth';
         else settingsData.timeEntryMode = 'timer';
+    }
+
+    if (_hasOwn(properties, 'atexpa')) {
+        settingsData.autoExportEvery100Solves = _normalizeAutoExportEvery100Solves(
+            properties?.atexpa,
+            { defaultValue: AUTO_EXPORT_EVERY_100_SOLVES_REMIND },
+        );
     }
 
     if (_hasOwn(properties, 'ahide')) {
@@ -2559,8 +2628,6 @@ export async function importCsTimer(csData, { mode = IMPORT_MODE_REWRITE, onProg
         }
     });
 
-    const newSettings = _sanitizeStoredSettingsForImport(nextSettings);
-
     let activeImportedSessionId = activeImportedSession?.id || dbSessions[0]?.id || null;
     const activeImportedScrambleType = activeImportedSession?.scrambleType || '333';
     let finalSessions = dbSessions;
@@ -2607,6 +2674,10 @@ export async function importCsTimer(csData, { mode = IMPORT_MODE_REWRITE, onProg
         processedOffset: parseTotal,
         totalWork,
     });
+
+    const newSettings = _sanitizeStoredSettingsForImport(
+        _stampAutoExportCheckpointSettings(nextSettings, finalSolves.length),
+    );
 
     // Write settings to localStorage
     save('activeSessionId', activeImportedSessionId);

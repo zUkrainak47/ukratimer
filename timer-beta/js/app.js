@@ -1,7 +1,7 @@
 import { timer, State as TimerState } from './timer.js?v=2026051904';
 import { SCRAMBLE_TYPE_OPTIONS, generateScrambleBatchForType, generateScrambleForType, getScramble, getCurrentScramble, getCurrentScrambleType, getPrevScramble, getNextScramble, getSelectedScrambleType, setCurrentScramble, setScrambleType, isCurrentScrambleManual, hasPrevScramble, isViewingPreviousScramble, preloadScrambleEngines, needsCubingWarmup, runCubingWarmup } from './scramble.js?v=2026051904';
 import { sessionManager } from './session.js?v=2026051904';
-import { settings, DEFAULTS, THEME_OPTIONS, THEME_COLOR_SECTIONS, THEME_DEFAULT_ID, THEME_OLED_ID, THEME_CUSTOM_IDS, SETTING_SCOPE_GLOBAL, SETTING_SCOPE_SESSION, SESSION_SCOPABLE_SETTING_KEYS, composeThemeColor, decomposeThemeColor, getLinkedSessionScopeKeys, getThemePresetColors, isCustomThemeId } from './settings.js?v=2026051904';
+import { settings, DEFAULTS, THEME_OPTIONS, THEME_COLOR_SECTIONS, THEME_DEFAULT_ID, THEME_OLED_ID, THEME_CUSTOM_IDS, SETTING_SCOPE_GLOBAL, SETTING_SCOPE_SESSION, SESSION_SCOPABLE_SETTING_KEYS, AUTO_EXPORT_EVERY_100_SOLVES_NEVER, AUTO_EXPORT_EVERY_100_SOLVES_REMIND, AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE, AUTO_EXPORT_EVERY_100_SOLVES_FILE, composeThemeColor, decomposeThemeColor, getLinkedSessionScopeKeys, getThemePresetColors, isCustomThemeId, normalizeAutoExportEvery100Solves } from './settings.js?v=2026051904';
 import { parseGraphStatType, parseRollingStatType, rollingStatAt, StatsCache } from './stats.js?v=2026051904';
 import { formatTime, formatSolveTime, formatTimerDisplayTime, getEffectiveTime, formatDate, formatDateTime, parseTimeInputToMs, truncateTimeDisplay } from './utils.js?v=2026051904';
 import { initModal, showSolveDetail, showAverageDetail, closeModal, closeMoveSessionMenus, customConfirm, customConfirmChoice, customPrompt, getModalSelectionContext, setModalStatNavigator, setModalStatButtons, armModalGhostClickGuard } from './modal.js?v=2026051904';
@@ -59,10 +59,12 @@ let importProgressState = {
 };
 let importProgressHideTimeout = null;
 let dailyStreakToastHideTimeout = null;
+let lastAutoExportFailureNoticeKey = '';
 const statsCache = new StatsCache();
 let _skipSolveAddedRefresh = false; // set true when commitSolve manages the refresh itself
 const DAILY_STREAKS_INTRO_STORAGE_KEY = 'ukratimer_daily_streaks_intro_v1';
 const GOOGLE_DRIVE_BACKUP_REMINDER_INTERVAL_SOLVES = 100;
+const GOOGLE_DRIVE_AUTO_EXPORT_DISCONNECTED_MESSAGE = 'Google Drive auto export switched to Remind because your Google account disconnected.';
 const THEME_EDITOR_MODE_SIMPLE = 'simple';
 const THEME_EDITOR_MODE_FULL = 'full';
 const SIMPLE_THEME_COLOR_SECTIONS = Object.freeze([
@@ -312,6 +314,7 @@ const TIMER_POPUP_ELEMENT_IDS = [
     'cubing-warmup-alert',
     'import-progress',
 ];
+const TIMER_POPUP_STACK_GAP_PX = 10;
 
 const hardwareInputUiState = {
     activeMode: null,
@@ -337,9 +340,33 @@ let pendingHardwareModeReconnect = false;
 let isSettingScopeModeVisible = false;
 
 function syncTimerPopupStacking() {
-    const hasVisiblePopup = TIMER_POPUP_ELEMENT_IDS.some((elementId) =>
-        document.getElementById(elementId)?.classList.contains('visible'),
-    );
+    const visiblePopupElements = [];
+
+    TIMER_POPUP_ELEMENT_IDS.forEach((elementId) => {
+        const element = document.getElementById(elementId);
+        if (!element) return;
+
+        if (!element.classList.contains('visible')) {
+            element.style.removeProperty('--timer-popup-stack-offset');
+            return;
+        }
+
+        visiblePopupElements.push(element);
+    });
+
+    let stackOffsetPx = 0;
+    visiblePopupElements.forEach((element, index) => {
+        element.style.setProperty('--timer-popup-stack-offset', `${stackOffsetPx}px`);
+
+        const elementHeight = Math.ceil(element.getBoundingClientRect().height || element.offsetHeight || 0);
+        if (elementHeight > 0) {
+            stackOffsetPx += elementHeight + TIMER_POPUP_STACK_GAP_PX;
+        } else if (index < visiblePopupElements.length - 1) {
+            stackOffsetPx += TIMER_POPUP_STACK_GAP_PX;
+        }
+    });
+
+    const hasVisiblePopup = visiblePopupElements.length > 0;
     document.getElementById('center-panel')?.classList.toggle(TIMER_POPUP_ACTIVE_CLASS, hasVisiblePopup);
     document.getElementById('timer-popup-overlay')?.classList.toggle(TIMER_POPUP_ACTIVE_CLASS, hasVisiblePopup);
     document.getElementById('timer-display-wrapper')?.classList.toggle(TIMER_POPUP_ACTIVE_CLASS, hasVisiblePopup);
@@ -403,18 +430,18 @@ function countBackupSolveTotal(data) {
         : 0;
 }
 
-function getGoogleDriveBackupCheckpointSolveCount() {
+function getAutoExportCheckpointSolveCount() {
     return normalizeNonNegativeInteger(settings.get('googleDriveBackupCheckpointSolveCount'), 0);
 }
 
-function getGoogleDriveBackupLastReminderSolveCount(checkpointSolveCount = getGoogleDriveBackupCheckpointSolveCount()) {
+function getAutoExportLastReminderSolveCount(checkpointSolveCount = getAutoExportCheckpointSolveCount()) {
     return Math.max(
         checkpointSolveCount,
         normalizeNonNegativeInteger(settings.get('googleDriveBackupLastReminderSolveCount'), checkpointSolveCount),
     );
 }
 
-function buildGoogleDriveBackupCheckpointSettings(baseSettings, totalSolveCount) {
+function buildAutoExportCheckpointSettings(baseSettings, totalSolveCount) {
     const normalizedTotalSolveCount = normalizeNonNegativeInteger(totalSolveCount, 0);
     const nextSettings = baseSettings && typeof baseSettings === 'object'
         ? { ...baseSettings }
@@ -433,28 +460,141 @@ function buildGoogleDriveBackupCheckpointSettings(baseSettings, totalSolveCount)
     };
 }
 
-function stampGoogleDriveBackupCheckpoint(data, totalSolveCount) {
+function stampAutoExportCheckpoint(data, totalSolveCount) {
     const nextData = data && typeof data === 'object' ? data : {};
     const baseSettings = nextData.settings && typeof nextData.settings === 'object'
         ? nextData.settings
         : settings.getAll();
     return {
         ...nextData,
-        settings: buildGoogleDriveBackupCheckpointSettings(baseSettings, totalSolveCount),
+        settings: buildAutoExportCheckpointSettings(baseSettings, totalSolveCount),
     };
 }
 
-function persistGoogleDriveBackupCheckpoint(totalSolveCount = getTotalSolveCount()) {
+function persistAutoExportCheckpoint(totalSolveCount = getTotalSolveCount()) {
     const normalizedTotalSolveCount = normalizeNonNegativeInteger(totalSolveCount, 0);
     settings.set('googleDriveBackupCheckpointSolveCount', normalizedTotalSolveCount);
     settings.set('googleDriveBackupLastReminderSolveCount', normalizedTotalSolveCount);
+    lastAutoExportFailureNoticeKey = '';
 }
 
-async function maybeShowGoogleDriveBackupReminder() {
-    if (!settings.get('googleDriveBackupReminderEvery100Solves')) return;
+function getAutoExportEvery100SolvesMode() {
+    return normalizeAutoExportEvery100Solves(settings.get('autoExportEvery100Solves'), {
+        defaultValue: DEFAULTS.autoExportEvery100Solves,
+    });
+}
+
+function showGoogleDriveAutoExportPopup(message, duration = 5200) {
+    showPopup('backupReminder', message, duration);
+}
+
+function maybeShowAutoExportFailurePopup(autoExportMode, milestoneSolveCount, error) {
+    const fallbackMessage = autoExportMode === AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE
+        ? 'Auto export to Google Drive failed'
+        : 'Auto export to file failed';
+    const message = error?.message || fallbackMessage;
+    const noticeKey = `${autoExportMode}:${milestoneSolveCount}:${message}`;
+
+    if (lastAutoExportFailureNoticeKey === noticeKey) return;
+
+    lastAutoExportFailureNoticeKey = noticeKey;
+    showPopup('backupReminder', message, 5200);
+}
+
+function fallbackGoogleDriveAutoExportToRemind({
+    popupMessage = GOOGLE_DRIVE_AUTO_EXPORT_DISCONNECTED_MESSAGE,
+    showPopupMessage = true,
+} = {}) {
+    if (getAutoExportEvery100SolvesMode() !== AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE) {
+        return false;
+    }
+
+    settings.set('autoExportEvery100Solves', AUTO_EXPORT_EVERY_100_SOLVES_REMIND);
+
+    if (showPopupMessage) {
+        showGoogleDriveAutoExportPopup(popupMessage);
+    }
+
+    return true;
+}
+
+function buildCsTimerExportFilename(now = new Date()) {
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const secondsPassedToday = (now.getHours() * 3600) + (now.getMinutes() * 60) + now.getSeconds();
+    return `ukratimer-${year}-${month}-${day}_${secondsPassedToday}-cstimer-format.txt`;
+}
+
+function downloadCsTimerExportFile(data, { now = new Date() } = {}) {
+    const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = buildCsTimerExportFilename(now);
+    anchor.click();
+    URL.revokeObjectURL(url);
+}
+
+async function exportCsTimerFile({
+    totalSolveCount = getTotalSolveCount(),
+    persistCheckpoint = false,
+} = {}) {
+    const data = await exportCsTimer();
+    downloadCsTimerExportFile(data);
+    if (persistCheckpoint) {
+        persistAutoExportCheckpoint(totalSolveCount);
+    }
+    return data;
+}
+
+async function ensureGoogleDriveSessionForExport({ onMissingSession = null } = {}) {
+    if (hasGoogleDriveSession()) return true;
+
+    const restored = await restoreGoogleDriveSession();
+    if (restored) return true;
+
+    if (typeof onMissingSession === 'function') {
+        onMissingSession();
+    }
+
+    return false;
+}
+
+async function exportGoogleDriveBackupAndPersistCheckpoint(
+    totalSolveCount = getTotalSolveCount(),
+    { onMissingSession = null } = {},
+) {
+    if (!isGoogleDriveSyncConfigured()) {
+        throw new Error('Google Drive sync is not configured.');
+    }
+
+    if (!(await ensureGoogleDriveSessionForExport({ onMissingSession }))) {
+        throw new Error('Google Drive needs permission again. Reconnect your account to continue.');
+    }
+
+    const data = stampAutoExportCheckpoint(await exportAll(), totalSolveCount);
+    const savedFile = await exportBackupToGoogleDrive(data);
+    persistAutoExportCheckpoint(totalSolveCount);
+    return savedFile;
+}
+
+async function maybeHandleAutoExportEvery100Solves() {
+    const autoExportMode = getAutoExportEvery100SolvesMode();
+    if (autoExportMode === AUTO_EXPORT_EVERY_100_SOLVES_NEVER) return;
+
+    if (
+        autoExportMode === AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE
+        && !isGoogleDriveSyncConfigured()
+    ) {
+        fallbackGoogleDriveAutoExportToRemind({
+            popupMessage: 'Google Drive auto export switched to Remind because Google Drive sync is not configured in this build.',
+        });
+        return;
+    }
 
     const totalSolveCount = getTotalSolveCount();
-    const checkpointSolveCount = getGoogleDriveBackupCheckpointSolveCount();
+    const checkpointSolveCount = getAutoExportCheckpointSolveCount();
     const solvesSinceCheckpoint = Math.max(0, totalSolveCount - checkpointSolveCount);
 
     if (solvesSinceCheckpoint < GOOGLE_DRIVE_BACKUP_REMINDER_INTERVAL_SOLVES) return;
@@ -462,14 +602,44 @@ async function maybeShowGoogleDriveBackupReminder() {
     const latestReminderMilestone = checkpointSolveCount
         + Math.floor(solvesSinceCheckpoint / GOOGLE_DRIVE_BACKUP_REMINDER_INTERVAL_SOLVES) * GOOGLE_DRIVE_BACKUP_REMINDER_INTERVAL_SOLVES;
 
-    if (latestReminderMilestone <= getGoogleDriveBackupLastReminderSolveCount(checkpointSolveCount)) return;
+    if (latestReminderMilestone <= getAutoExportLastReminderSolveCount(checkpointSolveCount)) return;
 
-    settings.set('googleDriveBackupLastReminderSolveCount', latestReminderMilestone);
-    showPopup(
-        'backupReminder',
-        `${solvesSinceCheckpoint.toLocaleString()} solves since your last Google Drive backup`,
-        5200,
-    );
+    if (autoExportMode === AUTO_EXPORT_EVERY_100_SOLVES_REMIND) {
+        settings.set('googleDriveBackupLastReminderSolveCount', latestReminderMilestone);
+        showPopup(
+            'backupReminder',
+            `${solvesSinceCheckpoint.toLocaleString()} solves since your last export`,
+            5200,
+        );
+        return;
+    }
+
+    try {
+        if (autoExportMode === AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE) {
+            await exportGoogleDriveBackupAndPersistCheckpoint(totalSolveCount, {
+                onMissingSession: () => {
+                    fallbackGoogleDriveAutoExportToRemind();
+                },
+            });
+            showPopup('backupReminder', 'Auto exported to Google Drive', 3200);
+            return;
+        }
+
+        if (autoExportMode === AUTO_EXPORT_EVERY_100_SOLVES_FILE) {
+            await exportCsTimerFile({ totalSolveCount, persistCheckpoint: true });
+            showPopup('backupReminder', 'Auto export started a file download', 3200);
+        }
+    } catch (error) {
+        console.warn('Auto export failed:', error);
+        if (
+            autoExportMode === AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE
+            && getAutoExportEvery100SolvesMode() !== AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE
+        ) {
+            return;
+        }
+
+        maybeShowAutoExportFailurePopup(autoExportMode, latestReminderMilestone, error);
+    }
 }
 
 function formatBulkActionProgressText(snapshot = bulkActionProgressState) {
@@ -4950,7 +5120,7 @@ async function init() {
         dailyStreakStore.upsertSolve(solve);
         refreshSessionList();
         if (!_skipSolveAddedRefresh) refreshUI();
-        void maybeShowGoogleDriveBackupReminder();
+        void maybeHandleAutoExportEvery100Solves();
     });
     sessionManager.on('solveUpdated', (solve) => {
         dailyStreakStore.upsertSolve(solve);
@@ -5076,10 +5246,12 @@ async function init() {
     window.addEventListener('resize', scheduleViewportLayoutSync);
     window.addEventListener('resize', syncMobileSummaryDisplays);
     window.addEventListener('resize', syncDesktopTimerInfoPills);
+    window.addEventListener('resize', syncTimerPopupStacking);
     window.addEventListener('resize', () => renderSolvesTable());
     window.addEventListener('orientationchange', scheduleViewportLayoutSync);
     window.addEventListener('orientationchange', syncMobileSummaryDisplays);
     window.addEventListener('orientationchange', syncDesktopTimerInfoPills);
+    window.addEventListener('orientationchange', syncTimerPopupStacking);
     window.addEventListener('online', startCubingWarmupIfNeeded);
     scheduleViewportLayoutSync();
     window.requestAnimationFrame(() => {
@@ -13532,7 +13704,10 @@ function initSettingsPanel() {
     const googleDriveAccountBtn = document.getElementById('btn-google-drive-account');
     const googleDriveExportBtn = document.getElementById('btn-google-drive-export');
     const googleDriveImportBtn = document.getElementById('btn-google-drive-import');
-    const googleDriveBackupReminderToggle = document.getElementById('setting-google-drive-backup-reminder');
+    const autoExportEvery100SolvesSelect = document.getElementById('setting-auto-export-every-100-solves');
+    const autoExportEvery100SolvesGoogleDriveOption = autoExportEvery100SolvesSelect instanceof HTMLSelectElement
+        ? autoExportEvery100SolvesSelect.querySelector(`option[value="${AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE}"]`)
+        : null;
     let googleDriveBusy = false;
 
     const setGoogleDriveStatus = (message, tone = '') => {
@@ -13540,6 +13715,41 @@ function initSettingsPanel() {
         googleDriveStatus.textContent = message;
         googleDriveStatus.classList.toggle('is-error', tone === 'error');
         googleDriveStatus.classList.toggle('is-success', tone === 'success');
+    };
+
+    const syncAutoExportEvery100SolvesControl = () => {
+        if (!(autoExportEvery100SolvesSelect instanceof HTMLSelectElement)) return;
+
+        const connected = hasGoogleDriveSession();
+        autoExportEvery100SolvesSelect.value = getAutoExportEvery100SolvesMode();
+        autoExportEvery100SolvesSelect.title = connected
+            ? ''
+            : 'Sign in to Google to use Google Drive auto export.';
+
+        if (autoExportEvery100SolvesGoogleDriveOption instanceof HTMLOptionElement) {
+            autoExportEvery100SolvesGoogleDriveOption.textContent = connected
+                ? 'Google Drive'
+                : 'Google Drive (sign in first)';
+        }
+    };
+
+    const fallbackGoogleDriveAutoExportToRemindWithStatus = ({
+        popupMessage = GOOGLE_DRIVE_AUTO_EXPORT_DISCONNECTED_MESSAGE,
+        statusMessage = 'Google Drive needs permission again. Auto export was switched to Remind.',
+        statusTone = 'error',
+        showPopupMessage = true,
+    } = {}) => {
+        const downgraded = fallbackGoogleDriveAutoExportToRemind({
+            popupMessage,
+            showPopupMessage,
+        });
+
+        if (downgraded && statusMessage) {
+            setGoogleDriveStatus(statusMessage, statusTone);
+        }
+
+        syncAutoExportEvery100SolvesControl();
+        return downgraded;
     };
 
     const reportGoogleDriveError = (message) => {
@@ -13552,20 +13762,65 @@ function initSettingsPanel() {
     };
 
     const ensureGoogleDriveSession = async () => {
-        if (hasGoogleDriveSession()) return true;
-
-        const restored = await restoreGoogleDriveSession();
-        if (restored) return true;
-
-        setGoogleDriveStatus('Google Drive needs permission again. Reconnect your account to continue.');
-        return false;
+        return ensureGoogleDriveSessionForExport({
+            onMissingSession: () => {
+                const downgraded = fallbackGoogleDriveAutoExportToRemindWithStatus();
+                if (!downgraded) {
+                    setGoogleDriveStatus('Google Drive needs permission again. Reconnect your account to continue.', 'error');
+                }
+            },
+        });
     };
 
-    if (googleDriveBackupReminderToggle) {
-        googleDriveBackupReminderToggle.checked = settings.get('googleDriveBackupReminderEvery100Solves') === true;
-        googleDriveBackupReminderToggle.onchange = () => {
-            settings.set('googleDriveBackupReminderEvery100Solves', googleDriveBackupReminderToggle.checked);
+    if (autoExportEvery100SolvesSelect instanceof HTMLSelectElement) {
+        syncAutoExportEvery100SolvesControl();
+        autoExportEvery100SolvesSelect.onchange = async () => {
+            const nextMode = normalizeAutoExportEvery100Solves(autoExportEvery100SolvesSelect.value, {
+                defaultValue: DEFAULTS.autoExportEvery100Solves,
+            });
+
+            if (nextMode === AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE) {
+                if (!isGoogleDriveSyncConfigured()) {
+                    setGoogleDriveStatus('Google Drive sync is not configured in this build.', 'error');
+                    syncAutoExportEvery100SolvesControl();
+                    autoExportEvery100SolvesSelect.blur();
+                    return;
+                }
+
+                let connected = false;
+                try {
+                    connected = await ensureGoogleDriveSessionForExport({
+                        onMissingSession: () => {
+                            setGoogleDriveStatus('Google login is required before enabling Google Drive auto export.', 'error');
+                        },
+                    });
+                } catch (error) {
+                    setGoogleDriveStatus(error?.message || 'Could not verify your Google Drive session right now.', 'error');
+                    syncAutoExportEvery100SolvesControl();
+                    autoExportEvery100SolvesSelect.blur();
+                    return;
+                }
+
+                if (!connected) {
+                    syncAutoExportEvery100SolvesControl();
+                    autoExportEvery100SolvesSelect.blur();
+                    return;
+                }
+            }
+
+            settings.set('autoExportEvery100Solves', nextMode);
+            syncAutoExportEvery100SolvesControl();
+            if (nextMode === AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE) {
+                void refreshGoogleDriveStatus();
+            }
+            autoExportEvery100SolvesSelect.blur();
         };
+
+        settings.on('change', (key) => {
+            if (key !== 'autoExportEvery100Solves') return;
+            syncAutoExportEvery100SolvesControl();
+        });
+        settings.on('reset', syncAutoExportEvery100SolvesControl);
     }
 
     const syncGoogleDriveAccountButton = () => {
@@ -13589,6 +13844,7 @@ function initSettingsPanel() {
         const connected = hasGoogleDriveSession();
 
         syncGoogleDriveAccountButton();
+        syncAutoExportEvery100SolvesControl();
 
         if (googleDriveExportBtn) {
             googleDriveExportBtn.disabled = !configured || googleDriveBusy || !connected;
@@ -13605,11 +13861,28 @@ function initSettingsPanel() {
         syncGoogleDriveButtons();
 
         if (!isGoogleDriveSyncConfigured()) {
+            const downgraded = fallbackGoogleDriveAutoExportToRemindWithStatus({
+                popupMessage: 'Google Drive auto export switched to Remind because Google Drive sync is not configured in this build.',
+                statusMessage: 'Google Drive sync is not configured in this build. Auto export was switched to Remind.',
+                statusTone: 'error',
+            });
+            if (downgraded) {
+                syncGoogleDriveButtons();
+                return;
+            }
             setGoogleDriveStatus('Add a Google OAuth client ID in index.html to enable cloud backup.', 'error');
             return;
         }
 
         if (!hasGoogleDriveSession()) {
+            const downgraded = fallbackGoogleDriveAutoExportToRemindWithStatus({
+                statusMessage: 'Google Drive needs permission again. Auto export was switched to Remind.',
+                statusTone: 'error',
+            });
+            if (downgraded) {
+                syncGoogleDriveButtons();
+                return;
+            }
             setGoogleDriveStatus('Connect Google Drive to sync a backup file across your devices.');
             return;
         }
@@ -13645,7 +13918,14 @@ function initSettingsPanel() {
 
                 try {
                     await signOutOfGoogleDrive();
-                    setGoogleDriveStatus('Signed out of Google Drive.');
+                    const downgraded = fallbackGoogleDriveAutoExportToRemindWithStatus({
+                        popupMessage: 'Google Drive auto export switched to Remind because you signed out of Google.',
+                        statusMessage: 'Signed out of Google Drive. Auto export was switched to Remind.',
+                        statusTone: '',
+                    });
+                    if (!downgraded) {
+                        setGoogleDriveStatus('Signed out of Google Drive.');
+                    }
                 } catch (error) {
                     setGoogleDriveStatus(error?.message || 'Could not sign out of Google Drive.', 'error');
                 } finally {
@@ -13681,11 +13961,15 @@ function initSettingsPanel() {
             setGoogleDriveStatus('Exporting backup to Google Drive...');
 
             try {
-                if (!(await ensureGoogleDriveSession())) return;
                 const totalSolveCount = getTotalSolveCount();
-                const data = stampGoogleDriveBackupCheckpoint(await exportAll(), totalSolveCount);
-                const savedFile = await exportBackupToGoogleDrive(data);
-                persistGoogleDriveBackupCheckpoint(totalSolveCount);
+                const savedFile = await exportGoogleDriveBackupAndPersistCheckpoint(totalSolveCount, {
+                    onMissingSession: () => {
+                        const downgraded = fallbackGoogleDriveAutoExportToRemindWithStatus();
+                        if (!downgraded) {
+                            setGoogleDriveStatus('Google Drive needs permission again. Reconnect your account to continue.', 'error');
+                        }
+                    },
+                });
                 const modifiedAt = savedFile?.modifiedTime ? Date.parse(savedFile.modifiedTime) : Date.now();
                 setGoogleDriveStatus(`Cloud backup updated ${formatDateTime(modifiedAt)}.`, 'success');
             } catch (error) {
@@ -13719,7 +14003,7 @@ function initSettingsPanel() {
                     throw new Error('Google Drive backup is missing timer data.');
                 }
 
-                data = stampGoogleDriveBackupCheckpoint(data, countBackupSolveTotal(data));
+                data = stampAutoExportCheckpoint(data, countBackupSolveTotal(data));
 
                 closeSettingsPanel({ isPopState: true });
 
@@ -13771,18 +14055,30 @@ function initSettingsPanel() {
     // then refresh the UI status. This replaces the old localStorage hydration.
     void (async () => {
         if (authError) {
-            setGoogleDriveStatus(
-                authError === 'access_denied'
-                    ? 'Google Drive access was denied.'
-                    : `Google Drive connection failed (${authError}).`,
-                'error'
-            );
+            const authErrorMessage = authError === 'access_denied'
+                ? 'Google Drive access was denied.'
+                : `Google Drive connection failed (${authError}).`;
+            const downgraded = fallbackGoogleDriveAutoExportToRemindWithStatus({
+                popupMessage: GOOGLE_DRIVE_AUTO_EXPORT_DISCONNECTED_MESSAGE,
+                statusMessage: authErrorMessage,
+                statusTone: 'error',
+                showPopupMessage: getAutoExportEvery100SolvesMode() === AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE,
+            });
+            if (!downgraded) {
+                setGoogleDriveStatus(authErrorMessage, 'error');
+            }
             syncGoogleDriveButtons();
             return;
         }
 
         // Try to silently restore the session (calls /auth/token on the Worker).
-        await restoreGoogleDriveSession();
+        try {
+            await restoreGoogleDriveSession();
+        } catch (error) {
+            setGoogleDriveStatus(error?.message || 'Could not verify your Google Drive session right now.', 'error');
+            syncGoogleDriveButtons();
+            return;
+        }
         await refreshGoogleDriveStatus();
     })();
 
@@ -13800,19 +14096,7 @@ function initSettingsPanel() {
 
     // Export as csTimer
     document.getElementById('btn-export-cstimer').onclick = async () => {
-        const data = await exportCsTimer();
-        const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        const secondsPassedToday = (now.getHours() * 3600) + (now.getMinutes() * 60) + now.getSeconds();
-        a.href = url;
-        a.download = `ukratimer-${year}-${month}-${day}_${secondsPassedToday}-cstimer-format.txt`;
-        a.click();
-        URL.revokeObjectURL(url);
+        await exportCsTimerFile({ persistCheckpoint: true });
     };
 
     // Import — uses modern File System Access API (Chrome/Edge) to avoid
