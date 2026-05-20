@@ -1,9 +1,9 @@
-import * as db from './db.js?v=2026051904';
+import * as db from './db.js?v=2026052001';
 import {
     SETTING_SCOPE_SESSION,
     SUMMARY_STATS_SCOPE_SETTING_KEYS,
     normalizeSettingScopes,
-} from './setting-scopes.js?v=2026051904';
+} from './setting-scopes.js?v=2026052001';
 
 const STORAGE_PREFIX = 'cubetimer_';
 const STORAGE_VERSION = 1;
