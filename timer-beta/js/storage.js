@@ -29,6 +29,8 @@ const AUTO_EXPORT_EVERY_100_SOLVES_REMIND = 'a';
 const AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE = 'ggl';
 const AUTO_EXPORT_EVERY_100_SOLVES_FILE = 'f';
 const LEGACY_AUTO_EXPORT_EVERY_100_SOLVES_KEY = 'googleDriveBackupReminderEvery100Solves';
+const LEGACY_AUTO_EXPORT_CHECKPOINT_SOLVE_COUNT_KEY = 'googleDriveBackupCheckpointSolveCount';
+const LEGACY_AUTO_EXPORT_LAST_REMINDER_SOLVE_COUNT_KEY = 'googleDriveBackupLastReminderSolveCount';
 const AUTO_EXPORT_EVERY_100_SOLVES_VALUES = new Set([
     AUTO_EXPORT_EVERY_100_SOLVES_NEVER,
     AUTO_EXPORT_EVERY_100_SOLVES_REMIND,
@@ -160,6 +162,13 @@ function _stripLocalOnlySettingScopes(scopeMap) {
     return sanitized;
 }
 
+function _normalizeNonNegativeInteger(value, fallback = 0) {
+    const normalized = Math.floor(Number(value));
+    return Number.isFinite(normalized) && normalized >= 0
+        ? normalized
+        : Math.max(0, Math.floor(Number(fallback)) || 0);
+}
+
 function _normalizeAutoExportEvery100Solves(
     value,
     {
@@ -195,8 +204,56 @@ function _sanitizeAutoExportEvery100SolvesSetting(settingsData) {
     return sanitized;
 }
 
-function _sanitizeStoredSettingsForExport(settingsData) {
+function _sanitizeAutoExportSequenceSettings(settingsData, { minimumSolveSequence = 0 } = {}) {
     const sanitized = _sanitizeAutoExportEvery100SolvesSetting(settingsData);
+    const legacyCheckpointSolveSequence = _normalizeNonNegativeInteger(
+        sanitized[LEGACY_AUTO_EXPORT_CHECKPOINT_SOLVE_COUNT_KEY],
+        0,
+    );
+    const nextCheckpointSolveSequence = _normalizeNonNegativeInteger(
+        _hasOwn(sanitized, 'autoExportCheckpointSolveSequence')
+            ? sanitized.autoExportCheckpointSolveSequence
+            : legacyCheckpointSolveSequence,
+        legacyCheckpointSolveSequence,
+    );
+    const legacyLastReminderSolveSequence = _normalizeNonNegativeInteger(
+        sanitized[LEGACY_AUTO_EXPORT_LAST_REMINDER_SOLVE_COUNT_KEY],
+        nextCheckpointSolveSequence,
+    );
+    const nextLastReminderSolveSequence = Math.max(
+        nextCheckpointSolveSequence,
+        _normalizeNonNegativeInteger(
+            _hasOwn(sanitized, 'autoExportLastReminderSolveSequence')
+                ? sanitized.autoExportLastReminderSolveSequence
+                : legacyLastReminderSolveSequence,
+            legacyLastReminderSolveSequence,
+        ),
+    );
+    const nextSolveSequence = Math.max(
+        nextCheckpointSolveSequence,
+        nextLastReminderSolveSequence,
+        _normalizeNonNegativeInteger(
+            _hasOwn(sanitized, 'autoExportSolveSequence')
+                ? sanitized.autoExportSolveSequence
+                : nextLastReminderSolveSequence,
+            nextLastReminderSolveSequence,
+        ),
+        _normalizeNonNegativeInteger(minimumSolveSequence, 0),
+    );
+
+    sanitized.autoExportSolveSequence = nextSolveSequence;
+    sanitized.autoExportCheckpointSolveSequence = Math.min(nextSolveSequence, nextCheckpointSolveSequence);
+    sanitized.autoExportLastReminderSolveSequence = Math.min(
+        nextSolveSequence,
+        Math.max(sanitized.autoExportCheckpointSolveSequence, nextLastReminderSolveSequence),
+    );
+    delete sanitized[LEGACY_AUTO_EXPORT_CHECKPOINT_SOLVE_COUNT_KEY];
+    delete sanitized[LEGACY_AUTO_EXPORT_LAST_REMINDER_SOLVE_COUNT_KEY];
+    return sanitized;
+}
+
+function _sanitizeStoredSettingsForExport(settingsData, { minimumSolveSequence = 0 } = {}) {
+    const sanitized = _sanitizeAutoExportSequenceSettings(settingsData, { minimumSolveSequence });
 
     LOCAL_ONLY_SETTING_KEYS.forEach((key) => {
         delete sanitized[key];
@@ -211,19 +268,23 @@ function _sanitizeStoredSettingsForExport(settingsData) {
     return sanitized;
 }
 
-function _sanitizeStoredSettingsForImport(settingsData) {
+function _sanitizeStoredSettingsForImport(settingsData, { minimumSolveSequence = 0 } = {}) {
     return {
-        ..._sanitizeStoredSettingsForExport(settingsData),
+        ..._sanitizeStoredSettingsForExport(settingsData, { minimumSolveSequence }),
         zenMode: false,
     };
 }
 
-function _stampAutoExportCheckpointSettings(settingsData, totalSolveCount = 0) {
-    const normalizedTotalSolveCount = Math.max(0, Math.floor(Number(totalSolveCount) || 0));
+function _stampAutoExportSequenceSettings(settingsData, solveSequence = 0) {
+    const normalizedSolveSequence = _normalizeNonNegativeInteger(solveSequence, 0);
+    const sanitized = _sanitizeAutoExportSequenceSettings(settingsData, {
+        minimumSolveSequence: normalizedSolveSequence,
+    });
     return {
-        ...(settingsData && typeof settingsData === 'object' ? settingsData : {}),
-        googleDriveBackupCheckpointSolveCount: normalizedTotalSolveCount,
-        googleDriveBackupLastReminderSolveCount: normalizedTotalSolveCount,
+        ...sanitized,
+        autoExportSolveSequence: normalizedSolveSequence,
+        autoExportCheckpointSolveSequence: normalizedSolveSequence,
+        autoExportLastReminderSolveSequence: normalizedSolveSequence,
     };
 }
 
@@ -238,14 +299,19 @@ function _sanitizeSessionSettingsForTransport(sessionSettings) {
     return sanitized;
 }
 
-function _applyImportedBackupValues(data, { replaceMissing = false } = {}) {
+function _applyImportedBackupValues(data, { replaceMissing = false, autoExportSolveSequence = 0 } = {}) {
     const nextValues = new Map();
 
     for (const [key, value] of Object.entries(data || {})) {
         if (key === 'version' || key === 'sessions' || !BACKUP_LOCAL_STORAGE_KEY_SET.has(key)) continue;
         nextValues.set(
             key,
-            key === 'settings' ? _sanitizeStoredSettingsForImport(value) : value,
+            key === 'settings'
+                ? _sanitizeStoredSettingsForImport(
+                    _stampAutoExportSequenceSettings(value, autoExportSolveSequence),
+                    { minimumSolveSequence: autoExportSolveSequence },
+                )
+                : value,
         );
     }
 
@@ -1292,7 +1358,10 @@ export async function importAll(data, { mode = IMPORT_MODE_REWRITE, onProgress =
 
     // Write remaining import-backed localStorage keys (settings, active session,
     // selected scramble type). Cache/runtime keys stay device-local.
-    _applyImportedBackupValues(importedBackupValues, { replaceMissing: true });
+    _applyImportedBackupValues(importedBackupValues, {
+        replaceMissing: true,
+        autoExportSolveSequence: finalSolves.length,
+    });
 
     _reportImportProgress(onProgress, {
         source: 'backup',
@@ -1585,6 +1654,8 @@ export async function importSessionCsv(text, { mode = IMPORT_MODE_REWRITE, onPro
     _applyImportedBackupValues({
         ...backupValues,
         activeSessionId,
+    }, {
+        autoExportSolveSequence: finalSolves.length,
     });
 
     _reportImportProgress(onProgress, {
@@ -2676,7 +2747,8 @@ export async function importCsTimer(csData, { mode = IMPORT_MODE_REWRITE, onProg
     });
 
     const newSettings = _sanitizeStoredSettingsForImport(
-        _stampAutoExportCheckpointSettings(nextSettings, finalSolves.length),
+        _stampAutoExportSequenceSettings(nextSettings, finalSolves.length),
+        { minimumSolveSequence: finalSolves.length },
     );
 
     // Write settings to localStorage

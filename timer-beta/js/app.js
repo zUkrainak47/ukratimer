@@ -60,10 +60,12 @@ let importProgressState = {
 let importProgressHideTimeout = null;
 let dailyStreakToastHideTimeout = null;
 let lastAutoExportFailureNoticeKey = '';
+let autoExportEvaluationTimeoutId = 0;
 const statsCache = new StatsCache();
 let _skipSolveAddedRefresh = false; // set true when commitSolve manages the refresh itself
 const DAILY_STREAKS_INTRO_STORAGE_KEY = 'ukratimer_daily_streaks_intro_v1';
 const GOOGLE_DRIVE_BACKUP_REMINDER_INTERVAL_SOLVES = 100;
+const AUTO_EXPORT_TRIGGER_DELAY_MS = 1000;
 const GOOGLE_DRIVE_AUTO_EXPORT_DISCONNECTED_MESSAGE = 'Google Drive auto export switched to Remind because your Google account disconnected.';
 const THEME_EDITOR_MODE_SIMPLE = 'simple';
 const THEME_EDITOR_MODE_FULL = 'full';
@@ -422,32 +424,109 @@ function getTotalSolveCount() {
     ), 0);
 }
 
-function countBackupSolveTotal(data) {
-    return Array.isArray(data?.sessions)
-        ? data.sessions.reduce((total, session) => (
-            total + (Array.isArray(session?.solves) ? session.solves.length : 0)
-        ), 0)
-        : 0;
-}
-
-function getAutoExportCheckpointSolveCount() {
-    return normalizeNonNegativeInteger(settings.get('googleDriveBackupCheckpointSolveCount'), 0);
-}
-
-function getAutoExportLastReminderSolveCount(checkpointSolveCount = getAutoExportCheckpointSolveCount()) {
+function getStoredAutoExportSolveSequence() {
+    const checkpointSolveSequence = normalizeNonNegativeInteger(settings.get('autoExportCheckpointSolveSequence'), 0);
+    const lastReminderSolveSequence = normalizeNonNegativeInteger(
+        settings.get('autoExportLastReminderSolveSequence'),
+        checkpointSolveSequence,
+    );
     return Math.max(
-        checkpointSolveCount,
-        normalizeNonNegativeInteger(settings.get('googleDriveBackupLastReminderSolveCount'), checkpointSolveCount),
+        normalizeNonNegativeInteger(settings.get('autoExportSolveSequence'), 0),
+        checkpointSolveSequence,
+        lastReminderSolveSequence,
     );
 }
 
-function buildAutoExportCheckpointSettings(baseSettings, totalSolveCount) {
+function getAutoExportSolveSequence(totalSolveCount = getTotalSolveCount()) {
     const normalizedTotalSolveCount = normalizeNonNegativeInteger(totalSolveCount, 0);
+    return Math.max(normalizedTotalSolveCount, getStoredAutoExportSolveSequence());
+}
+
+function getAutoExportCheckpointSolveSequence(solveSequence = getAutoExportSolveSequence()) {
+    return Math.min(
+        normalizeNonNegativeInteger(solveSequence, 0),
+        normalizeNonNegativeInteger(settings.get('autoExportCheckpointSolveSequence'), 0),
+    );
+}
+
+function getAutoExportLastReminderSolveSequence(
+    solveSequence = getAutoExportSolveSequence(),
+    checkpointSolveSequence = getAutoExportCheckpointSolveSequence(solveSequence),
+) {
+    return Math.min(
+        normalizeNonNegativeInteger(solveSequence, 0),
+        Math.max(
+            checkpointSolveSequence,
+            normalizeNonNegativeInteger(settings.get('autoExportLastReminderSolveSequence'), checkpointSolveSequence),
+        ),
+    );
+}
+
+function persistAutoExportSequenceState({
+    solveSequence = getAutoExportSolveSequence(),
+    checkpointSolveSequence = getAutoExportCheckpointSolveSequence(solveSequence),
+    lastReminderSolveSequence = getAutoExportLastReminderSolveSequence(solveSequence, checkpointSolveSequence),
+} = {}) {
+    const normalizedSolveSequence = normalizeNonNegativeInteger(solveSequence, 0);
+    const normalizedCheckpointSolveSequence = Math.min(
+        normalizedSolveSequence,
+        normalizeNonNegativeInteger(checkpointSolveSequence, 0),
+    );
+    const normalizedLastReminderSolveSequence = Math.min(
+        normalizedSolveSequence,
+        Math.max(
+            normalizedCheckpointSolveSequence,
+            normalizeNonNegativeInteger(lastReminderSolveSequence, normalizedCheckpointSolveSequence),
+        ),
+    );
+
+    if (normalizeNonNegativeInteger(settings.get('autoExportSolveSequence'), 0) !== normalizedSolveSequence) {
+        settings.set('autoExportSolveSequence', normalizedSolveSequence);
+    }
+    if (
+        normalizeNonNegativeInteger(settings.get('autoExportCheckpointSolveSequence'), 0)
+        !== normalizedCheckpointSolveSequence
+    ) {
+        settings.set('autoExportCheckpointSolveSequence', normalizedCheckpointSolveSequence);
+    }
+    if (
+        normalizeNonNegativeInteger(settings.get('autoExportLastReminderSolveSequence'), normalizedCheckpointSolveSequence)
+        !== normalizedLastReminderSolveSequence
+    ) {
+        settings.set('autoExportLastReminderSolveSequence', normalizedLastReminderSolveSequence);
+    }
+
+    return {
+        solveSequence: normalizedSolveSequence,
+        checkpointSolveSequence: normalizedCheckpointSolveSequence,
+        lastReminderSolveSequence: normalizedLastReminderSolveSequence,
+    };
+}
+
+function ensureAutoExportSolveSequenceFloor(totalSolveCount = getTotalSolveCount()) {
+    return persistAutoExportSequenceState({
+        solveSequence: getAutoExportSolveSequence(totalSolveCount),
+    }).solveSequence;
+}
+
+function incrementAutoExportSolveSequence(increment = 1) {
+    const normalizedIncrement = normalizeNonNegativeInteger(increment, 0);
+    if (normalizedIncrement <= 0) return getAutoExportSolveSequence();
+
+    return persistAutoExportSequenceState({
+        solveSequence: getStoredAutoExportSolveSequence() + normalizedIncrement,
+    }).solveSequence;
+}
+
+function buildAutoExportCheckpointSettings(baseSettings, solveSequence) {
+    const normalizedSolveSequence = normalizeNonNegativeInteger(solveSequence, 0);
     const nextSettings = baseSettings && typeof baseSettings === 'object'
         ? { ...baseSettings }
         : {};
 
     delete nextSettings.zenMode;
+    delete nextSettings.googleDriveBackupCheckpointSolveCount;
+    delete nextSettings.googleDriveBackupLastReminderSolveCount;
     if (nextSettings.settingScopes && typeof nextSettings.settingScopes === 'object') {
         nextSettings.settingScopes = { ...nextSettings.settingScopes };
         delete nextSettings.settingScopes.zenMode;
@@ -455,26 +534,29 @@ function buildAutoExportCheckpointSettings(baseSettings, totalSolveCount) {
 
     return {
         ...nextSettings,
-        googleDriveBackupCheckpointSolveCount: normalizedTotalSolveCount,
-        googleDriveBackupLastReminderSolveCount: normalizedTotalSolveCount,
+        autoExportSolveSequence: normalizedSolveSequence,
+        autoExportCheckpointSolveSequence: normalizedSolveSequence,
+        autoExportLastReminderSolveSequence: normalizedSolveSequence,
     };
 }
 
-function stampAutoExportCheckpoint(data, totalSolveCount) {
+function stampAutoExportCheckpoint(data, solveSequence = getAutoExportSolveSequence()) {
     const nextData = data && typeof data === 'object' ? data : {};
     const baseSettings = nextData.settings && typeof nextData.settings === 'object'
         ? nextData.settings
         : settings.getAll();
     return {
         ...nextData,
-        settings: buildAutoExportCheckpointSettings(baseSettings, totalSolveCount),
+        settings: buildAutoExportCheckpointSettings(baseSettings, solveSequence),
     };
 }
 
-function persistAutoExportCheckpoint(totalSolveCount = getTotalSolveCount()) {
-    const normalizedTotalSolveCount = normalizeNonNegativeInteger(totalSolveCount, 0);
-    settings.set('googleDriveBackupCheckpointSolveCount', normalizedTotalSolveCount);
-    settings.set('googleDriveBackupLastReminderSolveCount', normalizedTotalSolveCount);
+function persistAutoExportCheckpoint(solveSequence = getAutoExportSolveSequence()) {
+    persistAutoExportSequenceState({
+        solveSequence,
+        checkpointSolveSequence: solveSequence,
+        lastReminderSolveSequence: solveSequence,
+    });
     lastAutoExportFailureNoticeKey = '';
 }
 
@@ -491,7 +573,7 @@ function showGoogleDriveAutoExportPopup(message, duration = 5200) {
 function maybeShowAutoExportFailurePopup(autoExportMode, milestoneSolveCount, error) {
     const fallbackMessage = autoExportMode === AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE
         ? 'Auto export to Google Drive failed'
-        : 'Auto export to file failed';
+        : 'Auto download failed';
     const message = error?.message || fallbackMessage;
     const noticeKey = `${autoExportMode}:${milestoneSolveCount}:${message}`;
 
@@ -518,6 +600,17 @@ function fallbackGoogleDriveAutoExportToRemind({
     return true;
 }
 
+function scheduleAutoExportEvery100Solves() {
+    if (autoExportEvaluationTimeoutId) {
+        clearTimeout(autoExportEvaluationTimeoutId);
+    }
+
+    autoExportEvaluationTimeoutId = window.setTimeout(() => {
+        autoExportEvaluationTimeoutId = 0;
+        void maybeHandleAutoExportEvery100Solves();
+    }, AUTO_EXPORT_TRIGGER_DELAY_MS);
+}
+
 function buildCsTimerExportFilename(now = new Date()) {
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -532,18 +625,26 @@ function downloadCsTimerExportFile(data, { now = new Date() } = {}) {
     const anchor = document.createElement('a');
     anchor.href = url;
     anchor.download = buildCsTimerExportFilename(now);
+    anchor.style.display = 'none';
+    document.body.appendChild(anchor);
     anchor.click();
-    URL.revokeObjectURL(url);
+    window.setTimeout(() => {
+        anchor.remove();
+        URL.revokeObjectURL(url);
+    }, 0);
 }
 
 async function exportCsTimerFile({
-    totalSolveCount = getTotalSolveCount(),
+    solveSequence = null,
     persistCheckpoint = false,
 } = {}) {
     const data = await exportCsTimer();
+    const effectiveSolveSequence = solveSequence == null
+        ? getAutoExportSolveSequence()
+        : normalizeNonNegativeInteger(solveSequence, getAutoExportSolveSequence());
     downloadCsTimerExportFile(data);
     if (persistCheckpoint) {
-        persistAutoExportCheckpoint(totalSolveCount);
+        persistAutoExportCheckpoint(effectiveSolveSequence);
     }
     return data;
 }
@@ -562,7 +663,7 @@ async function ensureGoogleDriveSessionForExport({ onMissingSession = null } = {
 }
 
 async function exportGoogleDriveBackupAndPersistCheckpoint(
-    totalSolveCount = getTotalSolveCount(),
+    solveSequence = null,
     { onMissingSession = null } = {},
 ) {
     if (!isGoogleDriveSyncConfigured()) {
@@ -573,9 +674,13 @@ async function exportGoogleDriveBackupAndPersistCheckpoint(
         throw new Error('Google Drive needs permission again. Reconnect your account to continue.');
     }
 
-    const data = stampAutoExportCheckpoint(await exportAll(), totalSolveCount);
-    const savedFile = await exportBackupToGoogleDrive(data);
-    persistAutoExportCheckpoint(totalSolveCount);
+    const data = await exportAll();
+    const effectiveSolveSequence = solveSequence == null
+        ? getAutoExportSolveSequence()
+        : normalizeNonNegativeInteger(solveSequence, getAutoExportSolveSequence());
+    const stampedData = stampAutoExportCheckpoint(data, effectiveSolveSequence);
+    const savedFile = await exportBackupToGoogleDrive(stampedData);
+    persistAutoExportCheckpoint(effectiveSolveSequence);
     return savedFile;
 }
 
@@ -593,19 +698,23 @@ async function maybeHandleAutoExportEvery100Solves() {
         return;
     }
 
-    const totalSolveCount = getTotalSolveCount();
-    const checkpointSolveCount = getAutoExportCheckpointSolveCount();
-    const solvesSinceCheckpoint = Math.max(0, totalSolveCount - checkpointSolveCount);
+    const solveSequence = getAutoExportSolveSequence();
+    const checkpointSolveSequence = getAutoExportCheckpointSolveSequence(solveSequence);
+    const solvesSinceCheckpoint = Math.max(0, solveSequence - checkpointSolveSequence);
 
     if (solvesSinceCheckpoint < GOOGLE_DRIVE_BACKUP_REMINDER_INTERVAL_SOLVES) return;
 
-    const latestReminderMilestone = checkpointSolveCount
+    const latestReminderMilestone = checkpointSolveSequence
         + Math.floor(solvesSinceCheckpoint / GOOGLE_DRIVE_BACKUP_REMINDER_INTERVAL_SOLVES) * GOOGLE_DRIVE_BACKUP_REMINDER_INTERVAL_SOLVES;
 
-    if (latestReminderMilestone <= getAutoExportLastReminderSolveCount(checkpointSolveCount)) return;
+    if (latestReminderMilestone <= getAutoExportLastReminderSolveSequence(solveSequence, checkpointSolveSequence)) return;
 
     if (autoExportMode === AUTO_EXPORT_EVERY_100_SOLVES_REMIND) {
-        settings.set('googleDriveBackupLastReminderSolveCount', latestReminderMilestone);
+        persistAutoExportSequenceState({
+            solveSequence,
+            checkpointSolveSequence,
+            lastReminderSolveSequence: latestReminderMilestone,
+        });
         showPopup(
             'backupReminder',
             `${solvesSinceCheckpoint.toLocaleString()} solves since your last export`,
@@ -616,7 +725,7 @@ async function maybeHandleAutoExportEvery100Solves() {
 
     try {
         if (autoExportMode === AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE) {
-            await exportGoogleDriveBackupAndPersistCheckpoint(totalSolveCount, {
+            await exportGoogleDriveBackupAndPersistCheckpoint(solveSequence, {
                 onMissingSession: () => {
                     fallbackGoogleDriveAutoExportToRemind();
                 },
@@ -626,8 +735,8 @@ async function maybeHandleAutoExportEvery100Solves() {
         }
 
         if (autoExportMode === AUTO_EXPORT_EVERY_100_SOLVES_FILE) {
-            await exportCsTimerFile({ totalSolveCount, persistCheckpoint: true });
-            showPopup('backupReminder', 'Auto export started a file download', 3200);
+            await exportCsTimerFile({ solveSequence, persistCheckpoint: true });
+            showPopup('backupReminder', 'Auto export started a browser download', 3200);
         }
     } catch (error) {
         console.warn('Auto export failed:', error);
@@ -5120,7 +5229,10 @@ async function init() {
         dailyStreakStore.upsertSolve(solve);
         refreshSessionList();
         if (!_skipSolveAddedRefresh) refreshUI();
-        void maybeHandleAutoExportEvery100Solves();
+    });
+    sessionManager.on('solvePersisted', () => {
+        incrementAutoExportSolveSequence();
+        scheduleAutoExportEvery100Solves();
     });
     sessionManager.on('solveUpdated', (solve) => {
         dailyStreakStore.upsertSolve(solve);
@@ -5158,6 +5270,7 @@ async function init() {
         rebuildStatsCache();
         refreshUI();
     });
+    ensureAutoExportSolveSequenceFloor();
 
     settings.on('change', (key, _value, signalType = 'modify') => {
         const isSessionContextChange = signalType === 'session';
@@ -13961,8 +14074,7 @@ function initSettingsPanel() {
             setGoogleDriveStatus('Exporting backup to Google Drive...');
 
             try {
-                const totalSolveCount = getTotalSolveCount();
-                const savedFile = await exportGoogleDriveBackupAndPersistCheckpoint(totalSolveCount, {
+                const savedFile = await exportGoogleDriveBackupAndPersistCheckpoint(null, {
                     onMissingSession: () => {
                         const downgraded = fallbackGoogleDriveAutoExportToRemindWithStatus();
                         if (!downgraded) {
@@ -14002,8 +14114,6 @@ function initSettingsPanel() {
                 if (!data || typeof data !== 'object') {
                     throw new Error('Google Drive backup is missing timer data.');
                 }
-
-                data = stampAutoExportCheckpoint(data, countBackupSolveTotal(data));
 
                 closeSettingsPanel({ isPopState: true });
 

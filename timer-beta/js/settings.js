@@ -422,6 +422,13 @@ function hasOwn(obj, key) {
     return Object.prototype.hasOwnProperty.call(obj, key);
 }
 
+function normalizeNonNegativeInteger(value, fallback = 0) {
+    const normalized = Math.floor(Number(value));
+    return Number.isFinite(normalized) && normalized >= 0
+        ? normalized
+        : Math.max(0, Math.floor(Number(fallback)) || 0);
+}
+
 export function normalizeAutoExportEvery100Solves(
     value,
     {
@@ -497,8 +504,9 @@ const DEFAULTS = {
     hideUIWhileSolving: true,
     backgroundSpacebarEnabled: false,
     autoExportEvery100Solves: AUTO_EXPORT_EVERY_100_SOLVES_NEVER,
-    googleDriveBackupCheckpointSolveCount: 0,
-    googleDriveBackupLastReminderSolveCount: 0,
+    autoExportSolveSequence: 0,
+    autoExportCheckpointSolveSequence: 0,
+    autoExportLastReminderSolveSequence: 0,
     cameraBackgroundEnabled: false,
     cameraBackgroundSuspended: false,
     // Legacy global background fields kept for migration and older imports.
@@ -889,7 +897,36 @@ class Settings extends EventEmitter {
                 : loaded.googleDriveBackupReminderEvery100Solves,
             { defaultValue: DEFAULTS.autoExportEvery100Solves },
         );
+        const nextAutoExportCheckpointSolveSequence = normalizeNonNegativeInteger(
+            hasOwn(loaded, 'autoExportCheckpointSolveSequence')
+                ? loaded.autoExportCheckpointSolveSequence
+                : loaded.googleDriveBackupCheckpointSolveCount,
+            0,
+        );
+        const nextAutoExportLastReminderSolveSequence = Math.max(
+            nextAutoExportCheckpointSolveSequence,
+            normalizeNonNegativeInteger(
+                hasOwn(loaded, 'autoExportLastReminderSolveSequence')
+                    ? loaded.autoExportLastReminderSolveSequence
+                    : loaded.googleDriveBackupLastReminderSolveCount,
+                nextAutoExportCheckpointSolveSequence,
+            ),
+        );
+        this._settings.autoExportSolveSequence = Math.max(
+            nextAutoExportCheckpointSolveSequence,
+            nextAutoExportLastReminderSolveSequence,
+            normalizeNonNegativeInteger(
+                hasOwn(loaded, 'autoExportSolveSequence')
+                    ? loaded.autoExportSolveSequence
+                    : nextAutoExportLastReminderSolveSequence,
+                nextAutoExportLastReminderSolveSequence,
+            ),
+        );
+        this._settings.autoExportCheckpointSolveSequence = nextAutoExportCheckpointSolveSequence;
+        this._settings.autoExportLastReminderSolveSequence = nextAutoExportLastReminderSolveSequence;
         delete this._settings.googleDriveBackupReminderEvery100Solves;
+        delete this._settings.googleDriveBackupCheckpointSolveCount;
+        delete this._settings.googleDriveBackupLastReminderSolveCount;
 
         if (!ANIMATION_MODES.has(this._settings.animationMode)) {
             if (typeof loaded.animationsEnabled === 'boolean') {
