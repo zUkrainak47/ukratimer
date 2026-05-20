@@ -61,6 +61,8 @@ let importProgressHideTimeout = null;
 let dailyStreakToastHideTimeout = null;
 let lastAutoExportFailureNoticeKey = '';
 let autoExportEvaluationTimeoutId = 0;
+let autoExportOperationPromise = null;
+let autoExportEvaluationPending = false;
 const statsCache = new StatsCache();
 let _skipSolveAddedRefresh = false; // set true when commitSolve manages the refresh itself
 const DAILY_STREAKS_INTRO_STORAGE_KEY = 'ukratimer_daily_streaks_intro_v1';
@@ -600,15 +602,47 @@ function fallbackGoogleDriveAutoExportToRemind({
     return true;
 }
 
-function scheduleAutoExportEvery100Solves() {
+function flushPendingAutoExportEvaluation() {
+    if (autoExportOperationPromise || !autoExportEvaluationPending) {
+        return;
+    }
+
+    autoExportEvaluationPending = false;
+    scheduleAutoExportEvery100Solves({ delayMs: 0 });
+}
+
+async function runSerializedAutoExportOperation(operation) {
+    while (autoExportOperationPromise) {
+        try {
+            await autoExportOperationPromise;
+        } catch (_) {
+            // The previous export already surfaced its own error to the caller.
+        }
+    }
+
+    const operationPromise = Promise.resolve().then(() => operation());
+    autoExportOperationPromise = operationPromise;
+
+    try {
+        return await operationPromise;
+    } finally {
+        if (autoExportOperationPromise === operationPromise) {
+            autoExportOperationPromise = null;
+        }
+        flushPendingAutoExportEvaluation();
+    }
+}
+
+function scheduleAutoExportEvery100Solves({ delayMs = AUTO_EXPORT_TRIGGER_DELAY_MS } = {}) {
     if (autoExportEvaluationTimeoutId) {
         clearTimeout(autoExportEvaluationTimeoutId);
     }
 
+    const normalizedDelayMs = normalizeNonNegativeInteger(delayMs, AUTO_EXPORT_TRIGGER_DELAY_MS);
     autoExportEvaluationTimeoutId = window.setTimeout(() => {
         autoExportEvaluationTimeoutId = 0;
         void maybeHandleAutoExportEvery100Solves();
-    }, AUTO_EXPORT_TRIGGER_DELAY_MS);
+    }, normalizedDelayMs);
 }
 
 function buildCsTimerExportFilename(now = new Date()) {
@@ -638,15 +672,17 @@ async function exportCsTimerFile({
     solveSequence = null,
     persistCheckpoint = false,
 } = {}) {
-    const data = await exportCsTimer();
-    const effectiveSolveSequence = solveSequence == null
-        ? getAutoExportSolveSequence()
-        : normalizeNonNegativeInteger(solveSequence, getAutoExportSolveSequence());
-    downloadCsTimerExportFile(data);
-    if (persistCheckpoint) {
-        persistAutoExportCheckpoint(effectiveSolveSequence);
-    }
-    return data;
+    return runSerializedAutoExportOperation(async () => {
+        const data = await exportCsTimer();
+        const effectiveSolveSequence = solveSequence == null
+            ? getAutoExportSolveSequence()
+            : normalizeNonNegativeInteger(solveSequence, getAutoExportSolveSequence());
+        downloadCsTimerExportFile(data);
+        if (persistCheckpoint) {
+            persistAutoExportCheckpoint(effectiveSolveSequence);
+        }
+        return data;
+    });
 }
 
 async function ensureGoogleDriveSessionForExport({ onMissingSession = null } = {}) {
@@ -666,25 +702,32 @@ async function exportGoogleDriveBackupAndPersistCheckpoint(
     solveSequence = null,
     { onMissingSession = null } = {},
 ) {
-    if (!isGoogleDriveSyncConfigured()) {
-        throw new Error('Google Drive sync is not configured.');
-    }
+    return runSerializedAutoExportOperation(async () => {
+        if (!isGoogleDriveSyncConfigured()) {
+            throw new Error('Google Drive sync is not configured.');
+        }
 
-    if (!(await ensureGoogleDriveSessionForExport({ onMissingSession }))) {
-        throw new Error('Google Drive needs permission again. Reconnect your account to continue.');
-    }
+        if (!(await ensureGoogleDriveSessionForExport({ onMissingSession }))) {
+            throw new Error('Google Drive needs permission again. Reconnect your account to continue.');
+        }
 
-    const data = await exportAll();
-    const effectiveSolveSequence = solveSequence == null
-        ? getAutoExportSolveSequence()
-        : normalizeNonNegativeInteger(solveSequence, getAutoExportSolveSequence());
-    const stampedData = stampAutoExportCheckpoint(data, effectiveSolveSequence);
-    const savedFile = await exportBackupToGoogleDrive(stampedData);
-    persistAutoExportCheckpoint(effectiveSolveSequence);
-    return savedFile;
+        const data = await exportAll();
+        const effectiveSolveSequence = solveSequence == null
+            ? getAutoExportSolveSequence()
+            : normalizeNonNegativeInteger(solveSequence, getAutoExportSolveSequence());
+        const stampedData = stampAutoExportCheckpoint(data, effectiveSolveSequence);
+        const savedFile = await exportBackupToGoogleDrive(stampedData);
+        persistAutoExportCheckpoint(effectiveSolveSequence);
+        return savedFile;
+    });
 }
 
 async function maybeHandleAutoExportEvery100Solves() {
+    if (autoExportOperationPromise) {
+        autoExportEvaluationPending = true;
+        return;
+    }
+
     const autoExportMode = getAutoExportEvery100SolvesMode();
     if (autoExportMode === AUTO_EXPORT_EVERY_100_SOLVES_NEVER) return;
 
