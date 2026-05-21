@@ -1,6 +1,6 @@
-import { load, registerBeforeDataExportHook, save } from './storage.js?v=2026051802';
-import { normalizeTimeEntryMode, TIME_ENTRY_MODE_TIMER, TIME_ENTRY_MODE_TYPING } from './time-entry.js?v=2026051802';
-import { EventEmitter } from './utils.js?v=2026051802';
+import { load, registerBeforeDataExportHook, save } from './storage.js?v=2026052001';
+import { normalizeTimeEntryMode, TIME_ENTRY_MODE_TIMER, TIME_ENTRY_MODE_TYPING } from './time-entry.js?v=2026052001';
+import { EventEmitter } from './utils.js?v=2026052001';
 import {
     SETTING_SCOPE_GLOBAL,
     SETTING_SCOPE_SESSION,
@@ -9,7 +9,7 @@ import {
     getLinkedSessionScopeKeys,
     getSessionScopedSettingKeys,
     normalizeSettingScopes,
-} from './setting-scopes.js?v=2026051802';
+} from './setting-scopes.js?v=2026052001';
 
 export {
     SETTING_SCOPE_GLOBAL,
@@ -21,7 +21,17 @@ export {
 export const THEME_DEFAULT_ID = 'default';
 export const THEME_OLED_ID = 'oled';
 export const THEME_CUSTOM_IDS = Object.freeze(['custom1', 'custom2', 'custom3']);
+export const AUTO_EXPORT_EVERY_100_SOLVES_NEVER = 'n';
+export const AUTO_EXPORT_EVERY_100_SOLVES_REMIND = 'a';
+export const AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE = 'ggl';
+export const AUTO_EXPORT_EVERY_100_SOLVES_FILE = 'f';
 const THEME_BASE_IDS = Object.freeze([THEME_DEFAULT_ID, THEME_OLED_ID]);
+const AUTO_EXPORT_EVERY_100_SOLVES_VALUES = new Set([
+    AUTO_EXPORT_EVERY_100_SOLVES_NEVER,
+    AUTO_EXPORT_EVERY_100_SOLVES_REMIND,
+    AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE,
+    AUTO_EXPORT_EVERY_100_SOLVES_FILE,
+]);
 
 const THEME_ID_SET = new Set([THEME_DEFAULT_ID, THEME_OLED_ID, ...THEME_CUSTOM_IDS]);
 
@@ -408,6 +418,37 @@ function normalizeSettingsCollapsedSections(value) {
     );
 }
 
+function hasOwn(obj, key) {
+    return Object.prototype.hasOwnProperty.call(obj, key);
+}
+
+function normalizeNonNegativeInteger(value, fallback = 0) {
+    const normalized = Math.floor(Number(value));
+    return Number.isFinite(normalized) && normalized >= 0
+        ? normalized
+        : Math.max(0, Math.floor(Number(fallback)) || 0);
+}
+
+export function normalizeAutoExportEvery100Solves(
+    value,
+    {
+        defaultValue = AUTO_EXPORT_EVERY_100_SOLVES_NEVER,
+        invalidValue = AUTO_EXPORT_EVERY_100_SOLVES_REMIND,
+    } = {},
+) {
+    if (value === true) return AUTO_EXPORT_EVERY_100_SOLVES_REMIND;
+    if (value === false) return AUTO_EXPORT_EVERY_100_SOLVES_NEVER;
+    if (value == null) return defaultValue;
+
+    const normalized = typeof value === 'string'
+        ? value.trim().toLowerCase()
+        : String(value).trim().toLowerCase();
+
+    return AUTO_EXPORT_EVERY_100_SOLVES_VALUES.has(normalized)
+        ? normalized
+        : invalidValue;
+}
+
 const DEFAULTS = {
     inspectionTime: 'off',  // 'off', '15s'
     inspectionAlerts: 'off', // 'off', 'voice', 'screen', 'both'
@@ -462,9 +503,10 @@ const DEFAULTS = {
     centerTimer: true,
     hideUIWhileSolving: true,
     backgroundSpacebarEnabled: false,
-    googleDriveBackupReminderEvery100Solves: false,
-    googleDriveBackupCheckpointSolveCount: 0,
-    googleDriveBackupLastReminderSolveCount: 0,
+    autoExportEvery100Solves: AUTO_EXPORT_EVERY_100_SOLVES_NEVER,
+    autoExportSolveSequence: 0,
+    autoExportCheckpointSolveSequence: 0,
+    autoExportLastReminderSolveSequence: 0,
     cameraBackgroundEnabled: false,
     cameraBackgroundSuspended: false,
     // Legacy global background fields kept for migration and older imports.
@@ -849,6 +891,42 @@ class Settings extends EventEmitter {
             settingScopes: loaded.settingScopes,
             themeCustomizationCollapsedSections: loaded.themeCustomizationCollapsedSections,
         };
+        this._settings.autoExportEvery100Solves = normalizeAutoExportEvery100Solves(
+            hasOwn(loaded, 'autoExportEvery100Solves')
+                ? loaded.autoExportEvery100Solves
+                : loaded.googleDriveBackupReminderEvery100Solves,
+            { defaultValue: DEFAULTS.autoExportEvery100Solves },
+        );
+        const nextAutoExportCheckpointSolveSequence = normalizeNonNegativeInteger(
+            hasOwn(loaded, 'autoExportCheckpointSolveSequence')
+                ? loaded.autoExportCheckpointSolveSequence
+                : loaded.googleDriveBackupCheckpointSolveCount,
+            0,
+        );
+        const nextAutoExportLastReminderSolveSequence = Math.max(
+            nextAutoExportCheckpointSolveSequence,
+            normalizeNonNegativeInteger(
+                hasOwn(loaded, 'autoExportLastReminderSolveSequence')
+                    ? loaded.autoExportLastReminderSolveSequence
+                    : loaded.googleDriveBackupLastReminderSolveCount,
+                nextAutoExportCheckpointSolveSequence,
+            ),
+        );
+        this._settings.autoExportSolveSequence = Math.max(
+            nextAutoExportCheckpointSolveSequence,
+            nextAutoExportLastReminderSolveSequence,
+            normalizeNonNegativeInteger(
+                hasOwn(loaded, 'autoExportSolveSequence')
+                    ? loaded.autoExportSolveSequence
+                    : nextAutoExportLastReminderSolveSequence,
+                nextAutoExportLastReminderSolveSequence,
+            ),
+        );
+        this._settings.autoExportCheckpointSolveSequence = nextAutoExportCheckpointSolveSequence;
+        this._settings.autoExportLastReminderSolveSequence = nextAutoExportLastReminderSolveSequence;
+        delete this._settings.googleDriveBackupReminderEvery100Solves;
+        delete this._settings.googleDriveBackupCheckpointSolveCount;
+        delete this._settings.googleDriveBackupLastReminderSolveCount;
 
         if (!ANIMATION_MODES.has(this._settings.animationMode)) {
             if (typeof loaded.animationsEnabled === 'boolean') {
@@ -1352,6 +1430,18 @@ class Settings extends EventEmitter {
             this._settings.themeCustomizationCollapsedSections = nextCollapsedSections;
             this._saveAndApply();
             this.emit('change', 'themeCustomizationCollapsedSections', this.get('themeCustomizationCollapsedSections'));
+            return;
+        }
+
+        if (key === 'autoExportEvery100Solves') {
+            const nextAutoExportEvery100Solves = normalizeAutoExportEvery100Solves(value, {
+                defaultValue: DEFAULTS.autoExportEvery100Solves,
+            });
+            if (this._settings.autoExportEvery100Solves === nextAutoExportEvery100Solves) return;
+
+            this._settings.autoExportEvery100Solves = nextAutoExportEvery100Solves;
+            this._saveAndApply();
+            this.emit('change', 'autoExportEvery100Solves', nextAutoExportEvery100Solves);
             return;
         }
 

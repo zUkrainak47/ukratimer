@@ -1,8 +1,8 @@
-import * as db from './db.js?v=2026051802';
-import { load, save } from './storage.js?v=2026051802';
-import { generateId, EventEmitter, getStartOfToday, getStartOfWeek, getStartOfMonth, parseCustomStatsFilter } from './utils.js?v=2026051802';
-import { settings, SETTING_SCOPE_GLOBAL } from './settings.js?v=2026051802';
-import { SCRAMBLE_TYPE_OPTIONS } from './scramble.js?v=2026051802';
+import * as db from './db.js?v=2026052001';
+import { load, registerBeforeDataExportHook, save } from './storage.js?v=2026052001';
+import { generateId, EventEmitter, getStartOfToday, getStartOfWeek, getStartOfMonth, parseCustomStatsFilter } from './utils.js?v=2026052001';
+import { settings, SETTING_SCOPE_GLOBAL } from './settings.js?v=2026052001';
+import { SCRAMBLE_TYPE_OPTIONS } from './scramble.js?v=2026052001';
 
 const DEFAULT_SCRAMBLE_TYPE = '333';
 const LEGACY_SCRAMBLE_TYPE_STORAGE_KEY = 'scrambleType';
@@ -110,6 +110,8 @@ class SessionManager extends EventEmitter {
         this._sessions = [];
         this._activeId = null;
         this._ready = false;
+        this._pendingSolvePersistence = new Set();
+        registerBeforeDataExportHook(() => this.waitForPendingSolvePersistence());
     }
 
     _getNextSessionOrder() {
@@ -413,6 +415,12 @@ class SessionManager extends EventEmitter {
         }
     }
 
+    async waitForPendingSolvePersistence() {
+        while (this._pendingSolvePersistence.size > 0) {
+            await Promise.allSettled(Array.from(this._pendingSolvePersistence));
+        }
+    }
+
     // --- Solve CRUD ---
 
     addSolve(time, scramble, isManual = false, penalty = null) {
@@ -428,8 +436,15 @@ class SessionManager extends EventEmitter {
         };
         session.solves.push(solve);
         session.solveCount += 1;
-        // Fire-and-forget write — in-memory state is already updated
-        db.addSolve(solve);
+        const persistence = db.addSolve(solve);
+        this._pendingSolvePersistence.add(persistence);
+        persistence.then(() => {
+            this.emit('solvePersisted', solve);
+        }).catch((error) => {
+            console.warn('Could not persist solve:', error);
+        }).finally(() => {
+            this._pendingSolvePersistence.delete(persistence);
+        });
         this.emit('solveAdded', solve);
         return solve;
     }

@@ -1225,6 +1225,10 @@
     outline: none;
 }
 
+.confirm-actions .btn[hidden] {
+    display: none !important;
+}
+
 .confirm-actions .btn-secondary {
     background: var(--surface-hover);
     color: var(--text-primary);

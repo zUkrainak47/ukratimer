@@ -1,12 +1,18 @@
-import * as db from './db.js?v=2026051802';
+import * as db from './db.js?v=2026052001';
 import {
     SETTING_SCOPE_SESSION,
     SUMMARY_STATS_SCOPE_SETTING_KEYS,
     normalizeSettingScopes,
-} from './setting-scopes.js?v=2026051802';
+} from './setting-scopes.js?v=2026052001';
 
 const STORAGE_PREFIX = 'cubetimer_';
 const STORAGE_VERSION = 1;
+export const IMPORT_MODE_REWRITE = 'rewrite';
+export const IMPORT_MODE_MERGE = 'merge';
+const SOLVE_MATCH_MODE_ID = 'id';
+const SOLVE_MATCH_MODE_ID_OR_LOGICAL_EXACT = 'id-or-logical';
+const SOLVE_MATCH_MODE_LOGICAL_EXACT = 'logical';
+const SOLVE_MATCH_MODE_LOGICAL_CSTIMER = 'logical-cstimer';
 const SESSION_CSV_HEADERS = ['Puzzle', 'Category', 'Time(millis)', 'Date(millis)', 'Scramble', 'Penalty', 'Comment'];
 const BACKUP_LOCAL_STORAGE_KEYS = Object.freeze([
     'settings',
@@ -18,6 +24,19 @@ const IMPORT_PROGRESS_YIELD_INTERVAL = 2000;
 const LOCAL_ONLY_SETTING_KEYS = new Set(['zenMode']);
 const LOCAL_ONLY_SESSION_SETTING_KEYS = new Set(['zenMode']);
 const beforeDataExportHooks = new Set();
+const AUTO_EXPORT_EVERY_100_SOLVES_NEVER = 'n';
+const AUTO_EXPORT_EVERY_100_SOLVES_REMIND = 'a';
+const AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE = 'ggl';
+const AUTO_EXPORT_EVERY_100_SOLVES_FILE = 'f';
+const LEGACY_AUTO_EXPORT_EVERY_100_SOLVES_KEY = 'googleDriveBackupReminderEvery100Solves';
+const LEGACY_AUTO_EXPORT_CHECKPOINT_SOLVE_COUNT_KEY = 'googleDriveBackupCheckpointSolveCount';
+const LEGACY_AUTO_EXPORT_LAST_REMINDER_SOLVE_COUNT_KEY = 'googleDriveBackupLastReminderSolveCount';
+const AUTO_EXPORT_EVERY_100_SOLVES_VALUES = new Set([
+    AUTO_EXPORT_EVERY_100_SOLVES_NEVER,
+    AUTO_EXPORT_EVERY_100_SOLVES_REMIND,
+    AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE,
+    AUTO_EXPORT_EVERY_100_SOLVES_FILE,
+]);
 
 export function registerBeforeDataExportHook(callback) {
     if (typeof callback !== 'function') {
@@ -104,6 +123,10 @@ function _countEmbeddedSolves(sessions) {
     ), 0);
 }
 
+function _normalizeImportMode(mode) {
+    return mode === IMPORT_MODE_MERGE ? IMPORT_MODE_MERGE : IMPORT_MODE_REWRITE;
+}
+
 async function _replaceImportedData(
     dbSessions,
     dbSolves,
@@ -139,9 +162,98 @@ function _stripLocalOnlySettingScopes(scopeMap) {
     return sanitized;
 }
 
-function _sanitizeStoredSettingsForExport(settingsData) {
+function _normalizeNonNegativeInteger(value, fallback = 0) {
+    const normalized = Math.floor(Number(value));
+    return Number.isFinite(normalized) && normalized >= 0
+        ? normalized
+        : Math.max(0, Math.floor(Number(fallback)) || 0);
+}
+
+function _normalizeAutoExportEvery100Solves(
+    value,
+    {
+        defaultValue = AUTO_EXPORT_EVERY_100_SOLVES_NEVER,
+        invalidValue = AUTO_EXPORT_EVERY_100_SOLVES_REMIND,
+    } = {},
+) {
+    if (value === true) return AUTO_EXPORT_EVERY_100_SOLVES_REMIND;
+    if (value === false) return AUTO_EXPORT_EVERY_100_SOLVES_NEVER;
+    if (value == null) return defaultValue;
+
+    const normalized = typeof value === 'string'
+        ? value.trim().toLowerCase()
+        : String(value).trim().toLowerCase();
+
+    // csTimer supports destinations UkraTimer does not implement (`id`, `wca`),
+    // so unsupported values intentionally fall back to "Remind".
+    return AUTO_EXPORT_EVERY_100_SOLVES_VALUES.has(normalized)
+        ? normalized
+        : invalidValue;
+}
+
+function _sanitizeAutoExportEvery100SolvesSetting(settingsData) {
     const source = settingsData && typeof settingsData === 'object' ? settingsData : {};
     const sanitized = { ...source };
+    sanitized.autoExportEvery100Solves = _normalizeAutoExportEvery100Solves(
+        _hasOwn(source, 'autoExportEvery100Solves')
+            ? source.autoExportEvery100Solves
+            : source[LEGACY_AUTO_EXPORT_EVERY_100_SOLVES_KEY],
+        { defaultValue: AUTO_EXPORT_EVERY_100_SOLVES_NEVER },
+    );
+    delete sanitized[LEGACY_AUTO_EXPORT_EVERY_100_SOLVES_KEY];
+    return sanitized;
+}
+
+function _sanitizeAutoExportSequenceSettings(settingsData, { minimumSolveSequence = 0 } = {}) {
+    const sanitized = _sanitizeAutoExportEvery100SolvesSetting(settingsData);
+    const legacyCheckpointSolveSequence = _normalizeNonNegativeInteger(
+        sanitized[LEGACY_AUTO_EXPORT_CHECKPOINT_SOLVE_COUNT_KEY],
+        0,
+    );
+    const nextCheckpointSolveSequence = _normalizeNonNegativeInteger(
+        _hasOwn(sanitized, 'autoExportCheckpointSolveSequence')
+            ? sanitized.autoExportCheckpointSolveSequence
+            : legacyCheckpointSolveSequence,
+        legacyCheckpointSolveSequence,
+    );
+    const legacyLastReminderSolveSequence = _normalizeNonNegativeInteger(
+        sanitized[LEGACY_AUTO_EXPORT_LAST_REMINDER_SOLVE_COUNT_KEY],
+        nextCheckpointSolveSequence,
+    );
+    const nextLastReminderSolveSequence = Math.max(
+        nextCheckpointSolveSequence,
+        _normalizeNonNegativeInteger(
+            _hasOwn(sanitized, 'autoExportLastReminderSolveSequence')
+                ? sanitized.autoExportLastReminderSolveSequence
+                : legacyLastReminderSolveSequence,
+            legacyLastReminderSolveSequence,
+        ),
+    );
+    const nextSolveSequence = Math.max(
+        nextCheckpointSolveSequence,
+        nextLastReminderSolveSequence,
+        _normalizeNonNegativeInteger(
+            _hasOwn(sanitized, 'autoExportSolveSequence')
+                ? sanitized.autoExportSolveSequence
+                : nextLastReminderSolveSequence,
+            nextLastReminderSolveSequence,
+        ),
+        _normalizeNonNegativeInteger(minimumSolveSequence, 0),
+    );
+
+    sanitized.autoExportSolveSequence = nextSolveSequence;
+    sanitized.autoExportCheckpointSolveSequence = Math.min(nextSolveSequence, nextCheckpointSolveSequence);
+    sanitized.autoExportLastReminderSolveSequence = Math.min(
+        nextSolveSequence,
+        Math.max(sanitized.autoExportCheckpointSolveSequence, nextLastReminderSolveSequence),
+    );
+    delete sanitized[LEGACY_AUTO_EXPORT_CHECKPOINT_SOLVE_COUNT_KEY];
+    delete sanitized[LEGACY_AUTO_EXPORT_LAST_REMINDER_SOLVE_COUNT_KEY];
+    return sanitized;
+}
+
+function _sanitizeStoredSettingsForExport(settingsData, { minimumSolveSequence = 0 } = {}) {
+    const sanitized = _sanitizeAutoExportSequenceSettings(settingsData, { minimumSolveSequence });
 
     LOCAL_ONLY_SETTING_KEYS.forEach((key) => {
         delete sanitized[key];
@@ -156,10 +268,23 @@ function _sanitizeStoredSettingsForExport(settingsData) {
     return sanitized;
 }
 
-function _sanitizeStoredSettingsForImport(settingsData) {
+function _sanitizeStoredSettingsForImport(settingsData, { minimumSolveSequence = 0 } = {}) {
     return {
-        ..._sanitizeStoredSettingsForExport(settingsData),
+        ..._sanitizeStoredSettingsForExport(settingsData, { minimumSolveSequence }),
         zenMode: false,
+    };
+}
+
+function _stampAutoExportSequenceSettings(settingsData, solveSequence = 0) {
+    const normalizedSolveSequence = _normalizeNonNegativeInteger(solveSequence, 0);
+    const sanitized = _sanitizeAutoExportSequenceSettings(settingsData, {
+        minimumSolveSequence: normalizedSolveSequence,
+    });
+    return {
+        ...sanitized,
+        autoExportSolveSequence: normalizedSolveSequence,
+        autoExportCheckpointSolveSequence: normalizedSolveSequence,
+        autoExportLastReminderSolveSequence: normalizedSolveSequence,
     };
 }
 
@@ -174,14 +299,19 @@ function _sanitizeSessionSettingsForTransport(sessionSettings) {
     return sanitized;
 }
 
-function _applyImportedBackupValues(data, { replaceMissing = false } = {}) {
+function _applyImportedBackupValues(data, { replaceMissing = false, autoExportSolveSequence = 0 } = {}) {
     const nextValues = new Map();
 
     for (const [key, value] of Object.entries(data || {})) {
         if (key === 'version' || key === 'sessions' || !BACKUP_LOCAL_STORAGE_KEY_SET.has(key)) continue;
         nextValues.set(
             key,
-            key === 'settings' ? _sanitizeStoredSettingsForImport(value) : value,
+            key === 'settings'
+                ? _sanitizeStoredSettingsForImport(
+                    _stampAutoExportSequenceSettings(value, autoExportSolveSequence),
+                    { minimumSolveSequence: autoExportSolveSequence },
+                )
+                : value,
         );
     }
 
@@ -199,6 +329,863 @@ function _applyImportedBackupValues(data, { replaceMissing = false } = {}) {
     nextValues.forEach((value, key) => {
         save(key, value);
     });
+}
+
+function _normalizeImportSessionName(name) {
+    return String(name ?? '').trim().toLocaleLowerCase();
+}
+
+function _groupSolvesBySessionId(solves) {
+    const solvesBySessionId = new Map();
+
+    solves.forEach((solve) => {
+        const sessionId = solve?.sessionId;
+        if (typeof sessionId !== 'string' || sessionId.length === 0) return;
+
+        if (!solvesBySessionId.has(sessionId)) {
+            solvesBySessionId.set(sessionId, []);
+        }
+        solvesBySessionId.get(sessionId).push(solve);
+    });
+
+    return solvesBySessionId;
+}
+
+function _buildSolveIdentityKey(solve, {
+    roundTimestampToSecond = false,
+    includeScramble = false,
+} = {}) {
+    if (!Number.isFinite(solve?.timestamp) || !Number.isFinite(solve?.time)) {
+        return null;
+    }
+
+    const timestamp = solve.timestamp;
+    const timestampKey = roundTimestampToSecond
+        ? Math.floor(timestamp / 1000)
+        : timestamp;
+    const time = solve.time;
+    const baseKey = `${timestampKey}\u0000${time}`;
+
+    if (!includeScramble) return baseKey;
+
+    return `${baseKey}\u0000${String(solve?.scramble ?? '').trim()}`;
+}
+
+function _isTimestampSecondAligned(timestamp) {
+    return Number.isFinite(timestamp) && timestamp % 1000 === 0;
+}
+
+function _pushSolveIdentityQueue(queueMap, key, solve) {
+    if (key === null) return;
+    if (!queueMap.has(key)) {
+        queueMap.set(key, []);
+    }
+    queueMap.get(key).push(solve);
+}
+
+function _getTimestampSecondFallbackQueue(solve, anySecondQueues, secondAlignedQueues, {
+    includeScramble = false,
+} = {}) {
+    const secondKey = _buildSolveIdentityKey(solve, {
+        roundTimestampToSecond: true,
+        includeScramble,
+    });
+    if (secondKey === null) return null;
+
+    return _isTimestampSecondAligned(solve.timestamp)
+        ? anySecondQueues.get(secondKey)
+        : secondAlignedQueues.get(secondKey);
+}
+
+function _mergeLogicalSessionSolves(importedSolves, existingSolves, targetSessionId, {
+    roundTimestampToSecond = false,
+    includeScramble = false,
+} = {}) {
+    const remainingExistingQueues = new Map();
+    const unkeyedExistingSolves = [];
+    const mergedSolves = [];
+
+    existingSolves.forEach((solve) => {
+        const key = _buildSolveIdentityKey(solve, {
+            roundTimestampToSecond,
+            includeScramble,
+        });
+        if (key === null) {
+            unkeyedExistingSolves.push(solve);
+            return;
+        }
+        if (!remainingExistingQueues.has(key)) {
+            remainingExistingQueues.set(key, []);
+        }
+        remainingExistingQueues.get(key).push(solve);
+    });
+
+    importedSolves.forEach((solve) => {
+        const key = _buildSolveIdentityKey(solve, {
+            roundTimestampToSecond,
+            includeScramble,
+        });
+        const queue = key === null ? null : remainingExistingQueues.get(key);
+        const matchedSolve = Array.isArray(queue) && queue.length > 0
+            ? queue.shift()
+            : null;
+
+        if (matchedSolve) {
+            mergedSolves.push({
+                ...matchedSolve,
+                ...solve,
+                id: matchedSolve.id,
+                sessionId: targetSessionId,
+            });
+            return;
+        }
+
+        mergedSolves.push({
+            ...solve,
+            sessionId: targetSessionId,
+        });
+    });
+
+    remainingExistingQueues.forEach((queue) => {
+        queue.forEach((solve) => {
+            mergedSolves.push({
+                ...solve,
+                sessionId: targetSessionId,
+            });
+        });
+    });
+    unkeyedExistingSolves.forEach((solve) => {
+        mergedSolves.push({
+            ...solve,
+            sessionId: targetSessionId,
+        });
+    });
+
+    return mergedSolves;
+}
+
+function _mergeIdOrLogicalSessionSolves(importedSolves, existingSolves, targetSessionId, {
+    roundTimestampToSecond = false,
+    includeScramble = false,
+    allowTimestampSecondFallback = false,
+} = {}) {
+    const existingQueuesById = new Map();
+    const existingQueuesByLogicalKey = new Map();
+    const existingQueuesByAnySecondKey = new Map();
+    const existingQueuesBySecondAlignedKey = new Map();
+    const matchedExistingSolves = new Set();
+    const mergedSolves = [];
+
+    existingSolves.forEach((solve) => {
+        const id = typeof solve?.id === 'string' ? solve.id : '';
+        if (id) {
+            _pushSolveIdentityQueue(existingQueuesById, id, solve);
+        }
+
+        const logicalKey = _buildSolveIdentityKey(solve, {
+            roundTimestampToSecond,
+            includeScramble,
+        });
+        _pushSolveIdentityQueue(existingQueuesByLogicalKey, logicalKey, solve);
+
+        if (allowTimestampSecondFallback) {
+            const secondKey = _buildSolveIdentityKey(solve, {
+                roundTimestampToSecond: true,
+                includeScramble,
+            });
+            _pushSolveIdentityQueue(existingQueuesByAnySecondKey, secondKey, solve);
+            if (_isTimestampSecondAligned(solve?.timestamp)) {
+                _pushSolveIdentityQueue(existingQueuesBySecondAlignedKey, secondKey, solve);
+            }
+        }
+    });
+
+    const takeUnmatchedSolve = (queue) => {
+        if (!Array.isArray(queue)) return null;
+
+        while (queue.length > 0) {
+            const candidate = queue.shift();
+            if (!matchedExistingSolves.has(candidate)) return candidate;
+        }
+
+        return null;
+    };
+
+    importedSolves.forEach((solve) => {
+        const importedId = typeof solve?.id === 'string' ? solve.id : '';
+        let matchedSolve = importedId
+            ? takeUnmatchedSolve(existingQueuesById.get(importedId))
+            : null;
+
+        if (!matchedSolve) {
+            const logicalKey = _buildSolveIdentityKey(solve, {
+                roundTimestampToSecond,
+                includeScramble,
+            });
+            matchedSolve = logicalKey === null
+                ? null
+                : takeUnmatchedSolve(existingQueuesByLogicalKey.get(logicalKey));
+        }
+
+        if (!matchedSolve && allowTimestampSecondFallback) {
+            matchedSolve = takeUnmatchedSolve(_getTimestampSecondFallbackQueue(
+                solve,
+                existingQueuesByAnySecondKey,
+                existingQueuesBySecondAlignedKey,
+                { includeScramble },
+            ));
+        }
+
+        if (matchedSolve) {
+            matchedExistingSolves.add(matchedSolve);
+            mergedSolves.push({
+                ...matchedSolve,
+                ...solve,
+                id: matchedSolve.id,
+                sessionId: targetSessionId,
+            });
+            return;
+        }
+
+        mergedSolves.push({
+            ...solve,
+            sessionId: targetSessionId,
+        });
+    });
+
+    existingSolves.forEach((solve) => {
+        if (matchedExistingSolves.has(solve)) return;
+
+        mergedSolves.push({
+            ...solve,
+            sessionId: targetSessionId,
+        });
+    });
+
+    return mergedSolves;
+}
+
+function _scoreSolveIdentityOverlap(importedSolves, existingSolves, {
+    roundTimestampToSecond = false,
+    includeScramble = false,
+    allowTimestampSecondFallback = false,
+} = {}) {
+    const existingQueuesById = new Map();
+    const existingQueuesByLogicalKey = new Map();
+    const existingQueuesByAnySecondKey = new Map();
+    const existingQueuesBySecondAlignedKey = new Map();
+    const matchedExistingSolves = new Set();
+    let idMatches = 0;
+    let logicalMatches = 0;
+
+    existingSolves.forEach((solve) => {
+        const id = typeof solve?.id === 'string' ? solve.id : '';
+        if (id) {
+            _pushSolveIdentityQueue(existingQueuesById, id, solve);
+        }
+
+        const logicalKey = _buildSolveIdentityKey(solve, {
+            roundTimestampToSecond,
+            includeScramble,
+        });
+        _pushSolveIdentityQueue(existingQueuesByLogicalKey, logicalKey, solve);
+
+        if (allowTimestampSecondFallback) {
+            const secondKey = _buildSolveIdentityKey(solve, {
+                roundTimestampToSecond: true,
+                includeScramble,
+            });
+            _pushSolveIdentityQueue(existingQueuesByAnySecondKey, secondKey, solve);
+            if (_isTimestampSecondAligned(solve?.timestamp)) {
+                _pushSolveIdentityQueue(existingQueuesBySecondAlignedKey, secondKey, solve);
+            }
+        }
+    });
+
+    const takeUnmatchedSolve = (queue) => {
+        if (!Array.isArray(queue)) return null;
+
+        while (queue.length > 0) {
+            const candidate = queue.shift();
+            if (!matchedExistingSolves.has(candidate)) return candidate;
+        }
+
+        return null;
+    };
+
+    importedSolves.forEach((solve) => {
+        const id = typeof solve?.id === 'string' ? solve.id : '';
+        let matchedSolve = id
+            ? takeUnmatchedSolve(existingQueuesById.get(id))
+            : null;
+
+        if (matchedSolve) {
+            matchedExistingSolves.add(matchedSolve);
+            idMatches += 1;
+            return;
+        }
+
+        const logicalKey = _buildSolveIdentityKey(solve, {
+            roundTimestampToSecond,
+            includeScramble,
+        });
+        matchedSolve = logicalKey === null
+            ? null
+            : takeUnmatchedSolve(existingQueuesByLogicalKey.get(logicalKey));
+
+        if (!matchedSolve && allowTimestampSecondFallback) {
+            matchedSolve = takeUnmatchedSolve(_getTimestampSecondFallbackQueue(
+                solve,
+                existingQueuesByAnySecondKey,
+                existingQueuesBySecondAlignedKey,
+                { includeScramble },
+            ));
+        }
+
+        if (matchedSolve) {
+            matchedExistingSolves.add(matchedSolve);
+            logicalMatches += 1;
+        }
+    });
+
+    return {
+        idMatches,
+        logicalMatches,
+        score: idMatches + logicalMatches,
+    };
+}
+
+function _hasEnoughRenamedSessionOverlapEvidence(importedSolves, existingSolves, solveMatchOptions = {}) {
+    const importedSessionSolves = Array.isArray(importedSolves) ? importedSolves : [];
+    const overlap = _scoreSolveIdentityOverlap(
+        importedSessionSolves,
+        Array.isArray(existingSolves) ? existingSolves : [],
+        solveMatchOptions,
+    );
+
+    if (overlap.idMatches > 0 || overlap.score >= 2) return true;
+    return overlap.logicalMatches === 1
+        && importedSessionSolves.length === 1
+        && String(importedSessionSolves[0]?.scramble ?? '').trim().length > 0;
+}
+
+function _rankSessionsBySolveOverlap(importedSolves, candidateSessions, existingSolvesBySessionId, solveMatchOptions = {}) {
+    return candidateSessions
+        .map((session) => {
+            const existingSolves = existingSolvesBySessionId.get(session.id) || [];
+            return {
+                session,
+                existingSolveCount: existingSolves.length,
+                ..._scoreSolveIdentityOverlap(
+                    importedSolves,
+                    existingSolves,
+                    {
+                        includeScramble: true,
+                        ...solveMatchOptions,
+                    },
+                ),
+            };
+        })
+        .sort((a, b) => (
+            (b.idMatches - a.idMatches)
+            || (b.logicalMatches - a.logicalMatches)
+        ));
+}
+
+function _pickUnambiguousSessionBySolveOverlap(importedSolves, candidateSessions, existingSolvesBySessionId, solveMatchOptions = {}) {
+    const rankedCandidates = _rankSessionsBySolveOverlap(
+        importedSolves,
+        candidateSessions,
+        existingSolvesBySessionId,
+        solveMatchOptions,
+    );
+    const best = rankedCandidates[0] || null;
+    if (!best || best.score <= 0) return null;
+
+    const runnerUp = rankedCandidates[1] || null;
+    if (
+        runnerUp
+        && runnerUp.idMatches === best.idMatches
+        && runnerUp.logicalMatches === best.logicalMatches
+    ) {
+        return null;
+    }
+
+    return best.session;
+}
+
+function _pickUnambiguousSessionByCompleteSolveOverlap(importedSolves, candidateSessions, existingSolvesBySessionId, solveMatchOptions = {}) {
+    if (!Array.isArray(importedSolves) || importedSolves.length === 0) return null;
+
+    const rankedCandidates = _rankSessionsBySolveOverlap(
+        importedSolves,
+        candidateSessions,
+        existingSolvesBySessionId,
+        solveMatchOptions,
+    ).filter((candidate) => candidate.existingSolveCount > 0);
+    const best = rankedCandidates[0] || null;
+    if (!best || best.score <= 0) return null;
+
+    const requiredOverlap = Math.min(importedSolves.length, best.existingSolveCount);
+    if (best.score < requiredOverlap) return null;
+
+    const runnerUp = rankedCandidates[1] || null;
+    if (
+        runnerUp
+        && runnerUp.idMatches === best.idMatches
+        && runnerUp.logicalMatches === best.logicalMatches
+    ) {
+        return null;
+    }
+
+    return best.session;
+}
+
+function _buildSessionMatchResult(session, { preserveExistingName = false } = {}) {
+    if (!session) return null;
+    return {
+        session,
+        preserveExistingName,
+    };
+}
+
+function _normalizeSessionMatchResult(matchResult) {
+    if (!matchResult) {
+        return {
+            session: null,
+            preserveExistingName: false,
+        };
+    }
+
+    if (matchResult.session && typeof matchResult.session === 'object') {
+        return {
+            session: matchResult.session,
+            preserveExistingName: matchResult.preserveExistingName === true,
+        };
+    }
+
+    return {
+        session: matchResult,
+        preserveExistingName: false,
+    };
+}
+
+function _normalizeMergedSessionOrder(sessions) {
+    return sessions.map((session, index) => ({
+        ...session,
+        order: index,
+    }));
+}
+
+function _mergeImportedDataset(
+    importedSessions,
+    importedSolves,
+    {
+        existingData = null,
+        findExistingSessionMatch = null,
+        solveMatchMode = SOLVE_MATCH_MODE_ID,
+        solveMatchOptions = {},
+    } = {},
+) {
+    if (!existingData) {
+        return {
+            dbSessions: importedSessions,
+            dbSolves: importedSolves,
+            sessionIdMap: new Map(importedSessions.map((session) => [session.id, session.id])),
+        };
+    }
+
+    const existingSessions = Array.isArray(existingData.sessions) ? existingData.sessions : [];
+    const existingSolves = Array.isArray(existingData.solves) ? existingData.solves : [];
+    const existingSessionsById = new Map(
+        existingSessions.map((session) => [session.id, session]),
+    );
+    const importedSolvesBySessionId = _groupSolvesBySessionId(importedSolves);
+    const existingSolvesBySessionId = _groupSolvesBySessionId(existingSolves);
+    const importedSessionEntries = [];
+    const matchedExistingSessionIds = new Set();
+    const finalSessionIdSet = new Set();
+    const sessionIdMap = new Map();
+
+    importedSessions.forEach((importedSession) => {
+        const rawSessionMatch = typeof findExistingSessionMatch === 'function'
+            ? findExistingSessionMatch(importedSession)
+            : (existingSessionsById.get(importedSession.id) || null);
+        const {
+            session: matchedExistingSession,
+            preserveExistingName,
+        } = _normalizeSessionMatchResult(rawSessionMatch);
+        const targetSessionId = matchedExistingSession?.id || importedSession.id;
+        const mergedSession = {
+            ...importedSession,
+            id: targetSessionId,
+            ...(preserveExistingName && typeof matchedExistingSession?.name === 'string'
+                ? { name: matchedExistingSession.name }
+                : {}),
+        };
+
+        if (matchedExistingSession) {
+            matchedExistingSessionIds.add(matchedExistingSession.id);
+        }
+
+        importedSessionEntries.push({
+            importedSession,
+            matchedExistingSession,
+            mergedSession,
+        });
+        sessionIdMap.set(importedSession.id, targetSessionId);
+        finalSessionIdSet.add(targetSessionId);
+    });
+
+    const remainingExistingSessions = existingSessions.filter((session) => (
+        !matchedExistingSessionIds.has(session.id)
+        && !finalSessionIdSet.has(session.id)
+    ));
+    const finalSessions = _normalizeMergedSessionOrder([
+        ...importedSessionEntries.map(({ mergedSession }) => mergedSession),
+        ...remainingExistingSessions,
+    ]);
+    const finalSolves = [];
+
+    importedSessionEntries.forEach(({ importedSession, matchedExistingSession, mergedSession }) => {
+        const importedSessionSolves = importedSolvesBySessionId.get(importedSession.id) || [];
+        const existingSessionSolves = matchedExistingSession
+            ? (existingSolvesBySessionId.get(matchedExistingSession.id) || [])
+            : [];
+
+        if (existingSessionSolves.length === 0) {
+            importedSessionSolves.forEach((solve) => {
+                finalSolves.push({
+                    ...solve,
+                    sessionId: mergedSession.id,
+                });
+            });
+            return;
+        }
+
+        if (solveMatchMode === SOLVE_MATCH_MODE_LOGICAL_EXACT) {
+            finalSolves.push(
+                ..._mergeLogicalSessionSolves(
+                    importedSessionSolves,
+                    existingSessionSolves,
+                    mergedSession.id,
+                    solveMatchOptions,
+                ),
+            );
+            return;
+        }
+
+        if (solveMatchMode === SOLVE_MATCH_MODE_ID_OR_LOGICAL_EXACT) {
+            finalSolves.push(
+                ..._mergeIdOrLogicalSessionSolves(
+                    importedSessionSolves,
+                    existingSessionSolves,
+                    mergedSession.id,
+                    solveMatchOptions,
+                ),
+            );
+            return;
+        }
+
+        if (solveMatchMode === SOLVE_MATCH_MODE_LOGICAL_CSTIMER) {
+            finalSolves.push(
+                ..._mergeLogicalSessionSolves(importedSessionSolves, existingSessionSolves, mergedSession.id, {
+                    ...solveMatchOptions,
+                    roundTimestampToSecond: true,
+                    includeScramble: true,
+                }),
+            );
+            return;
+        }
+
+        const importedSolveIds = new Set(importedSessionSolves.map((solve) => solve.id));
+        importedSessionSolves.forEach((solve) => {
+            finalSolves.push({
+                ...solve,
+                sessionId: mergedSession.id,
+            });
+        });
+        existingSessionSolves.forEach((solve) => {
+            if (importedSolveIds.has(solve.id)) return;
+            finalSolves.push({
+                ...solve,
+                sessionId: mergedSession.id,
+            });
+        });
+    });
+
+    remainingExistingSessions.forEach((session) => {
+        const sessionSolves = existingSolvesBySessionId.get(session.id) || [];
+        sessionSolves.forEach((solve) => {
+            finalSolves.push(solve);
+        });
+    });
+
+    return {
+        dbSessions: finalSessions,
+        dbSolves: finalSolves,
+        sessionIdMap,
+    };
+}
+
+function _buildBackupSessionMergeResolver(existingSessions, existingSolves = [], importedSolves = [], solveMatchOptions = {}) {
+    const existingSessionsById = new Map(
+        existingSessions.map((session) => [session.id, session]),
+    );
+    const existingSolvesBySessionId = _groupSolvesBySessionId(existingSolves);
+    const importedSolvesBySessionId = _groupSolvesBySessionId(importedSolves);
+    const sessionsByName = new Map();
+    const usedSessionIds = new Set();
+
+    const getScrambleType = (session) => (
+        typeof session?.scrambleType === 'string' && session.scrambleType
+            ? session.scrambleType
+            : ''
+    );
+    const pushSessionQueue = (map, key, session) => {
+        if (!key) return;
+        if (!map.has(key)) {
+            map.set(key, []);
+        }
+        map.get(key).push(session);
+    };
+    const getUnusedSessions = (queue) => {
+        if (!Array.isArray(queue)) return null;
+        return queue.filter((candidate) => !usedSessionIds.has(candidate.id));
+    };
+    const chooseCandidate = (candidates, importedSession) => {
+        if (!Array.isArray(candidates) || candidates.length === 0) return null;
+        if (candidates.length === 1) return candidates[0];
+
+        return _pickUnambiguousSessionBySolveOverlap(
+            importedSolvesBySessionId.get(importedSession.id) || [],
+            candidates,
+            existingSolvesBySessionId,
+            solveMatchOptions,
+        );
+    };
+    const chooseRenamedCandidate = (importedSession) => {
+        const importedSessionSolves = importedSolvesBySessionId.get(importedSession.id) || [];
+        if (importedSessionSolves.length === 0) return null;
+
+        const unusedSessions = existingSessions.filter((session) => !usedSessionIds.has(session.id));
+        const importedScrambleType = getScrambleType(importedSession);
+        const candidateGroups = importedScrambleType
+            ? [
+                unusedSessions.filter((session) => getScrambleType(session) === importedScrambleType),
+                unusedSessions.filter((session) => getScrambleType(session) === ''),
+            ]
+            : [unusedSessions];
+
+        for (const candidates of candidateGroups) {
+            const matchedSession = _pickUnambiguousSessionByCompleteSolveOverlap(
+                importedSessionSolves,
+                candidates,
+                existingSolvesBySessionId,
+                solveMatchOptions,
+            );
+            if (
+                matchedSession
+                && _hasEnoughRenamedSessionOverlapEvidence(
+                    importedSessionSolves,
+                    existingSolvesBySessionId.get(matchedSession.id) || [],
+                    solveMatchOptions,
+                )
+            ) {
+                return matchedSession;
+            }
+        }
+
+        return null;
+    };
+
+    existingSessions.forEach((session) => {
+        const normalizedName = _normalizeImportSessionName(session?.name);
+        if (!normalizedName) return;
+
+        pushSessionQueue(sessionsByName, normalizedName, session);
+    });
+
+    return (importedSession) => {
+        const importedSessionId = typeof importedSession?.id === 'string' ? importedSession.id : '';
+        if (importedSessionId && existingSessionsById.has(importedSessionId) && !usedSessionIds.has(importedSessionId)) {
+            usedSessionIds.add(importedSessionId);
+            return existingSessionsById.get(importedSessionId) || null;
+        }
+
+        const normalizedName = _normalizeImportSessionName(importedSession?.name);
+
+        const importedScrambleType = getScrambleType(importedSession);
+        const sameNameSessions = normalizedName
+            ? (getUnusedSessions(sessionsByName.get(normalizedName)) || [])
+            : [];
+        let matchedSession = null;
+
+        if (importedScrambleType) {
+            const exactTypeCandidates = sameNameSessions.filter(
+                (session) => getScrambleType(session) === importedScrambleType,
+            );
+            matchedSession = chooseCandidate(exactTypeCandidates, importedSession);
+
+            if (!matchedSession && exactTypeCandidates.length === 0) {
+                matchedSession = chooseCandidate(
+                    sameNameSessions.filter((session) => getScrambleType(session) === ''),
+                    importedSession,
+                );
+            }
+        } else {
+            matchedSession = chooseCandidate(sameNameSessions, importedSession);
+        }
+
+        if (!matchedSession) {
+            matchedSession = chooseRenamedCandidate(importedSession);
+            if (matchedSession) {
+                matchedSession = _buildSessionMatchResult(matchedSession, {
+                    preserveExistingName: true,
+                });
+            }
+        }
+
+        const { session } = _normalizeSessionMatchResult(matchedSession);
+        if (!session) return null;
+        usedSessionIds.add(session.id);
+        return matchedSession;
+    };
+}
+
+function _buildCsTimerSessionMergeResolver(
+    existingSessions,
+    sessionMatchHints = new Map(),
+    existingSolves = [],
+    importedSolves = [],
+    solveMatchOptions = {},
+) {
+    const existingSessionsById = new Map(
+        existingSessions.map((session) => [session.id, session]),
+    );
+    const existingSolvesBySessionId = _groupSolvesBySessionId(existingSolves);
+    const importedSolvesBySessionId = _groupSolvesBySessionId(importedSolves);
+    const sessionsByName = new Map();
+    const usedSessionIds = new Set();
+
+    const getScrambleType = (session) => (
+        typeof session?.scrambleType === 'string' && session.scrambleType
+            ? session.scrambleType
+            : ''
+    );
+    const pushSessionQueue = (map, key, session) => {
+        if (!key) return;
+        if (!map.has(key)) {
+            map.set(key, []);
+        }
+        map.get(key).push(session);
+    };
+    const getUnusedSessions = (queue) => {
+        if (!Array.isArray(queue)) return null;
+        return queue.filter((candidate) => !usedSessionIds.has(candidate.id));
+    };
+    const chooseCandidate = (candidates, importedSession) => {
+        if (!Array.isArray(candidates) || candidates.length === 0) return null;
+        if (candidates.length === 1) return candidates[0];
+
+        return _pickUnambiguousSessionBySolveOverlap(
+            importedSolvesBySessionId.get(importedSession.id) || [],
+            candidates,
+            existingSolvesBySessionId,
+            solveMatchOptions,
+        );
+    };
+    const chooseNameCandidate = (importedSession) => {
+        const normalizedName = _normalizeImportSessionName(importedSession?.name);
+        const sameNameSessions = normalizedName
+            ? (getUnusedSessions(sessionsByName.get(normalizedName)) || [])
+            : [];
+        const importedScrambleType = getScrambleType(importedSession);
+
+        if (importedScrambleType) {
+            const exactTypeCandidates = sameNameSessions.filter(
+                (session) => getScrambleType(session) === importedScrambleType,
+            );
+            const matchedSession = chooseCandidate(exactTypeCandidates, importedSession);
+            if (matchedSession) return matchedSession;
+
+            if (exactTypeCandidates.length === 0) {
+                return chooseCandidate(
+                    sameNameSessions.filter((session) => getScrambleType(session) === ''),
+                    importedSession,
+                );
+            }
+
+            return null;
+        }
+
+        return chooseCandidate(sameNameSessions, importedSession);
+    };
+    const chooseRenamedCandidate = (importedSession) => {
+        const importedSessionSolves = importedSolvesBySessionId.get(importedSession.id) || [];
+        if (importedSessionSolves.length === 0) return null;
+
+        const unusedSessions = existingSessions.filter((session) => !usedSessionIds.has(session.id));
+        const importedScrambleType = getScrambleType(importedSession);
+        const candidateGroups = importedScrambleType
+            ? [
+                unusedSessions.filter((session) => getScrambleType(session) === importedScrambleType),
+                unusedSessions.filter((session) => getScrambleType(session) === ''),
+            ]
+            : [unusedSessions];
+
+        for (const candidates of candidateGroups) {
+            const matchedSession = _pickUnambiguousSessionByCompleteSolveOverlap(
+                importedSessionSolves,
+                candidates,
+                existingSolvesBySessionId,
+                solveMatchOptions,
+            );
+            if (
+                matchedSession
+                && _hasEnoughRenamedSessionOverlapEvidence(
+                    importedSessionSolves,
+                    existingSolvesBySessionId.get(matchedSession.id) || [],
+                    solveMatchOptions,
+                )
+            ) {
+                return matchedSession;
+            }
+        }
+
+        return null;
+    };
+
+    existingSessions.forEach((session) => {
+        const normalizedName = _normalizeImportSessionName(session?.name);
+        if (!normalizedName) return;
+
+        pushSessionQueue(sessionsByName, normalizedName, session);
+    });
+
+    return (importedSession) => {
+        const hintedSessionId = sessionMatchHints.get(importedSession.id) || '';
+        if (hintedSessionId && existingSessionsById.has(hintedSessionId) && !usedSessionIds.has(hintedSessionId)) {
+            usedSessionIds.add(hintedSessionId);
+            return existingSessionsById.get(hintedSessionId) || null;
+        }
+
+        let matchedSession = chooseNameCandidate(importedSession);
+
+        if (!matchedSession) {
+            matchedSession = chooseRenamedCandidate(importedSession);
+            if (matchedSession) {
+                matchedSession = _buildSessionMatchResult(matchedSession, {
+                    preserveExistingName: true,
+                });
+            }
+        }
+
+        const { session } = _normalizeSessionMatchResult(matchedSession);
+        if (!session) return null;
+        usedSessionIds.add(session.id);
+        return matchedSession;
+    };
 }
 
 /**
@@ -239,8 +1226,13 @@ export async function exportAll() {
  * Import data from a JSON object, overwriting existing data.
  * @param {object} data
  */
-export async function importAll(data, { onProgress = null } = {}) {
+export async function importAll(data, { mode = IMPORT_MODE_REWRITE, onProgress = null } = {}) {
     if (!data || typeof data !== 'object') return;
+
+    const importMode = _normalizeImportMode(mode);
+    const existingData = importMode === IMPORT_MODE_MERGE
+        ? await db.getAllData()
+        : null;
 
     // Separate sessions from other data
     const sessions = data.sessions || [];
@@ -248,8 +1240,12 @@ export async function importAll(data, { onProgress = null } = {}) {
     const dbSessions = [];
     const dbSolves = [];
     const parseTotal = sessions.length + totalSolveCount;
-    const writeTotal = 1 + sessions.length + totalSolveCount;
-    const totalWork = parseTotal + writeTotal;
+    const estimatedWriteTotal = 1 + sessions.length + totalSolveCount + (
+        importMode === IMPORT_MODE_MERGE
+            ? ((existingData?.sessions?.length || 0) + (existingData?.solves?.length || 0))
+            : 0
+    );
+    const estimatedTotalWork = parseTotal + estimatedWriteTotal;
     let parseCompleted = 0;
 
     _reportImportProgress(onProgress, {
@@ -259,8 +1255,8 @@ export async function importAll(data, { onProgress = null } = {}) {
         completed: 0,
         total: parseTotal,
         processed: 0,
-        totalWork,
-        percent: totalWork > 0 ? 0 : 100,
+        totalWork: estimatedTotalWork,
+        percent: estimatedTotalWork > 0 ? 0 : 100,
         sessionCount: sessions.length,
         solveCount: totalSolveCount,
     });
@@ -294,8 +1290,8 @@ export async function importAll(data, { onProgress = null } = {}) {
                         completed: parseCompleted,
                         total: parseTotal,
                         processed: parseCompleted,
-                        totalWork,
-                        percent: totalWork > 0 ? (parseCompleted / totalWork) * 100 : 100,
+                        totalWork: estimatedTotalWork,
+                        percent: estimatedTotalWork > 0 ? (parseCompleted / estimatedTotalWork) * 100 : 100,
                         sessionCount: sessions.length,
                         solveCount: totalSolveCount,
                     });
@@ -308,7 +1304,52 @@ export async function importAll(data, { onProgress = null } = {}) {
         }
     }
 
-    await _replaceImportedData(dbSessions, dbSolves, {
+    let finalSessions = dbSessions;
+    let finalSolves = dbSolves;
+    let importedBackupValues = data;
+
+    if (importMode === IMPORT_MODE_MERGE) {
+        _reportImportProgress(onProgress, {
+            source: 'backup',
+            phase: 'merging',
+            stage: 'solves',
+            completed: parseCompleted,
+            total: parseTotal,
+            processed: parseCompleted,
+            totalWork: estimatedTotalWork,
+            percent: estimatedTotalWork > 0 ? (parseCompleted / estimatedTotalWork) * 100 : 100,
+            sessionCount: dbSessions.length,
+            solveCount: dbSolves.length,
+        });
+
+        const mergedData = _mergeImportedDataset(dbSessions, dbSolves, {
+            existingData,
+            findExistingSessionMatch: _buildBackupSessionMergeResolver(
+                existingData.sessions || [],
+                existingData.solves || [],
+                dbSolves,
+                {
+                    includeScramble: true,
+                    allowTimestampSecondFallback: true,
+                },
+            ),
+            solveMatchMode: SOLVE_MATCH_MODE_ID_OR_LOGICAL_EXACT,
+            solveMatchOptions: {
+                includeScramble: true,
+                allowTimestampSecondFallback: true,
+            },
+        });
+        finalSessions = mergedData.dbSessions;
+        finalSolves = mergedData.dbSolves;
+        importedBackupValues = { ...data };
+        if (_hasOwn(data, 'activeSessionId')) {
+            importedBackupValues.activeSessionId = mergedData.sessionIdMap.get(data.activeSessionId) || data.activeSessionId;
+        }
+    }
+
+    const totalWork = parseTotal + 1 + finalSessions.length + finalSolves.length;
+
+    await _replaceImportedData(finalSessions, finalSolves, {
         source: 'backup',
         onProgress,
         processedOffset: parseTotal,
@@ -317,7 +1358,10 @@ export async function importAll(data, { onProgress = null } = {}) {
 
     // Write remaining import-backed localStorage keys (settings, active session,
     // selected scramble type). Cache/runtime keys stay device-local.
-    _applyImportedBackupValues(data, { replaceMissing: true });
+    _applyImportedBackupValues(importedBackupValues, {
+        replaceMissing: true,
+        autoExportSolveSequence: finalSolves.length,
+    });
 
     _reportImportProgress(onProgress, {
         source: 'backup',
@@ -328,8 +1372,8 @@ export async function importAll(data, { onProgress = null } = {}) {
         processed: totalWork,
         totalWork,
         percent: 100,
-        sessionCount: dbSessions.length,
-        solveCount: dbSolves.length,
+        sessionCount: finalSessions.length,
+        solveCount: finalSolves.length,
     });
 }
 
@@ -538,7 +1582,8 @@ export async function convertSessionCsv(text, { onProgress = null } = {}) {
     };
 }
 
-export async function importSessionCsv(text, { onProgress = null } = {}) {
+export async function importSessionCsv(text, { mode = IMPORT_MODE_REWRITE, onProgress = null } = {}) {
+    const importMode = _normalizeImportMode(mode);
     const PARSE_PERCENT = 45;
     const WRITE_PERCENT = 55;
     const csvParseProgress = (snapshot) => {
@@ -563,12 +1608,55 @@ export async function importSessionCsv(text, { onProgress = null } = {}) {
         });
     };
 
-    await _replaceImportedData(dbSessions, dbSolves, {
+    let finalSessions = dbSessions;
+    let finalSolves = dbSolves;
+    let activeSessionId = backupValues.activeSessionId ?? null;
+
+    if (importMode === IMPORT_MODE_MERGE) {
+        _reportImportProgress(onProgress, {
+            source: 'csv',
+            phase: 'merging',
+            stage: 'solves',
+            completed: 0,
+            total: 0,
+            processed: 45,
+            totalWork: 100,
+            percent: PARSE_PERCENT,
+            sessionCount: dbSessions.length,
+            solveCount: dbSolves.length,
+        });
+
+        const existingData = await db.getAllData();
+        const mergedData = _mergeImportedDataset(dbSessions, dbSolves, {
+            existingData,
+            findExistingSessionMatch: _buildBackupSessionMergeResolver(
+                existingData.sessions || [],
+                existingData.solves || [],
+                dbSolves,
+                { includeScramble: true },
+            ),
+            solveMatchMode: SOLVE_MATCH_MODE_LOGICAL_EXACT,
+            solveMatchOptions: {
+                includeScramble: true,
+            },
+        });
+
+        finalSessions = mergedData.dbSessions;
+        finalSolves = mergedData.dbSolves;
+        activeSessionId = mergedData.sessionIdMap.get(activeSessionId) || activeSessionId;
+    }
+
+    await _replaceImportedData(finalSessions, finalSolves, {
         source: 'csv',
         onProgress: writeProgress,
     });
 
-    _applyImportedBackupValues(backupValues);
+    _applyImportedBackupValues({
+        ...backupValues,
+        activeSessionId,
+    }, {
+        autoExportSolveSequence: finalSolves.length,
+    });
 
     _reportImportProgress(onProgress, {
         source: 'csv',
@@ -579,8 +1667,8 @@ export async function importSessionCsv(text, { onProgress = null } = {}) {
         processed: 100,
         totalWork: 100,
         percent: 100,
-        sessionCount: dbSessions.length,
-        solveCount: dbSolves.length,
+        sessionCount: finalSessions.length,
+        solveCount: finalSolves.length,
     });
 }
 
@@ -627,6 +1715,7 @@ const CSTIMER_IMPORT_SETTING_DEFAULTS = Object.freeze({
     inspectionAlerts: 'voice',
     timerUpdate: '0.1s',
     timeEntryMode: 'timer',
+    autoExportEvery100Solves: AUTO_EXPORT_EVERY_100_SOLVES_REMIND,
     hideUIWhileSolving: true,
     pillSize: 'medium',
     showDelta: true,
@@ -648,6 +1737,7 @@ const CSTIMER_EXPORT_SETTING_DEFAULTS = Object.freeze({
     inspectionAlerts: 'off',
     timerUpdate: '0.01s',
     timeEntryMode: 'timer',
+    autoExportEvery100Solves: AUTO_EXPORT_EVERY_100_SOLVES_NEVER,
     dailyStreakGoal: 0,
     summaryStatsPreset: 'basic',
     summaryStatsCustom: 'mo3 ao5 ao12 ao100',
@@ -681,6 +1771,7 @@ const CSTIMER_NATIVE_SETTING_KEYS = Object.freeze([
     'inspectionAlerts',
     'timerUpdate',
     'timeEntryMode',
+    'autoExportEvery100Solves',
     'hideUIWhileSolving',
     'pillSize',
     'showDelta',
@@ -696,6 +1787,7 @@ const CSTIMER_NATIVE_SETTING_PROPERTY_KEYS = Object.freeze({
     inspectionAlerts: Object.freeze(['voiceIns']),
     timerUpdate: Object.freeze(['timeU']),
     timeEntryMode: Object.freeze(['input']),
+    autoExportEvery100Solves: Object.freeze(['atexpa']),
     hideUIWhileSolving: Object.freeze(['ahide']),
     pillSize: Object.freeze(['showAvg']),
     showDelta: Object.freeze(['showDiff']),
@@ -711,6 +1803,7 @@ const CSTIMER_NATIVE_PROPERTY_DEFAULTS = Object.freeze({
     voiceIns: '1',
     timeU: 'c',
     input: 't',
+    atexpa: 'a',
     ahide: true,
     showAvg: true,
     showDiff: 'rg',
@@ -1030,6 +2123,9 @@ function _buildCsTimerCompatibleProperties(settingsData, { includeBackgroundImag
                 : settingsData?.timeEntryMode === 'bluetooth'
                     ? 'b'
                     : 't',
+        atexpa: _normalizeAutoExportEvery100Solves(settingsData?.autoExportEvery100Solves, {
+            defaultValue: AUTO_EXPORT_EVERY_100_SOLVES_NEVER,
+        }),
         ahide: settingsData?.hideUIWhileSolving !== false,
         showAvg: settingsData?.pillSize === 'hidden' ? false : true,
         showDiff: settingsData?.showDelta === false ? 'n' : 'rg',
@@ -1272,6 +2368,13 @@ function _deriveSettingsFromCsTimerProperties(properties) {
         else settingsData.timeEntryMode = 'timer';
     }
 
+    if (_hasOwn(properties, 'atexpa')) {
+        settingsData.autoExportEvery100Solves = _normalizeAutoExportEvery100Solves(
+            properties?.atexpa,
+            { defaultValue: AUTO_EXPORT_EVERY_100_SOLVES_REMIND },
+        );
+    }
+
     if (_hasOwn(properties, 'ahide')) {
         settingsData.hideUIWhileSolving = properties?.ahide === false ? false : true;
     }
@@ -1319,8 +2422,13 @@ export function isCsTimerFormat(data) {
 /**
  * Convert csTimer JSON → internal format and import it.
  */
-export async function importCsTimer(csData, { onProgress = null } = {}) {
+export async function importCsTimer(csData, { mode = IMPORT_MODE_REWRITE, onProgress = null } = {}) {
     if (!csData || typeof csData !== 'object') return;
+
+    const importMode = _normalizeImportMode(mode);
+    const existingData = importMode === IMPORT_MODE_MERGE
+        ? await db.getAllData()
+        : null;
 
     const properties = (csData.properties && typeof csData.properties === 'object')
         ? csData.properties
@@ -1445,9 +2553,14 @@ export async function importCsTimer(csData, { onProgress = null } = {}) {
 
     const dbSessions = [];
     const dbSolves = [];
+    const sessionMatchHints = new Map();
     const totalRawSolveCount = importedSessions.reduce((count, session) => count + session.solves.length, 0);
     const parseTotal = importedSessions.length + totalRawSolveCount;
-    const estimatedTotalWork = parseTotal + 1 + importedSessions.length + totalRawSolveCount;
+    const estimatedTotalWork = parseTotal + 1 + importedSessions.length + totalRawSolveCount + (
+        importMode === IMPORT_MODE_MERGE
+            ? ((existingData?.sessions?.length || 0) + (existingData?.solves?.length || 0))
+            : 0
+    );
     let parseCompleted = 0;
 
     _reportImportProgress(onProgress, {
@@ -1527,6 +2640,7 @@ export async function importCsTimer(csData, { onProgress = null } = {}) {
                 ? { settings: _sanitizeSessionSettingsForTransport(session.settings) }
                 : {}),
         });
+        sessionMatchHints.set(session.id, session.metadataSessionId || '');
     }
 
     if (importedSessions.length === 0) return;
@@ -1585,19 +2699,57 @@ export async function importCsTimer(csData, { onProgress = null } = {}) {
         }
     });
 
-    const newSettings = _sanitizeStoredSettingsForImport(nextSettings);
-
-    const activeImportedSessionId = activeImportedSession?.id || dbSessions[0]?.id || null;
+    let activeImportedSessionId = activeImportedSession?.id || dbSessions[0]?.id || null;
     const activeImportedScrambleType = activeImportedSession?.scrambleType || '333';
+    let finalSessions = dbSessions;
+    let finalSolves = dbSolves;
 
-    const totalWork = parseTotal + 1 + dbSessions.length + dbSolves.length;
+    if (importMode === IMPORT_MODE_MERGE) {
+        _reportImportProgress(onProgress, {
+            source: 'cstimer',
+            phase: 'merging',
+            stage: 'solves',
+            completed: parseCompleted,
+            total: parseTotal,
+            processed: parseCompleted,
+            totalWork: estimatedTotalWork,
+            percent: estimatedTotalWork > 0 ? (parseCompleted / estimatedTotalWork) * 100 : 100,
+            sessionCount: dbSessions.length,
+            solveCount: dbSolves.length,
+        });
 
-    await _replaceImportedData(dbSessions, dbSolves, {
+        const mergedData = _mergeImportedDataset(dbSessions, dbSolves, {
+            existingData,
+            findExistingSessionMatch: _buildCsTimerSessionMergeResolver(
+                existingData.sessions || [],
+                sessionMatchHints,
+                existingData.solves || [],
+                dbSolves,
+                {
+                    roundTimestampToSecond: true,
+                    includeScramble: true,
+                },
+            ),
+            solveMatchMode: SOLVE_MATCH_MODE_LOGICAL_CSTIMER,
+        });
+        finalSessions = mergedData.dbSessions;
+        finalSolves = mergedData.dbSolves;
+        activeImportedSessionId = mergedData.sessionIdMap.get(activeImportedSessionId) || activeImportedSessionId;
+    }
+
+    const totalWork = parseTotal + 1 + finalSessions.length + finalSolves.length;
+
+    await _replaceImportedData(finalSessions, finalSolves, {
         source: 'cstimer',
         onProgress,
         processedOffset: parseTotal,
         totalWork,
     });
+
+    const newSettings = _sanitizeStoredSettingsForImport(
+        _stampAutoExportSequenceSettings(nextSettings, finalSolves.length),
+        { minimumSolveSequence: finalSolves.length },
+    );
 
     // Write settings to localStorage
     save('activeSessionId', activeImportedSessionId);
@@ -1613,8 +2765,8 @@ export async function importCsTimer(csData, { onProgress = null } = {}) {
         processed: totalWork,
         totalWork,
         percent: 100,
-        sessionCount: dbSessions.length,
-        solveCount: dbSolves.length,
+        sessionCount: finalSessions.length,
+        solveCount: finalSolves.length,
     });
 }
 

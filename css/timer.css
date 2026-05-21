@@ -49,7 +49,7 @@ body.camera-background-active #center-panel > #timer-popup-overlay {
 .timer-popup {
     position: absolute;
     left: 50%;
-    bottom: 100%;
+    bottom: calc(100% + var(--timer-popup-stack-offset, 0px));
     margin-bottom: 1.1em;
     transform: translate(-50%, 8px);
     padding: 0.35em 0.9em;
@@ -63,7 +63,7 @@ body.camera-background-active #center-panel > #timer-popup-overlay {
     opacity: 0;
     pointer-events: none;
     text-transform: uppercase;
-    transition: opacity var(--transition-base), transform var(--transition-base);
+    transition: opacity var(--transition-base), transform var(--transition-base), bottom var(--transition-base);
     white-space: nowrap;
     z-index: 1;
 }

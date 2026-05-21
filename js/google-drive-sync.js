@@ -264,8 +264,11 @@ export async function restoreGoogleDriveSession() {
     try {
         await requestGoogleDriveAccessToken();
         return true;
-    } catch (_) {
-        return false;
+    } catch (error) {
+        if (error?.message === 'no_session') {
+            return false;
+        }
+        throw error;
     }
 }
 
