@@ -44,6 +44,7 @@ const LOCAL_PRECACHE_PATHS = [
     './js/battle.js?v=2026052001',
     './js/streaks.js?v=2026052001',
     './js/google-drive-sync.js?v=2026052001',
+    './js/changelog.js?v=2026052001',
     './resources/comment.svg',
     './resources/comment-off.svg',
     './resources/calendar-date.svg',

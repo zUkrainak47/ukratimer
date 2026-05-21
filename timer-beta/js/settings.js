@@ -407,6 +407,7 @@ function createDefaultSettingsCollapsedSections() {
         stats: false,
         graph: false,
         data: false,
+        app: false,
     });
 }
 

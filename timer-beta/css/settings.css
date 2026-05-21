@@ -101,6 +101,70 @@
     flex: 1;
 }
 
+#settings-changelog-callout[hidden],
+#settings-app-group[hidden] {
+    display: none;
+}
+
+.settings-changelog-callout {
+    margin-bottom: var(--space-xl);
+}
+
+.settings-changelog-callout-button {
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: var(--space-md);
+    padding: 14px 16px;
+    border: 1px solid rgba(88, 166, 255, 0.42);
+    border-radius: var(--radius-md);
+    background: var(--accent-subtle);
+    text-align: left;
+    transition:
+        background var(--transition-fast),
+        border-color var(--transition-fast);
+}
+
+.settings-changelog-callout-button:hover,
+.settings-changelog-callout-button:focus-visible {
+    background: rgba(56, 139, 253, 0.22);
+    border-color: var(--accent);
+}
+
+.settings-changelog-callout-button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+}
+
+.settings-changelog-callout-copy {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    min-width: 0;
+}
+
+.settings-changelog-callout-title {
+    color: var(--text-primary);
+    font-size: var(--text-base);
+    font-weight: 700;
+    line-height: 1.25;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.settings-changelog-callout-date {
+    color: var(--text-tertiary);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    line-height: 18px;
+    white-space: nowrap;
+}
+
+.settings-changelog-callout-date[hidden] {
+    display: none;
+}
+
 .setting-group {
     margin-bottom: var(--space-lg);
 }
@@ -222,6 +286,31 @@ body.mobile-viewport #setting-large-scramble-text-row {
     min-width: 0;
     font-size: var(--text-sm);
     color: var(--text-primary);
+}
+
+.setting-label-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.setting-new-badge {
+    display: inline-flex;
+    align-items: center;
+    height: 18px;
+    padding: 0 7px;
+    border: 1px solid var(--accent);
+    border-radius: 999px;
+    background: var(--accent-subtle);
+    color: var(--accent-hover);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.setting-new-badge[hidden] {
+    display: none;
 }
 
 .setting-label small {
@@ -1222,6 +1311,11 @@ body.mobile-viewport #setting-large-scramble-text-row {
     .settings-body {
         padding: var(--space-md);
         padding-bottom: calc(var(--space-lg) + var(--safe-area-bottom));
+    }
+
+    .settings-changelog-callout-button {
+        align-items: flex-start;
+        padding: 13px 14px;
     }
 
     .setting-row {

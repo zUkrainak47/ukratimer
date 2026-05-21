@@ -8,13 +8,14 @@ import { initModal, showSolveDetail, showAverageDetail, closeModal, closeMoveSes
 import { applyMegaminxScramble, applyPyraminxScramble, applyScramble, applySquare1Scramble, applySkewbScramble, applyClockScramble, clearCubeDisplay, drawMegaminxFacePreview, drawSquare1, drawClock, initCubeDisplay, updateCubeDisplay, updateMegaminxDisplay, updatePyraminxDisplay, updateSquare1Display, updateSkewbDisplay, updateClockDisplay } from './cube-display.js?v=2026052001';
 import { initGraph, updateGraph, updateGraphData, setLineVisibility, getLineVisibility, applyAction, graphEvents, getGraphLineDefinitions } from './graph.js?v=2026052001';
 import { closeTimeDistributionModal, initTimeDistributionModal, isTimeDistributionModalOpen, refreshTimeDistributionData, refreshTimeDistributionTheme, showTimeDistributionModal } from './distribution.js?v=2026052001';
-import { exportAll, importAll, isCsTimerFormat, importCsTimer, exportCsTimer, importSessionCsv, IMPORT_MODE_MERGE, IMPORT_MODE_REWRITE } from './storage.js?v=2026052001';
+import { exportAll, importAll, isCsTimerFormat, importCsTimer, exportCsTimer, importSessionCsv, IMPORT_MODE_MERGE, IMPORT_MODE_REWRITE, load, save } from './storage.js?v=2026052001';
 import { connectGoogleDrive, consumeAuthSession, exportBackupToGoogleDrive, getGoogleDriveBackupInfo, hasGoogleDriveSession, importBackupFromGoogleDrive, isGoogleDriveSyncConfigured, restoreGoogleDriveSession, signOutOfGoogleDrive } from './google-drive-sync.js?v=2026052001';
 import { dailyStreakStore, normalizeDailyStreakGoal } from './streaks.js?v=2026052001';
 import { bluetoothTimerInput, BluetoothTimerState } from './hardware-bluetooth-timer.js?v=2026052001';
 import { stackmatInput } from './hardware-stackmat.js?v=2026052001';
 import { isHardwareTimeEntryMode, isTypingTimeEntryMode, normalizeTimeEntryMode, TIME_ENTRY_MODE_BLUETOOTH, TIME_ENTRY_MODE_STACKMAT, TIME_ENTRY_MODE_TIMER } from './time-entry.js?v=2026052001';
 import { battleManager } from './battle.js?v=2026052001';
+import { CHANGELOG_ENTRIES, LATEST_CHANGELOG_ENTRY_ID } from './changelog.js?v=2026052001';
 
 let currentScramble = '';
 let currentSortCol = null;
@@ -69,6 +70,7 @@ const DAILY_STREAKS_INTRO_STORAGE_KEY = 'ukratimer_daily_streaks_intro_v1';
 const GOOGLE_DRIVE_BACKUP_REMINDER_INTERVAL_SOLVES = 100;
 const AUTO_EXPORT_TRIGGER_DELAY_MS = 1000;
 const GOOGLE_DRIVE_AUTO_EXPORT_DISCONNECTED_MESSAGE = 'Google Drive auto export switched to Remind because your Google account disconnected.';
+const CHANGELOG_LAST_SEEN_STORAGE_KEY = 'changelogLastSeenEntryId';
 const THEME_EDITOR_MODE_SIMPLE = 'simple';
 const THEME_EDITOR_MODE_FULL = 'full';
 const SIMPLE_THEME_COLOR_SECTIONS = Object.freeze([
@@ -1268,12 +1270,13 @@ const ALT_SCRAMBLE_TYPE_SHORTCUTS = new Map([
     ['KeyC', 'clock'],
     ['KeyS', 'skewb'],
 ]);
-const blockingOverlayIds = ['modal-overlay', 'distribution-overlay', 'scramble-preview-overlay', 'confirm-overlay', 'prompt-overlay', 'shortcuts-overlay', 'chart-image-overlay', 'theme-customization-overlay', 'battle-overlay', 'graph-overlay', 'battle-create-overlay', 'scramble-generator-overlay'];
+const blockingOverlayIds = ['modal-overlay', 'distribution-overlay', 'scramble-preview-overlay', 'confirm-overlay', 'prompt-overlay', 'shortcuts-overlay', 'chart-image-overlay', 'changelog-overlay', 'theme-customization-overlay', 'battle-overlay', 'graph-overlay', 'battle-create-overlay', 'scramble-generator-overlay'];
 const THEME_OPTION_LABELS = new Map(THEME_OPTIONS.map(({ value, label }) => [value, label]));
 let settingsOverlayEl = null;
 let shortcutsOverlayEl = null;
 let themeCustomizationOverlayEl = null;
 let scramblePreviewOverlayEl = null;
+let changelogOverlayEl = null;
 let scramblePreviewModalCanvas = null;
 let scramblePreviewModalSizeFrame = 0;
 let scramblePreviewThemeRefreshTimeout = 0;
@@ -1452,6 +1455,11 @@ function handlePopState(event) {
     if (document.getElementById('prompt-overlay').classList.contains('active')) {
         const cancelBtn = document.getElementById('prompt-btn-cancel');
         cancelBtn?.click();
+        return;
+    }
+
+    if (changelogOverlayEl?.classList.contains('active')) {
+        closeChangelogOverlay({ isPopState: true });
         return;
     }
 
@@ -1843,6 +1851,180 @@ function closeScrambleGeneratorOverlay({ isPopState = false, isSwitching = false
     cancelScrambleGeneratorRequest();
     scrambleGeneratorOverlayEl.classList.remove('active');
     scrambleGeneratorOverlayEl.setAttribute('aria-hidden', 'true');
+    if (document.activeElement) document.activeElement.blur();
+}
+
+function getLatestChangelogEntryId() {
+    return LATEST_CHANGELOG_ENTRY_ID || getLatestChangelogEntry()?.id || '';
+}
+
+function getLatestChangelogEntry() {
+    return CHANGELOG_ENTRIES.find((entry) => entry?.id && entry?.title) || null;
+}
+
+function getLastSeenChangelogEntryId() {
+    const value = load(CHANGELOG_LAST_SEEN_STORAGE_KEY, '');
+    return typeof value === 'string' ? value : '';
+}
+
+function hasUnreadChangelogEntry() {
+    const latestId = getLatestChangelogEntryId();
+    return Boolean(latestId && getLastSeenChangelogEntryId() !== latestId);
+}
+
+function markChangelogSeen() {
+    const latestId = getLatestChangelogEntryId();
+    if (!latestId) return;
+
+    save(CHANGELOG_LAST_SEEN_STORAGE_KEY, latestId);
+    syncChangelogUnreadUI();
+}
+
+function syncChangelogUnreadUI() {
+    const unread = hasUnreadChangelogEntry();
+    const calloutEl = getEl('settings-changelog-callout');
+    const appGroupEl = getEl('settings-app-group');
+    const calloutTitleEl = getEl('settings-changelog-callout-title');
+    const calloutDateEl = getEl('settings-changelog-callout-date');
+    const latestEntry = getLatestChangelogEntry();
+
+    if (calloutTitleEl) {
+        calloutTitleEl.textContent = latestEntry?.title || 'What\'s new';
+    }
+
+    if (calloutDateEl) {
+        const formattedDate = formatChangelogDate(latestEntry?.date);
+        calloutDateEl.textContent = formattedDate;
+        calloutDateEl.hidden = !formattedDate;
+    }
+
+    if (calloutEl) {
+        calloutEl.hidden = !unread;
+    }
+
+    if (appGroupEl) {
+        appGroupEl.hidden = unread;
+    }
+
+    syncSettingsRowSeparators();
+}
+
+function formatChangelogDate(value) {
+    const text = String(value || '').trim();
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+    if (!match) return text;
+
+    const months = [
+        'January',
+        'February',
+        'March',
+        'April',
+        'May',
+        'June',
+        'July',
+        'August',
+        'September',
+        'October',
+        'November',
+        'December',
+    ];
+    const monthIndex = Number(match[2]) - 1;
+    const month = months[monthIndex] || match[2];
+    return `${Number(match[3])} ${month} ${match[1]}`;
+}
+
+function renderChangelogEntries() {
+    const listEl = getEl('changelog-list');
+    if (!listEl) return;
+
+    listEl.replaceChildren();
+
+    const entries = CHANGELOG_ENTRIES.filter((entry) => entry?.id && entry?.title);
+    if (!entries.length) {
+        const emptyEl = document.createElement('p');
+        emptyEl.className = 'changelog-empty';
+        emptyEl.textContent = 'No updates yet.';
+        listEl.append(emptyEl);
+        return;
+    }
+
+    entries.forEach((entry, index) => {
+        const entryEl = document.createElement('article');
+        entryEl.className = 'changelog-entry';
+
+        const headerEl = document.createElement('div');
+        headerEl.className = 'changelog-entry-header';
+
+        const titleWrapEl = document.createElement('div');
+        titleWrapEl.className = 'changelog-entry-title-wrap';
+
+        const titleEl = document.createElement('h3');
+        titleEl.textContent = entry.title;
+        titleWrapEl.append(titleEl);
+
+        const metaEl = document.createElement('div');
+        metaEl.className = 'changelog-entry-meta';
+        const formattedDate = formatChangelogDate(entry.date);
+        if (formattedDate) {
+            const dateEl = document.createElement('span');
+            dateEl.textContent = formattedDate;
+            metaEl.append(dateEl);
+        }
+        if (index === 0) {
+            const latestEl = document.createElement('span');
+            latestEl.className = 'changelog-latest-badge';
+            latestEl.textContent = 'Latest';
+            metaEl.append(latestEl);
+        }
+
+        headerEl.append(titleWrapEl, metaEl);
+        entryEl.append(headerEl);
+
+        if (entry.summary) {
+            const summaryEl = document.createElement('p');
+            summaryEl.className = 'changelog-entry-summary';
+            summaryEl.textContent = entry.summary;
+            entryEl.append(summaryEl);
+        }
+
+        if (entry.items.length) {
+            const itemListEl = document.createElement('ul');
+            itemListEl.className = 'changelog-entry-items';
+            entry.items.forEach((item) => {
+                const itemEl = document.createElement('li');
+                itemEl.textContent = item;
+                itemListEl.append(itemEl);
+            });
+            entryEl.append(itemListEl);
+        }
+
+        listEl.append(entryEl);
+    });
+}
+
+function isChangelogOpen() {
+    return changelogOverlayEl?.classList.contains('active');
+}
+
+function openChangelogOverlay({ isSwitching = false } = {}) {
+    if (!changelogOverlayEl) return false;
+    if (!changelogOverlayEl.classList.contains('active') && !canOpenSettingsPanel()) return false;
+
+    if (!isSwitching) pushHistoryState();
+    renderChangelogEntries();
+    changelogOverlayEl.classList.add('active');
+    changelogOverlayEl.setAttribute('aria-hidden', 'false');
+    markChangelogSeen();
+    blurManualTimeInput();
+    return true;
+}
+
+function closeChangelogOverlay({ isPopState = false, isSwitching = false } = {}) {
+    if (!changelogOverlayEl) return;
+    if (!isPopState && !isSwitching) backToDismiss();
+
+    changelogOverlayEl.classList.remove('active');
+    changelogOverlayEl.setAttribute('aria-hidden', 'true');
     if (document.activeElement) document.activeElement.blur();
 }
 
@@ -5378,6 +5560,7 @@ async function init() {
     refreshUI();
     initSettingsPanel();
     initScrambleGeneratorControls();
+    initChangelogControls();
     void syncCameraBackgroundMode();
     initInspectionSpeechUnlockPrompt();
     initInspectionCancelControl();
@@ -10702,6 +10885,43 @@ function initScrambleGeneratorControls() {
         event.stopImmediatePropagation();
         closeScrambleGeneratorOverlay();
     });
+}
+
+function initChangelogControls() {
+    changelogOverlayEl = getEl('changelog-overlay');
+    const openButtons = Array.from(document.querySelectorAll('[data-open-changelog]'));
+    const closeButton = getEl('changelog-close');
+
+    if (!changelogOverlayEl || !openButtons.length || !closeButton) {
+        return;
+    }
+
+    openButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+            closeSettingsPanel({ isSwitching: true });
+            openChangelogOverlay({ isSwitching: true });
+            button.blur();
+        });
+    });
+
+    closeButton.addEventListener('click', () => {
+        closeChangelogOverlay();
+    });
+
+    changelogOverlayEl.addEventListener('click', (event) => {
+        if (event.target !== changelogOverlayEl) return;
+        closeChangelogOverlay();
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.code !== 'Escape' || !isChangelogOpen()) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        closeChangelogOverlay();
+    });
+
+    renderChangelogEntries();
+    syncChangelogUnreadUI();
 }
 
 function refreshSessionList() {

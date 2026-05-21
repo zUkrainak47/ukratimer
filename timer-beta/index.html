@@ -817,6 +817,21 @@
     </div>
   </div>
 
+  <div id="changelog-overlay" class="modal-overlay" aria-hidden="true">
+    <div class="modal-box changelog-modal-box">
+      <div class="modal-header">
+        <div class="changelog-modal-title">
+          <h2>What's new</h2>
+          <span>Settings &gt; App &gt; What's new</span>
+        </div>
+        <button id="changelog-close" class="modal-close" type="button" aria-label="Close changelog">✕</button>
+      </div>
+      <div class="modal-body changelog-modal-body">
+        <div id="changelog-list" class="changelog-list"></div>
+      </div>
+    </div>
+  </div>
+
   <div id="scramble-preview-overlay" class="modal-overlay">
     <div class="modal-box scramble-preview-modal-box">
       <!-- <div class="modal-header">
@@ -1006,6 +1021,17 @@
         </div>
       </div>
       <div class="settings-body">
+
+        <div id="settings-changelog-callout" class="settings-changelog-callout" hidden>
+          <button id="btn-open-changelog-unread" class="settings-changelog-callout-button" type="button"
+            data-open-changelog>
+            <span class="settings-changelog-callout-copy">
+              <span class="setting-new-badge">New</span>
+              <span id="settings-changelog-callout-title" class="settings-changelog-callout-title">What's new</span>
+            </span>
+            <span id="settings-changelog-callout-date" class="settings-changelog-callout-date"></span>
+          </button>
+        </div>
 
         <div class="setting-group" data-settings-section-id="tools">
           <button class="setting-group-toggle" type="button" aria-expanded="true" data-settings-section-toggle="tools">
@@ -1476,6 +1502,27 @@
             </div>
             <small class="setting-note"><u>csTimer</u> and <u>Twisty Timer</u> formats supported for file
               import.</small>
+          </div>
+        </div>
+
+        <div id="settings-app-group" class="setting-group" data-settings-section-id="app">
+          <button class="setting-group-toggle" type="button" aria-expanded="true" data-settings-section-toggle="app">
+            <span class="setting-group-toggle-inner">
+              <span class="setting-group-chevron" aria-hidden="true"></span>
+              <span class="setting-group-title">App</span>
+              <span class="setting-group-chevron-spacer" aria-hidden="true"></span>
+            </span>
+          </button>
+          <div class="setting-group-content">
+            <div class="setting-row">
+              <button id="btn-open-changelog" class="setting-row-button changelog-setting-button" type="button"
+                data-open-changelog>
+                <div class="setting-label">
+                  <span class="setting-label-title">What's new</span>
+                  <small>Recent updates and fixes</small>
+                </div>
+              </button>
+            </div>
           </div>
         </div>
       </div>
