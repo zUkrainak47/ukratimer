@@ -17,13 +17,17 @@ function freezeChangelogEntry(entry) {
 
 export const CHANGELOG_ENTRIES = Object.freeze([
     {
+        id: '2026-05-21-export',
+        date: '2026-05-21',
+        title: 'Auto Export',
+        summary: 'Added Auto Export at Settings > Data.'
+    },
+
+    {
         id: '2026-05-21-merge',
         date: '2026-05-21',
-        title: 'Auto Export, Merge Import',
-        items: [
-            'Added Auto Export at Settings > Data.',
-            'Added Merge Import. Imported backups can now preserve local solves that are not in the backup.',
-        ]
+        title: 'Merge Import',
+        summary: 'Imported backups can now preserve local solves that are not in the backup.'
     },
 
     {
