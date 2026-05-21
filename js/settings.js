@@ -1,6 +1,6 @@
-import { load, registerBeforeDataExportHook, save } from './storage.js?v=2026052001';
-import { normalizeTimeEntryMode, TIME_ENTRY_MODE_TIMER, TIME_ENTRY_MODE_TYPING } from './time-entry.js?v=2026052001';
-import { EventEmitter } from './utils.js?v=2026052001';
+import { load, registerBeforeDataExportHook, save } from './storage.js?v=2026052101';
+import { normalizeTimeEntryMode, TIME_ENTRY_MODE_TIMER, TIME_ENTRY_MODE_TYPING } from './time-entry.js?v=2026052101';
+import { EventEmitter } from './utils.js?v=2026052101';
 import {
     SETTING_SCOPE_GLOBAL,
     SETTING_SCOPE_SESSION,
@@ -9,7 +9,7 @@ import {
     getLinkedSessionScopeKeys,
     getSessionScopedSettingKeys,
     normalizeSettingScopes,
-} from './setting-scopes.js?v=2026052001';
+} from './setting-scopes.js?v=2026052101';
 
 export {
     SETTING_SCOPE_GLOBAL,
@@ -407,6 +407,7 @@ function createDefaultSettingsCollapsedSections() {
         stats: false,
         graph: false,
         data: false,
+        app: false,
     });
 }
 
