@@ -1,21 +1,21 @@
-import { timer, State as TimerState } from './timer.js?v=2026052101';
-import { SCRAMBLE_TYPE_OPTIONS, generateScrambleBatchForType, generateScrambleForType, getScramble, getCurrentScramble, getCurrentScrambleType, getPrevScramble, getNextScramble, getSelectedScrambleType, setCurrentScramble, setScrambleType, isCurrentScrambleManual, hasPrevScramble, isViewingPreviousScramble, preloadScrambleEngines, needsCubingWarmup, runCubingWarmup } from './scramble.js?v=2026052101';
-import { sessionManager } from './session.js?v=2026052101';
-import { settings, DEFAULTS, THEME_OPTIONS, THEME_COLOR_SECTIONS, THEME_DEFAULT_ID, THEME_OLED_ID, THEME_CUSTOM_IDS, SETTING_SCOPE_GLOBAL, SETTING_SCOPE_SESSION, SESSION_SCOPABLE_SETTING_KEYS, AUTO_EXPORT_EVERY_100_SOLVES_NEVER, AUTO_EXPORT_EVERY_100_SOLVES_REMIND, AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE, AUTO_EXPORT_EVERY_100_SOLVES_FILE, composeThemeColor, decomposeThemeColor, getLinkedSessionScopeKeys, getThemePresetColors, isCustomThemeId, normalizeAutoExportEvery100Solves } from './settings.js?v=2026052101';
-import { parseGraphStatType, parseRollingStatType, rollingStatAt, StatsCache } from './stats.js?v=2026052101';
-import { formatTime, formatSolveTime, formatTimerDisplayTime, getEffectiveTime, formatDate, formatDateTime, parseTimeInputToMs, truncateTimeDisplay } from './utils.js?v=2026052101';
-import { initModal, showSolveDetail, showAverageDetail, closeModal, closeMoveSessionMenus, customConfirm, customConfirmChoice, customPrompt, getModalSelectionContext, setModalStatNavigator, setModalStatButtons, armModalGhostClickGuard } from './modal.js?v=2026052101';
-import { applyMegaminxScramble, applyPyraminxScramble, applyScramble, applySquare1Scramble, applySkewbScramble, applyClockScramble, clearCubeDisplay, drawMegaminxFacePreview, drawSquare1, drawClock, initCubeDisplay, updateCubeDisplay, updateMegaminxDisplay, updatePyraminxDisplay, updateSquare1Display, updateSkewbDisplay, updateClockDisplay } from './cube-display.js?v=2026052101';
-import { initGraph, updateGraph, updateGraphData, setLineVisibility, getLineVisibility, applyAction, graphEvents, getGraphLineDefinitions } from './graph.js?v=2026052101';
-import { closeTimeDistributionModal, initTimeDistributionModal, isTimeDistributionModalOpen, refreshTimeDistributionData, refreshTimeDistributionTheme, showTimeDistributionModal } from './distribution.js?v=2026052101';
-import { exportAll, importAll, isCsTimerFormat, importCsTimer, exportCsTimer, importSessionCsv, IMPORT_MODE_MERGE, IMPORT_MODE_REWRITE, load, save } from './storage.js?v=2026052101';
-import { connectGoogleDrive, consumeAuthSession, exportBackupToGoogleDrive, getGoogleDriveBackupInfo, hasGoogleDriveSession, importBackupFromGoogleDrive, isGoogleDriveSyncConfigured, restoreGoogleDriveSession, signOutOfGoogleDrive } from './google-drive-sync.js?v=2026052101';
-import { dailyStreakStore, normalizeDailyStreakGoal } from './streaks.js?v=2026052101';
-import { bluetoothTimerInput, BluetoothTimerState } from './hardware-bluetooth-timer.js?v=2026052101';
-import { stackmatInput } from './hardware-stackmat.js?v=2026052101';
-import { isHardwareTimeEntryMode, isTypingTimeEntryMode, normalizeTimeEntryMode, TIME_ENTRY_MODE_BLUETOOTH, TIME_ENTRY_MODE_STACKMAT, TIME_ENTRY_MODE_TIMER } from './time-entry.js?v=2026052101';
-import { battleManager } from './battle.js?v=2026052101';
-import { CHANGELOG_ENTRIES, LATEST_CHANGELOG_ENTRY_ID } from './changelog.js?v=2026052101';
+import { timer, State as TimerState } from './timer.js?v=2026052201';
+import { SCRAMBLE_TYPE_OPTIONS, generateScrambleBatchForType, generateScrambleForType, getScramble, getCurrentScramble, getCurrentScrambleType, getPrevScramble, getNextScramble, getSelectedScrambleType, setCurrentScramble, setScrambleType, isCurrentScrambleManual, hasPrevScramble, isViewingPreviousScramble, preloadScrambleEngines, needsCubingWarmup, runCubingWarmup } from './scramble.js?v=2026052201';
+import { sessionManager } from './session.js?v=2026052201';
+import { settings, DEFAULTS, THEME_OPTIONS, THEME_COLOR_SECTIONS, THEME_DEFAULT_ID, THEME_OLED_ID, THEME_CUSTOM_IDS, SETTING_SCOPE_GLOBAL, SETTING_SCOPE_SESSION, SESSION_SCOPABLE_SETTING_KEYS, AUTO_EXPORT_EVERY_100_SOLVES_NEVER, AUTO_EXPORT_EVERY_100_SOLVES_REMIND, AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE, AUTO_EXPORT_EVERY_100_SOLVES_FILE, composeThemeColor, decomposeThemeColor, getLinkedSessionScopeKeys, getThemePresetColors, isCustomThemeId, normalizeAutoExportEvery100Solves } from './settings.js?v=2026052201';
+import { parseGraphStatType, parseRollingStatType, rollingStatAt, StatsCache } from './stats.js?v=2026052201';
+import { formatTime, formatSolveTime, formatTimerDisplayTime, getEffectiveTime, formatDate, formatDateTime, parseTimeInputToMs, truncateTimeDisplay } from './utils.js?v=2026052201';
+import { initModal, showSolveDetail, showAverageDetail, closeModal, closeMoveSessionMenus, customConfirm, customConfirmChoice, customPrompt, getModalSelectionContext, setModalStatNavigator, setModalStatButtons, armModalGhostClickGuard } from './modal.js?v=2026052201';
+import { applyMegaminxScramble, applyPyraminxScramble, applyScramble, applySquare1Scramble, applySkewbScramble, applyClockScramble, clearCubeDisplay, drawMegaminxFacePreview, drawSquare1, drawClock, initCubeDisplay, updateCubeDisplay, updateMegaminxDisplay, updatePyraminxDisplay, updateSquare1Display, updateSkewbDisplay, updateClockDisplay } from './cube-display.js?v=2026052201';
+import { initGraph, updateGraph, updateGraphData, setLineVisibility, getLineVisibility, applyAction, graphEvents, getGraphLineDefinitions } from './graph.js?v=2026052201';
+import { closeTimeDistributionModal, initTimeDistributionModal, isTimeDistributionModalOpen, refreshTimeDistributionData, refreshTimeDistributionTheme, showTimeDistributionModal } from './distribution.js?v=2026052201';
+import { exportAll, importAll, isCsTimerFormat, importCsTimer, exportCsTimer, importSessionCsv, IMPORT_MODE_MERGE, IMPORT_MODE_REWRITE, load, save } from './storage.js?v=2026052201';
+import { connectGoogleDrive, consumeAuthSession, exportBackupToGoogleDrive, getGoogleDriveBackupInfo, hasGoogleDriveSession, importBackupFromGoogleDrive, isGoogleDriveSyncConfigured, restoreGoogleDriveSession, signOutOfGoogleDrive } from './google-drive-sync.js?v=2026052201';
+import { dailyStreakStore, normalizeDailyStreakGoal } from './streaks.js?v=2026052201';
+import { bluetoothTimerInput, BluetoothTimerState } from './hardware-bluetooth-timer.js?v=2026052201';
+import { stackmatInput } from './hardware-stackmat.js?v=2026052201';
+import { isHardwareTimeEntryMode, isTypingTimeEntryMode, normalizeTimeEntryMode, TIME_ENTRY_MODE_BLUETOOTH, TIME_ENTRY_MODE_STACKMAT, TIME_ENTRY_MODE_TIMER } from './time-entry.js?v=2026052201';
+import { battleManager } from './battle.js?v=2026052201';
+import { CHANGELOG_ENTRIES, LATEST_CHANGELOG_ENTRY_ID } from './changelog.js?v=2026052201';
 
 let currentScramble = '';
 let currentSortCol = null;
@@ -288,7 +288,7 @@ async function registerServiceWorker() {
     if (window.location?.protocol === 'file:') return;
 
     try {
-        const serviceWorkerUrl = new URL('../sw.js?v=2026052101', import.meta.url);
+        const serviceWorkerUrl = new URL('../sw.js?v=2026052201', import.meta.url);
         await navigator.serviceWorker.register(serviceWorkerUrl);
     } catch (error) {
         console.warn('Service worker registration failed:', error);
@@ -2379,6 +2379,36 @@ function getBattleRoomLinkIdFromUrl(urlValue = window.location.href) {
     return BATTLE_ROOM_ID_PATTERN.test(candidate) ? candidate : '';
 }
 
+function removeBattleRoomLinkFromUrl() {
+    let url;
+    try {
+        url = new URL(window.location.href);
+    } catch {
+        return;
+    }
+
+    let changed = false;
+    if (url.searchParams.has(BATTLE_ROOM_LINK_PARAM)) {
+        url.searchParams.delete(BATTLE_ROOM_LINK_PARAM);
+        changed = true;
+    }
+
+    const hashValue = String(url.hash || '').replace(/^#/, '');
+    if (hashValue) {
+        const hashHasQueryPrefix = hashValue.startsWith('?');
+        const hashParams = new URLSearchParams(hashHasQueryPrefix ? hashValue.slice(1) : hashValue);
+        if (hashParams.has(BATTLE_ROOM_LINK_PARAM)) {
+            hashParams.delete(BATTLE_ROOM_LINK_PARAM);
+            const cleanHash = hashParams.toString();
+            url.hash = cleanHash ? `${hashHasQueryPrefix ? '?' : ''}${cleanHash}` : '';
+            changed = true;
+        }
+    }
+
+    if (!changed) return;
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+}
+
 function setBattleCopyLinkFeedback(button, label, duration = 1200) {
     if (!button) return;
     if (battleCopyLinkFeedbackTimer != null) {
@@ -2412,6 +2442,7 @@ function applyBattleRoomLinkFromUrl() {
     const linkedRoomId = getBattleRoomLinkIdFromUrl();
     if (!linkedRoomId) return false;
 
+    removeBattleRoomLinkFromUrl();
     openBattleOverlay();
     if (battleManager.isJoined()) return true;
 
