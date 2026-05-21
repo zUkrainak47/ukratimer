@@ -101,8 +101,7 @@
     flex: 1;
 }
 
-#settings-changelog-callout[hidden],
-#settings-app-group[hidden] {
+#settings-changelog-callout[hidden] {
     display: none;
 }
 

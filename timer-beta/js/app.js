@@ -1881,7 +1881,6 @@ function markChangelogSeen() {
 function syncChangelogUnreadUI() {
     const unread = hasUnreadChangelogEntry();
     const calloutEl = getEl('settings-changelog-callout');
-    const appGroupEl = getEl('settings-app-group');
     const calloutTitleEl = getEl('settings-changelog-callout-title');
     const calloutDateEl = getEl('settings-changelog-callout-date');
     const latestEntry = getLatestChangelogEntry();
@@ -1898,10 +1897,6 @@ function syncChangelogUnreadUI() {
 
     if (calloutEl) {
         calloutEl.hidden = !unread;
-    }
-
-    if (appGroupEl) {
-        appGroupEl.hidden = unread;
     }
 
     syncSettingsRowSeparators();

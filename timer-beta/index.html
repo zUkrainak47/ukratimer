@@ -822,7 +822,7 @@
       <div class="modal-header">
         <div class="changelog-modal-title">
           <h2>What's new</h2>
-          <span>Settings &gt; App &gt; What's new</span>
+          <span>Settings &gt; Interface &gt; Changelog</span>
         </div>
         <button id="changelog-close" class="modal-close" type="button" aria-label="Close changelog">✕</button>
       </div>
@@ -1317,6 +1317,15 @@
               </button>
             </div>
 
+            <div class="setting-row">
+              <div class="setting-label">
+                Changelog
+                <small>Recent updates and fixes</small>
+              </div>
+              <button id="btn-open-changelog" class="btn settings-action-btn changelog-setting-button" type="button"
+                data-open-changelog>Open</button>
+            </div>
+
           </div>
         </div>
 
@@ -1503,26 +1512,6 @@
           </div>
         </div>
 
-        <div id="settings-app-group" class="setting-group" data-settings-section-id="app">
-          <button class="setting-group-toggle" type="button" aria-expanded="true" data-settings-section-toggle="app">
-            <span class="setting-group-toggle-inner">
-              <span class="setting-group-chevron" aria-hidden="true"></span>
-              <span class="setting-group-title">App</span>
-              <span class="setting-group-chevron-spacer" aria-hidden="true"></span>
-            </span>
-          </button>
-          <div class="setting-group-content">
-            <div class="setting-row">
-              <button id="btn-open-changelog" class="setting-row-button changelog-setting-button" type="button"
-                data-open-changelog>
-                <div class="setting-label">
-                  <span class="setting-label-title">What's new</span>
-                  <small>Recent updates and fixes</small>
-                </div>
-              </button>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   </div>
