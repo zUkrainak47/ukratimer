@@ -1,21 +1,21 @@
-import { timer, State as TimerState } from './timer.js?v=2026052001';
-import { SCRAMBLE_TYPE_OPTIONS, generateScrambleBatchForType, generateScrambleForType, getScramble, getCurrentScramble, getCurrentScrambleType, getPrevScramble, getNextScramble, getSelectedScrambleType, setCurrentScramble, setScrambleType, isCurrentScrambleManual, hasPrevScramble, isViewingPreviousScramble, preloadScrambleEngines, needsCubingWarmup, runCubingWarmup } from './scramble.js?v=2026052001';
-import { sessionManager } from './session.js?v=2026052001';
-import { settings, DEFAULTS, THEME_OPTIONS, THEME_COLOR_SECTIONS, THEME_DEFAULT_ID, THEME_OLED_ID, THEME_CUSTOM_IDS, SETTING_SCOPE_GLOBAL, SETTING_SCOPE_SESSION, SESSION_SCOPABLE_SETTING_KEYS, AUTO_EXPORT_EVERY_100_SOLVES_NEVER, AUTO_EXPORT_EVERY_100_SOLVES_REMIND, AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE, AUTO_EXPORT_EVERY_100_SOLVES_FILE, composeThemeColor, decomposeThemeColor, getLinkedSessionScopeKeys, getThemePresetColors, isCustomThemeId, normalizeAutoExportEvery100Solves } from './settings.js?v=2026052001';
-import { parseGraphStatType, parseRollingStatType, rollingStatAt, StatsCache } from './stats.js?v=2026052001';
-import { formatTime, formatSolveTime, formatTimerDisplayTime, getEffectiveTime, formatDate, formatDateTime, parseTimeInputToMs, truncateTimeDisplay } from './utils.js?v=2026052001';
-import { initModal, showSolveDetail, showAverageDetail, closeModal, closeMoveSessionMenus, customConfirm, customConfirmChoice, customPrompt, getModalSelectionContext, setModalStatNavigator, setModalStatButtons, armModalGhostClickGuard } from './modal.js?v=2026052001';
-import { applyMegaminxScramble, applyPyraminxScramble, applyScramble, applySquare1Scramble, applySkewbScramble, applyClockScramble, clearCubeDisplay, drawMegaminxFacePreview, drawSquare1, drawClock, initCubeDisplay, updateCubeDisplay, updateMegaminxDisplay, updatePyraminxDisplay, updateSquare1Display, updateSkewbDisplay, updateClockDisplay } from './cube-display.js?v=2026052001';
-import { initGraph, updateGraph, updateGraphData, setLineVisibility, getLineVisibility, applyAction, graphEvents, getGraphLineDefinitions } from './graph.js?v=2026052001';
-import { closeTimeDistributionModal, initTimeDistributionModal, isTimeDistributionModalOpen, refreshTimeDistributionData, refreshTimeDistributionTheme, showTimeDistributionModal } from './distribution.js?v=2026052001';
-import { exportAll, importAll, isCsTimerFormat, importCsTimer, exportCsTimer, importSessionCsv, IMPORT_MODE_MERGE, IMPORT_MODE_REWRITE, load, save } from './storage.js?v=2026052001';
-import { connectGoogleDrive, consumeAuthSession, exportBackupToGoogleDrive, getGoogleDriveBackupInfo, hasGoogleDriveSession, importBackupFromGoogleDrive, isGoogleDriveSyncConfigured, restoreGoogleDriveSession, signOutOfGoogleDrive } from './google-drive-sync.js?v=2026052001';
-import { dailyStreakStore, normalizeDailyStreakGoal } from './streaks.js?v=2026052001';
-import { bluetoothTimerInput, BluetoothTimerState } from './hardware-bluetooth-timer.js?v=2026052001';
-import { stackmatInput } from './hardware-stackmat.js?v=2026052001';
-import { isHardwareTimeEntryMode, isTypingTimeEntryMode, normalizeTimeEntryMode, TIME_ENTRY_MODE_BLUETOOTH, TIME_ENTRY_MODE_STACKMAT, TIME_ENTRY_MODE_TIMER } from './time-entry.js?v=2026052001';
-import { battleManager } from './battle.js?v=2026052001';
-import { CHANGELOG_ENTRIES, LATEST_CHANGELOG_ENTRY_ID } from './changelog.js?v=2026052001';
+import { timer, State as TimerState } from './timer.js?v=2026052101';
+import { SCRAMBLE_TYPE_OPTIONS, generateScrambleBatchForType, generateScrambleForType, getScramble, getCurrentScramble, getCurrentScrambleType, getPrevScramble, getNextScramble, getSelectedScrambleType, setCurrentScramble, setScrambleType, isCurrentScrambleManual, hasPrevScramble, isViewingPreviousScramble, preloadScrambleEngines, needsCubingWarmup, runCubingWarmup } from './scramble.js?v=2026052101';
+import { sessionManager } from './session.js?v=2026052101';
+import { settings, DEFAULTS, THEME_OPTIONS, THEME_COLOR_SECTIONS, THEME_DEFAULT_ID, THEME_OLED_ID, THEME_CUSTOM_IDS, SETTING_SCOPE_GLOBAL, SETTING_SCOPE_SESSION, SESSION_SCOPABLE_SETTING_KEYS, AUTO_EXPORT_EVERY_100_SOLVES_NEVER, AUTO_EXPORT_EVERY_100_SOLVES_REMIND, AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE, AUTO_EXPORT_EVERY_100_SOLVES_FILE, composeThemeColor, decomposeThemeColor, getLinkedSessionScopeKeys, getThemePresetColors, isCustomThemeId, normalizeAutoExportEvery100Solves } from './settings.js?v=2026052101';
+import { parseGraphStatType, parseRollingStatType, rollingStatAt, StatsCache } from './stats.js?v=2026052101';
+import { formatTime, formatSolveTime, formatTimerDisplayTime, getEffectiveTime, formatDate, formatDateTime, parseTimeInputToMs, truncateTimeDisplay } from './utils.js?v=2026052101';
+import { initModal, showSolveDetail, showAverageDetail, closeModal, closeMoveSessionMenus, customConfirm, customConfirmChoice, customPrompt, getModalSelectionContext, setModalStatNavigator, setModalStatButtons, armModalGhostClickGuard } from './modal.js?v=2026052101';
+import { applyMegaminxScramble, applyPyraminxScramble, applyScramble, applySquare1Scramble, applySkewbScramble, applyClockScramble, clearCubeDisplay, drawMegaminxFacePreview, drawSquare1, drawClock, initCubeDisplay, updateCubeDisplay, updateMegaminxDisplay, updatePyraminxDisplay, updateSquare1Display, updateSkewbDisplay, updateClockDisplay } from './cube-display.js?v=2026052101';
+import { initGraph, updateGraph, updateGraphData, setLineVisibility, getLineVisibility, applyAction, graphEvents, getGraphLineDefinitions } from './graph.js?v=2026052101';
+import { closeTimeDistributionModal, initTimeDistributionModal, isTimeDistributionModalOpen, refreshTimeDistributionData, refreshTimeDistributionTheme, showTimeDistributionModal } from './distribution.js?v=2026052101';
+import { exportAll, importAll, isCsTimerFormat, importCsTimer, exportCsTimer, importSessionCsv, IMPORT_MODE_MERGE, IMPORT_MODE_REWRITE, load, save } from './storage.js?v=2026052101';
+import { connectGoogleDrive, consumeAuthSession, exportBackupToGoogleDrive, getGoogleDriveBackupInfo, hasGoogleDriveSession, importBackupFromGoogleDrive, isGoogleDriveSyncConfigured, restoreGoogleDriveSession, signOutOfGoogleDrive } from './google-drive-sync.js?v=2026052101';
+import { dailyStreakStore, normalizeDailyStreakGoal } from './streaks.js?v=2026052101';
+import { bluetoothTimerInput, BluetoothTimerState } from './hardware-bluetooth-timer.js?v=2026052101';
+import { stackmatInput } from './hardware-stackmat.js?v=2026052101';
+import { isHardwareTimeEntryMode, isTypingTimeEntryMode, normalizeTimeEntryMode, TIME_ENTRY_MODE_BLUETOOTH, TIME_ENTRY_MODE_STACKMAT, TIME_ENTRY_MODE_TIMER } from './time-entry.js?v=2026052101';
+import { battleManager } from './battle.js?v=2026052101';
+import { CHANGELOG_ENTRIES, LATEST_CHANGELOG_ENTRY_ID } from './changelog.js?v=2026052101';
 
 let currentScramble = '';
 let currentSortCol = null;
@@ -59,14 +59,12 @@ let importProgressState = {
     solveCount: 0,
 };
 let importProgressHideTimeout = null;
-let dailyStreakToastHideTimeout = null;
 let lastAutoExportFailureNoticeKey = '';
 let autoExportEvaluationTimeoutId = 0;
 let autoExportOperationPromise = null;
 let autoExportEvaluationPending = false;
 const statsCache = new StatsCache();
 let _skipSolveAddedRefresh = false; // set true when commitSolve manages the refresh itself
-const DAILY_STREAKS_INTRO_STORAGE_KEY = 'ukratimer_daily_streaks_intro_v1';
 const GOOGLE_DRIVE_BACKUP_REMINDER_INTERVAL_SOLVES = 100;
 const AUTO_EXPORT_TRIGGER_DELAY_MS = 1000;
 const GOOGLE_DRIVE_AUTO_EXPORT_DISCONNECTED_MESSAGE = 'Google Drive auto export switched to Remind because your Google account disconnected.';
@@ -290,7 +288,7 @@ async function registerServiceWorker() {
     if (window.location?.protocol === 'file:') return;
 
     try {
-        const serviceWorkerUrl = new URL('../sw.js?v=2026052001', import.meta.url);
+        const serviceWorkerUrl = new URL('../sw.js?v=2026052101', import.meta.url);
         await navigator.serviceWorker.register(serviceWorkerUrl);
     } catch (error) {
         console.warn('Service worker registration failed:', error);
@@ -5593,10 +5591,6 @@ async function init() {
     window.addEventListener('orientationchange', syncTimerPopupStacking);
     window.addEventListener('online', startCubingWarmupIfNeeded);
     scheduleViewportLayoutSync();
-    window.requestAnimationFrame(() => {
-        void maybeShowDailyStreakIntro();
-    });
-
     if (shouldLoadInitialScramble) {
         const startInitialScrambleLoad = () => {
             window.requestAnimationFrame(() => {
@@ -9219,52 +9213,6 @@ function refreshUI() {
     updateDelta(solves);
     updateQuickActionButtons();
     scheduleViewportLayoutSync();
-}
-
-function hasSeenDailyStreakIntro() {
-    try {
-        return localStorage.getItem(DAILY_STREAKS_INTRO_STORAGE_KEY) === '1';
-    } catch (_) {
-        return false;
-    }
-}
-
-function markDailyStreakIntroSeen() {
-    try {
-        localStorage.setItem(DAILY_STREAKS_INTRO_STORAGE_KEY, '1');
-    } catch (_) {
-    }
-}
-
-function showDailyStreakIntroToast() {
-    const toastEl = document.getElementById('daily-streak-toast');
-    if (!toastEl) return;
-
-    if (dailyStreakToastHideTimeout) {
-        clearTimeout(dailyStreakToastHideTimeout);
-        dailyStreakToastHideTimeout = null;
-    }
-
-    toastEl.textContent = 'Daily streaks are here. Settings > Stats';
-    toastEl.hidden = false;
-    window.requestAnimationFrame(() => {
-        toastEl.classList.add('visible');
-    });
-
-    dailyStreakToastHideTimeout = window.setTimeout(() => {
-        toastEl.classList.remove('visible');
-        dailyStreakToastHideTimeout = window.setTimeout(() => {
-            toastEl.hidden = true;
-            dailyStreakToastHideTimeout = null;
-        }, 220);
-    }, 3800);
-}
-
-function maybeShowDailyStreakIntro() {
-    if (hasSeenDailyStreakIntro()) return;
-
-    markDailyStreakIntroSeen();
-    showDailyStreakIntroToast();
 }
 
 function formatDailyStreakMobileProgressText(streakState) {

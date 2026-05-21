@@ -21,8 +21,8 @@ export const CHANGELOG_ENTRIES = Object.freeze([
         date: '2026-05-21',
         title: 'Auto Export, Merge Import',
         items: [
-            'Added Auto Export at Settings > Data',
-            'Added Merge Import. Imported backups can now preserve local solves that are not in the backup. You can still overwrite the local save',
+            'Added Auto Export at Settings > Data.',
+            'Added Merge Import. Imported backups can now preserve local solves that are not in the backup.',
         ]
     },
 
@@ -30,17 +30,14 @@ export const CHANGELOG_ENTRIES = Object.freeze([
         id: '2026-05-18-session-settings',
         date: '2026-05-18',
         title: 'Per-session Settings',
-        items: [
-            'Added Global / Session setting scopes. You can now keep things like inspection, theme, or timer behavior session-specific.',
-            'Fixed online battle rooms sometimes clearing battle stats for everyone in the room',
-        ]
+        summary: 'Added Global / Session setting scopes. You can now keep things like inspection, theme, or timer behavior session-specific.'
     },
 
     {
         id: '2026-05-15-batch-scrambles',
         date: '2026-05-15',
         title: 'Batch Scramble Generation',
-        summary: 'Added Batch Scramble Generation at Settings > Tools'
+        summary: 'Added Batch Scramble Generation at Settings > Tools.'
     },
 
     {
@@ -55,10 +52,9 @@ export const CHANGELOG_ENTRIES = Object.freeze([
         date: '2026-05-11',
         title: 'Online Battles & more',
         items: [
-            'Added Online Battles at Settings > Tools',
-            'Added Cumulative Mode toggle to the time distribution graph (first button under the time trend)',
-            'Added a helpful description to tooltips, previously they would just show the keyboard shortcut',
-            'Minor adjustments'
+            'Added Online Battles at Settings > Tools.',
+            'Added Cumulative Mode toggle to the time distribution graph (first button under the time trend).',
+            'Added a helpful description to tooltips, previously they would just show the keyboard shortcut.'
         ],
     },
 
@@ -67,9 +63,9 @@ export const CHANGELOG_ENTRIES = Object.freeze([
         date: '2026-04-26',
         title: 'Bluetooth/Stackmat, Camera Background, Reminders',
         items: [
-            'Now supporting Bluetooth/Stackmat timer input',
-            'Added built-in Camera Background. Now you don\'t need a custom OBS theme to show your camera and stats',
-            'Added Reminders to do a backup every 100 solves at Settings > Data',
+            'Now supporting Bluetooth/Stackmat timer input.',
+            'Added built-in Camera Background at Settings > Interface. Now you don\'t need a custom OBS theme to show your camera and stats.',
+            'Added Reminders to do a backup every 100 solves at Settings > Data.',
         ],
     },
 
@@ -77,7 +73,7 @@ export const CHANGELOG_ENTRIES = Object.freeze([
         id: '2026-04-18-streak',
         date: '2026-04-18',
         title: 'Daily Streak',
-        summary: 'Added Daily Streak at Settings > Stats'
+        summary: 'Added Daily Streak at Settings > Stats.'
     },
 
 
