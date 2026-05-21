@@ -234,8 +234,8 @@
 }
 
 .battle-table td.battle-table-status {
-    padding-left: 8px;
-    padding-right: 8px;
+    padding-left: 0px;
+    padding-right: 0px;
 }
 
 .battle-table-shell.battle-table-show-win .battle-table .battle-table-win {
