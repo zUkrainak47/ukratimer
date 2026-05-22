@@ -1,6 +1,6 @@
-import * as db from './db.js?v=2026052201';
+import * as db from './db.js?v=2026052250';
 
-function toDayKey(timestamp) {
+export function toDayKey(timestamp) {
     const date = new Date(timestamp);
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -8,7 +8,12 @@ function toDayKey(timestamp) {
     return `${year}-${month}-${day}`;
 }
 
-function shiftDayKey(dayKey, amount) {
+export function dayKeyToTimestamp(dayKey) {
+    const [year, month, day] = String(dayKey).split('-').map(Number);
+    return new Date(year, (month || 1) - 1, day || 1).getTime();
+}
+
+export function shiftDayKey(dayKey, amount) {
     const [year, month, day] = String(dayKey).split('-').map(Number);
     const date = new Date(year, (month || 1) - 1, day || 1);
     date.setDate(date.getDate() + amount);
@@ -115,6 +120,10 @@ export class DailyStreakStore {
             if (!solveId) return;
             this._solves.delete(solveId);
         });
+    }
+
+    getSolves() {
+        return Array.from(this._solves.values());
     }
 
     getState(goal, now = Date.now()) {

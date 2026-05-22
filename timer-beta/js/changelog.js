@@ -17,6 +17,13 @@ function freezeChangelogEntry(entry) {
 
 export const CHANGELOG_ENTRIES = Object.freeze([
     {
+        id: '2026-05-22-streak-heatmap',
+        date: '2026-05-22',
+        title: 'Daily Streak Calendar',
+        summary: 'Daily Streak now opens a calendar heatmap with per-day solve details.'
+    },
+
+    {
         id: '2026-05-21-export',
         date: '2026-05-21',
         title: 'Auto Export',

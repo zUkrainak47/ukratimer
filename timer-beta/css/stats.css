@@ -41,6 +41,20 @@
     align-items: center;
     gap: 7px;
     min-height: 26px;
+    width: 100%;
+    text-align: left;
+    border-radius: var(--radius-md);
+    transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.daily-streak-main[data-daily-streak-open] {
+    cursor: pointer;
+}
+
+.daily-streak-main[data-daily-streak-open]:hover,
+.daily-streak-main[data-daily-streak-open]:focus-visible {
+    background: var(--surface-hover);
+    outline: none;
 }
 
 .daily-streak-fire {
