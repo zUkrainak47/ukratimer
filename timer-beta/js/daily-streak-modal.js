@@ -309,7 +309,7 @@ function renderOverview() {
     setText('[data-daily-streak-modal-stat="today"]', `${todayCount}/${_state.goal}`);
     setText(
         '[data-daily-streak-modal-stat-sub="today"]',
-        remainingToday === 0 ? 'done today' : `${plural(remainingToday, 'solve')} left`,
+        remainingToday === 0 ? 'streak extended' : `${plural(remainingToday, 'solve')} left`,
     );
     setText('[data-daily-streak-modal-stat="best"]', String(_state.bestStreak));
     setText('[data-daily-streak-modal-stat-label="best"]', _state.bestStreak === 1 ? 'day' : 'days');
