@@ -229,6 +229,23 @@ function formatPenaltySummary(summary) {
     return parts.length > 0 ? parts.join(' / ') : '-';
 }
 
+function formatTotalDuration(ms) {
+    if (!ms || !Number.isFinite(ms) || ms <= 0) return '-';
+
+    const totalSeconds = ms / 1000;
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    const parts = [];
+    if (hours > 0) parts.push(`${hours}h`);
+    if (minutes > 0) parts.push(`${minutes}m`);
+    const wholeSeconds = Math.floor(seconds);
+    parts.push(`${wholeSeconds}s`);
+
+    return parts.join(' ');
+}
+
 function formatDayDate(dayKey) {
     return formatReadableDate(dayKeyToTimestamp(dayKey));
 }
@@ -427,6 +444,10 @@ function renderDayDetail(dayKey = _state.selectedDayKey) {
                 <strong data-detail-value="mean"></strong>
             </div>
             <div>
+                <span class="daily-streak-detail-label">Total</span>
+                <strong data-detail-value="total"></strong>
+            </div>
+            <div>
                 <span class="daily-streak-detail-label">Penalties</span>
                 <strong data-detail-value="penalties"></strong>
             </div>
@@ -440,6 +461,7 @@ function renderDayDetail(dayKey = _state.selectedDayKey) {
     _detail.querySelector('[data-detail-value="best"]').textContent = summary?.bestTime != null ? formatTime(summary.bestTime) : '-';
     _detail.querySelector('[data-detail-value="mean"]').textContent = summary?.meanTime != null ? formatTime(summary.meanTime) : '-';
     _detail.querySelector('[data-detail-value="penalties"]').textContent = formatPenaltySummary(summary);
+    _detail.querySelector('[data-detail-value="total"]').textContent = formatTotalDuration(summary?.totalTime);
 
     const meta = _detail.querySelector('.daily-streak-detail-meta');
     if (isFuture) {
