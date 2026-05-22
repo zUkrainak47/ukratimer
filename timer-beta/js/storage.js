@@ -1,19 +1,21 @@
-import * as db from './db.js?v=2026052250';
+import * as db from './db.js?v=2026052251';
 import {
     SETTING_SCOPE_SESSION,
     SUMMARY_STATS_SCOPE_SETTING_KEYS,
     normalizeSettingScopes,
-} from './setting-scopes.js?v=2026052250';
+} from './setting-scopes.js?v=2026052251';
 
 const STORAGE_PREFIX = 'cubetimer_';
 const STORAGE_VERSION = 1;
 export const IMPORT_MODE_REWRITE = 'rewrite';
 export const IMPORT_MODE_MERGE = 'merge';
+export const TWISTY_TIMER_OTHER_TIMERS_EXPORT_MESSAGE = 'If you\'re exporting from Twisty Timer do a full "For backup" export, not "For other timers"';
 const SOLVE_MATCH_MODE_ID = 'id';
 const SOLVE_MATCH_MODE_ID_OR_LOGICAL_EXACT = 'id-or-logical';
 const SOLVE_MATCH_MODE_LOGICAL_EXACT = 'logical';
 const SOLVE_MATCH_MODE_LOGICAL_CSTIMER = 'logical-cstimer';
 const SESSION_CSV_HEADERS = ['Puzzle', 'Category', 'Time(millis)', 'Date(millis)', 'Scramble', 'Penalty', 'Comment'];
+const SESSION_CSV_DELIMITERS = [';', ','];
 const BACKUP_LOCAL_STORAGE_KEYS = Object.freeze([
     'settings',
     'activeSessionId',
@@ -1448,19 +1450,95 @@ function _isSessionCsvHeader(fields) {
         && SESSION_CSV_HEADERS.every((header, index) => fields[index] === header);
 }
 
+function _hasSessionCsvHeaderAndFirstRowShape(records) {
+    if (!records.length || !_isSessionCsvHeader(records[0])) return false;
+
+    const firstDataRecord = records.find((_, index) => index > 0);
+    return !firstDataRecord || firstDataRecord.length === SESSION_CSV_HEADERS.length;
+}
+
+function _splitFirstLine(text) {
+    const lineBreakIndex = text.indexOf('\n');
+    if (lineBreakIndex === -1) {
+        return [text, ''];
+    }
+
+    return [
+        text.slice(0, lineBreakIndex),
+        text.slice(lineBreakIndex + 1),
+    ];
+}
+
+function _parseSessionCsvRecords(text) {
+    let firstParseError = null;
+
+    for (const delimiter of SESSION_CSV_DELIMITERS) {
+        try {
+            const records = _parseDelimitedRecords(text, delimiter);
+            if (_hasSessionCsvHeaderAndFirstRowShape(records)) {
+                return records;
+            }
+        } catch (error) {
+            firstParseError ??= error;
+        }
+    }
+
+    try {
+        const [headerText, bodyText] = _splitFirstLine(text);
+        const [header] = _parseDelimitedRecords(headerText, ',');
+
+        if (_isSessionCsvHeader(header || [])) {
+            const bodyRecords = _parseDelimitedRecords(bodyText, ';');
+            const firstDataRecord = bodyRecords[0];
+
+            if (!firstDataRecord || firstDataRecord.length === SESSION_CSV_HEADERS.length) {
+                return [header, ...bodyRecords];
+            }
+        }
+    } catch (error) {
+        firstParseError ??= error;
+    }
+
+    if (firstParseError) {
+        throw firstParseError;
+    }
+
+    return null;
+}
+
 function _mapSessionCsvPenalty(value) {
     if (value === '1') return '+2';
     if (value === '2') return 'DNF';
     return null;
 }
 
-export function isSessionCsvFormat(text) {
-    const normalized = _normalizeImportText(text);
-    const [firstRecord] = _parseDelimitedRecords(normalized);
-    if (!firstRecord) return false;
+function _isTwistyTimerOtherTimersRecord(fields) {
+    if (fields.length !== 3) return false;
 
+    const time = Number(String(fields[0] || '').trim());
+    const scramble = String(fields[1] || '').trim();
+    const timestamp = String(fields[2] || '').trim();
+
+    return Number.isFinite(time)
+        && time >= 0
+        && scramble.length > 0
+        && /^\d{4}-\d{2}-\d{2}T/.test(timestamp)
+        && Number.isFinite(Date.parse(timestamp));
+}
+
+export function isTwistyTimerOtherTimersCsvFormat(text) {
     try {
-        return _isSessionCsvHeader(firstRecord);
+        const records = _parseDelimitedRecords(_normalizeImportText(text), ';');
+        return records.length > 0
+            && records.every(_isTwistyTimerOtherTimersRecord);
+    } catch (_) {
+        return false;
+    }
+}
+
+export function isSessionCsvFormat(text) {
+    try {
+        return Boolean(_parseSessionCsvRecords(_normalizeImportText(text)));
     } catch (_) {
         return false;
     }
@@ -1468,7 +1546,18 @@ export function isSessionCsvFormat(text) {
 
 export async function convertSessionCsv(text, { onProgress = null } = {}) {
     const normalized = _normalizeImportText(text);
-    const records = _parseDelimitedRecords(normalized);
+    const records = _parseSessionCsvRecords(normalized);
+
+    if (!records) {
+        const fallbackRecords = _parseDelimitedRecords(normalized);
+        if (fallbackRecords.length === 0) {
+            throw new Error('Empty import file.');
+        }
+
+        const fallbackHeader = fallbackRecords[0] || [];
+        throw new Error(`Unsupported session CSV header. Expected: ${SESSION_CSV_HEADERS.join(' | ')}. Received: ${fallbackHeader.join(' | ')}`);
+    }
+
     if (records.length === 0) {
         throw new Error('Empty import file.');
     }
