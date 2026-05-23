@@ -1,22 +1,22 @@
-import { timer, State as TimerState } from './timer.js?v=2026052251';
-import { SCRAMBLE_TYPE_OPTIONS, generateScrambleBatchForType, generateScrambleForType, getScramble, getCurrentScramble, getCurrentScrambleType, getPrevScramble, getNextScramble, getSelectedScrambleType, setCurrentScramble, setScrambleType, isCurrentScrambleManual, hasPrevScramble, isViewingPreviousScramble, preloadScrambleEngines, needsCubingWarmup, runCubingWarmup } from './scramble.js?v=2026052251';
-import { sessionManager } from './session.js?v=2026052251';
-import { settings, DEFAULTS, THEME_OPTIONS, THEME_COLOR_SECTIONS, THEME_DEFAULT_ID, THEME_OLED_ID, THEME_CUSTOM_IDS, SETTING_SCOPE_GLOBAL, SETTING_SCOPE_SESSION, SESSION_SCOPABLE_SETTING_KEYS, AUTO_EXPORT_EVERY_100_SOLVES_NEVER, AUTO_EXPORT_EVERY_100_SOLVES_REMIND, AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE, AUTO_EXPORT_EVERY_100_SOLVES_FILE, composeThemeColor, decomposeThemeColor, getLinkedSessionScopeKeys, getThemePresetColors, isCustomThemeId, normalizeAutoExportEvery100Solves } from './settings.js?v=2026052251';
-import { parseGraphStatType, parseRollingStatType, rollingStatAt, StatsCache } from './stats.js?v=2026052251';
-import { formatTime, formatSolveTime, formatTimerDisplayTime, getEffectiveTime, formatDate, formatDateTime, parseTimeInputToMs, truncateTimeDisplay } from './utils.js?v=2026052251';
-import { initModal, showSolveDetail, showAverageDetail, closeModal, closeMoveSessionMenus, customConfirm, customConfirmChoice, customPrompt, getModalSelectionContext, setModalStatNavigator, setModalStatButtons, armModalGhostClickGuard } from './modal.js?v=2026052251';
-import { applyMegaminxScramble, applyPyraminxScramble, applyScramble, applySquare1Scramble, applySkewbScramble, applyClockScramble, clearCubeDisplay, drawMegaminxFacePreview, drawSquare1, drawClock, initCubeDisplay, updateCubeDisplay, updateMegaminxDisplay, updatePyraminxDisplay, updateSquare1Display, updateSkewbDisplay, updateClockDisplay } from './cube-display.js?v=2026052251';
-import { initGraph, updateGraph, updateGraphData, setLineVisibility, getLineVisibility, applyAction, graphEvents, getGraphLineDefinitions } from './graph.js?v=2026052251';
-import { closeTimeDistributionModal, initTimeDistributionModal, isTimeDistributionModalOpen, refreshTimeDistributionData, refreshTimeDistributionTheme, showTimeDistributionModal } from './distribution.js?v=2026052251';
-import { closeDailyStreakModal, initDailyStreakModal, isDailyStreakModalOpen, refreshDailyStreakModal, showDailyStreakModal } from './daily-streak-modal.js?v=2026052251';
-import { exportAll, importAll, isCsTimerFormat, importCsTimer, exportCsTimer, importSessionCsv, isTwistyTimerOtherTimersCsvFormat, TWISTY_TIMER_OTHER_TIMERS_EXPORT_MESSAGE, IMPORT_MODE_MERGE, IMPORT_MODE_REWRITE, load, save } from './storage.js?v=2026052251';
-import { connectGoogleDrive, consumeAuthSession, exportBackupToGoogleDrive, getGoogleDriveBackupInfo, hasGoogleDriveSession, importBackupFromGoogleDrive, isGoogleDriveSyncConfigured, restoreGoogleDriveSession, signOutOfGoogleDrive } from './google-drive-sync.js?v=2026052251';
-import { dailyStreakStore, normalizeDailyStreakGoal } from './streaks.js?v=2026052251';
-import { bluetoothTimerInput, BluetoothTimerState } from './hardware-bluetooth-timer.js?v=2026052251';
-import { stackmatInput } from './hardware-stackmat.js?v=2026052251';
-import { isHardwareTimeEntryMode, isTypingTimeEntryMode, normalizeTimeEntryMode, TIME_ENTRY_MODE_BLUETOOTH, TIME_ENTRY_MODE_STACKMAT, TIME_ENTRY_MODE_TIMER } from './time-entry.js?v=2026052251';
-import { battleManager } from './battle.js?v=2026052251';
-import { CHANGELOG_ENTRIES, LATEST_CHANGELOG_ENTRY_ID } from './changelog.js?v=2026052251';
+import { timer, State as TimerState } from './timer.js?v=2026052256';
+import { SCRAMBLE_TYPE_OPTIONS, generateScrambleBatchForType, generateScrambleForType, getScramble, getCurrentScramble, getCurrentScrambleType, getPrevScramble, getNextScramble, getSelectedScrambleType, setCurrentScramble, setScrambleType, isCurrentScrambleManual, hasPrevScramble, isViewingPreviousScramble, preloadScrambleEngines, needsCubingWarmup, runCubingWarmup } from './scramble.js?v=2026052256';
+import { sessionManager } from './session.js?v=2026052256';
+import { settings, DEFAULTS, THEME_OPTIONS, THEME_COLOR_SECTIONS, THEME_DEFAULT_ID, THEME_OLED_ID, THEME_CUSTOM_IDS, SETTING_SCOPE_GLOBAL, SETTING_SCOPE_SESSION, SESSION_SCOPABLE_SETTING_KEYS, AUTO_EXPORT_EVERY_100_SOLVES_NEVER, AUTO_EXPORT_EVERY_100_SOLVES_REMIND, AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE, AUTO_EXPORT_EVERY_100_SOLVES_FILE, composeThemeColor, decomposeThemeColor, getLinkedSessionScopeKeys, getThemePresetColors, isCustomThemeId, normalizeAutoExportEvery100Solves } from './settings.js?v=2026052256';
+import { parseGraphStatType, parseRollingStatType, rollingStatAt, StatsCache } from './stats.js?v=2026052256';
+import { formatTime, formatSolveTime, formatTimerDisplayTime, getEffectiveTime, formatDate, formatDateTime, parseTimeInputToMs, truncateTimeDisplay } from './utils.js?v=2026052256';
+import { initModal, showSolveDetail, showAverageDetail, closeModal, closeMoveSessionMenus, customConfirm, customConfirmChoice, customPrompt, getModalSelectionContext, setModalStatNavigator, setModalStatButtons, armModalGhostClickGuard } from './modal.js?v=2026052256';
+import { applyMegaminxScramble, applyPyraminxScramble, applyScramble, applySquare1Scramble, applySkewbScramble, applyClockScramble, clearCubeDisplay, drawMegaminxFacePreview, drawSquare1, drawClock, initCubeDisplay, updateCubeDisplay, updateMegaminxDisplay, updatePyraminxDisplay, updateSquare1Display, updateSkewbDisplay, updateClockDisplay } from './cube-display.js?v=2026052256';
+import { initGraph, updateGraph, updateGraphData, setLineVisibility, getLineVisibility, applyAction, graphEvents, getGraphLineDefinitions } from './graph.js?v=2026052256';
+import { closeTimeDistributionModal, initTimeDistributionModal, isTimeDistributionModalOpen, refreshTimeDistributionData, refreshTimeDistributionTheme, showTimeDistributionModal } from './distribution.js?v=2026052256';
+import { closeDailyStreakModal, initDailyStreakModal, isDailyStreakModalOpen, refreshDailyStreakModal, showDailyStreakModal } from './daily-streak-modal.js?v=2026052256';
+import { exportAll, importAll, isCsTimerFormat, importCsTimer, exportCsTimer, importSessionCsv, isTwistyTimerOtherTimersCsvFormat, TWISTY_TIMER_OTHER_TIMERS_EXPORT_MESSAGE, IMPORT_MODE_MERGE, IMPORT_MODE_REWRITE, load, save } from './storage.js?v=2026052256';
+import { connectGoogleDrive, consumeAuthSession, exportBackupToGoogleDrive, getGoogleDriveBackupInfo, hasGoogleDriveSession, importBackupFromGoogleDrive, isGoogleDriveSyncConfigured, restoreGoogleDriveSession, signOutOfGoogleDrive } from './google-drive-sync.js?v=2026052256';
+import { dailyStreakStore, normalizeDailyStreakGoal } from './streaks.js?v=2026052256';
+import { bluetoothTimerInput, BluetoothTimerState } from './hardware-bluetooth-timer.js?v=2026052256';
+import { stackmatInput } from './hardware-stackmat.js?v=2026052256';
+import { isHardwareTimeEntryMode, isTypingTimeEntryMode, normalizeTimeEntryMode, TIME_ENTRY_MODE_BLUETOOTH, TIME_ENTRY_MODE_STACKMAT, TIME_ENTRY_MODE_TIMER } from './time-entry.js?v=2026052256';
+import { battleManager } from './battle.js?v=2026052256';
+import { CHANGELOG_ENTRIES, LATEST_CHANGELOG_ENTRY_ID } from './changelog.js?v=2026052256';
 
 let currentScramble = '';
 let currentSortCol = null;
@@ -289,7 +289,7 @@ async function registerServiceWorker() {
     if (window.location?.protocol === 'file:') return;
 
     try {
-        const serviceWorkerUrl = new URL('../sw.js?v=2026052251', import.meta.url);
+        const serviceWorkerUrl = new URL('../sw.js?v=2026052256', import.meta.url);
         await navigator.serviceWorker.register(serviceWorkerUrl);
     } catch (error) {
         console.warn('Service worker registration failed:', error);
@@ -3201,6 +3201,63 @@ function sanitizeManualDigits(value) {
     return String(value ?? '').replace(/\D/g, '').slice(0, 7);
 }
 
+function setManualTimeInputCaretToEnd(input = getEl('manual-time-hidden-input')) {
+    if (!input || typeof input.setSelectionRange !== 'function') return;
+    const len = input.value.length;
+    if (input.selectionStart === len && input.selectionEnd === len) return;
+    input.setSelectionRange(len, len);
+}
+
+function setManualTimeDigits(nextDigits) {
+    quickActionsState.manualDigits = sanitizeManualDigits(nextDigits);
+    updateManualTimeEntryUI();
+}
+
+function appendManualTimeDigits(value) {
+    const digits = sanitizeManualDigits(value);
+    if (!digits) {
+        updateManualTimeEntryUI();
+        return false;
+    }
+
+    setManualTimeDigits(`${quickActionsState.manualDigits}${digits}`);
+    return true;
+}
+
+function getManualTimeInputEventText(event) {
+    return event.data ?? event.dataTransfer?.getData?.('text') ?? '';
+}
+
+function preventManualTimeInputEvent(event) {
+    if (!event.cancelable) return false;
+    event.preventDefault();
+    return event.defaultPrevented;
+}
+
+function removeManualTimeDigitsFromEnd(count = 1) {
+    const removeCount = Math.max(1, count);
+    setManualTimeDigits(quickActionsState.manualDigits.slice(0, -removeCount));
+}
+
+function getInsertedManualDigits(previousDigits, nextDigits) {
+    const previous = sanitizeManualDigits(previousDigits);
+    const next = sanitizeManualDigits(nextDigits);
+    let start = 0;
+
+    while (start < previous.length && start < next.length && previous[start] === next[start]) {
+        start += 1;
+    }
+
+    let previousEnd = previous.length - 1;
+    let nextEnd = next.length - 1;
+    while (previousEnd >= start && nextEnd >= start && previous[previousEnd] === next[nextEnd]) {
+        previousEnd -= 1;
+        nextEnd -= 1;
+    }
+
+    return next.slice(start, nextEnd + 1);
+}
+
 function getManualTimeParts(digits) {
     const sanitized = sanitizeManualDigits(digits);
     const fractionSource = sanitized.slice(-2);
@@ -3625,6 +3682,9 @@ function updateManualTimeEntryUI() {
     if (hiddenInput && hiddenInput.value !== quickActionsState.manualDigits) {
         hiddenInput.value = quickActionsState.manualDigits;
     }
+    if (hiddenInput && document.activeElement === hiddenInput) {
+        setManualTimeInputCaretToEnd(hiddenInput);
+    }
     if (formattedEl) formattedEl.innerHTML = renderManualTimeMarkup(quickActionsState.manualDigits);
     if (submitBtn) submitBtn.disabled = !hasValue || submitBlocked;
     document.body.classList.toggle('manual-time-has-hours', parts.hasHours);
@@ -3693,10 +3753,7 @@ function focusManualTimeInput() {
     const hiddenInput = getEl('manual-time-hidden-input');
     if (!hiddenInput) return;
     hiddenInput.focus({ preventScroll: true });
-    if (typeof hiddenInput.setSelectionRange === 'function') {
-        const len = hiddenInput.value.length;
-        hiddenInput.setSelectionRange(len, len);
-    }
+    setManualTimeInputCaretToEnd(hiddenInput);
     syncManualTimeInputFocusState();
 }
 
@@ -5837,6 +5894,7 @@ function initTimerQuickActions() {
     });
 
     hiddenInput.addEventListener('focus', () => {
+        setManualTimeInputCaretToEnd(hiddenInput);
         syncManualTimeInputFocusState();
     });
 
@@ -5844,12 +5902,80 @@ function initTimerQuickActions() {
         syncManualTimeInputFocusState();
     });
 
+    document.addEventListener('selectionchange', () => {
+        if (document.activeElement !== hiddenInput) return;
+        setManualTimeInputCaretToEnd(hiddenInput);
+    });
+
+    hiddenInput.addEventListener('beforeinput', (event) => {
+        const inputType = event.inputType || '';
+
+        if (inputType === 'insertLineBreak') {
+            if (!preventManualTimeInputEvent(event)) return;
+            void submitManualTimeEntry({ closeEntry: false });
+            return;
+        }
+
+        if (inputType.startsWith('insert')) {
+            const insertedText = getManualTimeInputEventText(event);
+            if (!insertedText) {
+                setManualTimeInputCaretToEnd(hiddenInput);
+                return;
+            }
+
+            if (!preventManualTimeInputEvent(event)) return;
+            setManualTimeInputCaretToEnd(hiddenInput);
+            appendManualTimeDigits(insertedText);
+            return;
+        }
+
+        if (inputType.startsWith('delete')) {
+            if (!preventManualTimeInputEvent(event)) return;
+            setManualTimeInputCaretToEnd(hiddenInput);
+            removeManualTimeDigitsFromEnd();
+        }
+    });
+
+    hiddenInput.addEventListener('paste', (event) => {
+        if (!preventManualTimeInputEvent(event)) return;
+        setManualTimeInputCaretToEnd(hiddenInput);
+        appendManualTimeDigits(event.clipboardData?.getData('text') || '');
+    });
+
     hiddenInput.addEventListener('input', (event) => {
-        quickActionsState.manualDigits = sanitizeManualDigits(event.target.value);
-        updateManualTimeEntryUI();
+        const previousDigits = quickActionsState.manualDigits;
+        const nativeDigits = sanitizeManualDigits(event.target.value);
+        const inputType = event.inputType || '';
+
+        if (inputType.startsWith('insert')) {
+            const insertedDigits = sanitizeManualDigits(getManualTimeInputEventText(event))
+                || getInsertedManualDigits(previousDigits, nativeDigits);
+            appendManualTimeDigits(insertedDigits);
+            return;
+        }
+
+        if (inputType.startsWith('delete')) {
+            const removedCount = Math.max(1, previousDigits.length - nativeDigits.length);
+            removeManualTimeDigitsFromEnd(removedCount);
+            return;
+        }
+
+        if (nativeDigits.length > previousDigits.length) {
+            appendManualTimeDigits(getInsertedManualDigits(previousDigits, nativeDigits));
+            return;
+        }
+
+        if (nativeDigits.length < previousDigits.length) {
+            removeManualTimeDigitsFromEnd(previousDigits.length - nativeDigits.length);
+            return;
+        }
+
+        setManualTimeDigits(nativeDigits);
     });
 
     hiddenInput.addEventListener('keydown', (event) => {
+        setManualTimeInputCaretToEnd(hiddenInput);
+
         if (event.key === '.' || event.key === ',') {
             event.preventDefault();
             return;
