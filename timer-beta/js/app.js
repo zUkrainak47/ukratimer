@@ -3201,6 +3201,57 @@ function sanitizeManualDigits(value) {
     return String(value ?? '').replace(/\D/g, '').slice(0, 7);
 }
 
+function setManualTimeInputCaretToEnd(input = getEl('manual-time-hidden-input')) {
+    if (!input || typeof input.setSelectionRange !== 'function') return;
+    const len = input.value.length;
+    if (input.selectionStart === len && input.selectionEnd === len) return;
+    input.setSelectionRange(len, len);
+}
+
+function setManualTimeDigits(nextDigits) {
+    quickActionsState.manualDigits = sanitizeManualDigits(nextDigits);
+    updateManualTimeEntryUI();
+}
+
+function appendManualTimeDigits(value) {
+    const digits = sanitizeManualDigits(value);
+    if (!digits) {
+        updateManualTimeEntryUI();
+        return false;
+    }
+
+    setManualTimeDigits(`${quickActionsState.manualDigits}${digits}`);
+    return true;
+}
+
+function getManualTimeInputEventText(event) {
+    return event.data ?? event.dataTransfer?.getData?.('text') ?? '';
+}
+
+function removeManualTimeDigitsFromEnd(count = 1) {
+    const removeCount = Math.max(1, count);
+    setManualTimeDigits(quickActionsState.manualDigits.slice(0, -removeCount));
+}
+
+function getInsertedManualDigits(previousDigits, nextDigits) {
+    const previous = sanitizeManualDigits(previousDigits);
+    const next = sanitizeManualDigits(nextDigits);
+    let start = 0;
+
+    while (start < previous.length && start < next.length && previous[start] === next[start]) {
+        start += 1;
+    }
+
+    let previousEnd = previous.length - 1;
+    let nextEnd = next.length - 1;
+    while (previousEnd >= start && nextEnd >= start && previous[previousEnd] === next[nextEnd]) {
+        previousEnd -= 1;
+        nextEnd -= 1;
+    }
+
+    return next.slice(start, nextEnd + 1);
+}
+
 function getManualTimeParts(digits) {
     const sanitized = sanitizeManualDigits(digits);
     const fractionSource = sanitized.slice(-2);
@@ -3625,6 +3676,9 @@ function updateManualTimeEntryUI() {
     if (hiddenInput && hiddenInput.value !== quickActionsState.manualDigits) {
         hiddenInput.value = quickActionsState.manualDigits;
     }
+    if (hiddenInput && document.activeElement === hiddenInput) {
+        setManualTimeInputCaretToEnd(hiddenInput);
+    }
     if (formattedEl) formattedEl.innerHTML = renderManualTimeMarkup(quickActionsState.manualDigits);
     if (submitBtn) submitBtn.disabled = !hasValue || submitBlocked;
     document.body.classList.toggle('manual-time-has-hours', parts.hasHours);
@@ -3693,10 +3747,7 @@ function focusManualTimeInput() {
     const hiddenInput = getEl('manual-time-hidden-input');
     if (!hiddenInput) return;
     hiddenInput.focus({ preventScroll: true });
-    if (typeof hiddenInput.setSelectionRange === 'function') {
-        const len = hiddenInput.value.length;
-        hiddenInput.setSelectionRange(len, len);
-    }
+    setManualTimeInputCaretToEnd(hiddenInput);
     syncManualTimeInputFocusState();
 }
 
@@ -5837,6 +5888,7 @@ function initTimerQuickActions() {
     });
 
     hiddenInput.addEventListener('focus', () => {
+        setManualTimeInputCaretToEnd(hiddenInput);
         syncManualTimeInputFocusState();
     });
 
@@ -5844,12 +5896,80 @@ function initTimerQuickActions() {
         syncManualTimeInputFocusState();
     });
 
+    document.addEventListener('selectionchange', () => {
+        if (document.activeElement !== hiddenInput) return;
+        setManualTimeInputCaretToEnd(hiddenInput);
+    });
+
+    hiddenInput.addEventListener('beforeinput', (event) => {
+        const inputType = event.inputType || '';
+
+        if (inputType === 'insertLineBreak') {
+            event.preventDefault();
+            void submitManualTimeEntry({ closeEntry: false });
+            return;
+        }
+
+        if (inputType.startsWith('insert')) {
+            const insertedText = getManualTimeInputEventText(event);
+            if (!insertedText) {
+                setManualTimeInputCaretToEnd(hiddenInput);
+                return;
+            }
+
+            setManualTimeInputCaretToEnd(hiddenInput);
+            event.preventDefault();
+            appendManualTimeDigits(insertedText);
+            return;
+        }
+
+        if (inputType.startsWith('delete')) {
+            event.preventDefault();
+            setManualTimeInputCaretToEnd(hiddenInput);
+            removeManualTimeDigitsFromEnd();
+        }
+    });
+
+    hiddenInput.addEventListener('paste', (event) => {
+        event.preventDefault();
+        setManualTimeInputCaretToEnd(hiddenInput);
+        appendManualTimeDigits(event.clipboardData?.getData('text') || '');
+    });
+
     hiddenInput.addEventListener('input', (event) => {
-        quickActionsState.manualDigits = sanitizeManualDigits(event.target.value);
-        updateManualTimeEntryUI();
+        const previousDigits = quickActionsState.manualDigits;
+        const nativeDigits = sanitizeManualDigits(event.target.value);
+        const inputType = event.inputType || '';
+
+        if (inputType.startsWith('insert')) {
+            const insertedDigits = sanitizeManualDigits(getManualTimeInputEventText(event))
+                || getInsertedManualDigits(previousDigits, nativeDigits);
+            appendManualTimeDigits(insertedDigits);
+            return;
+        }
+
+        if (inputType.startsWith('delete')) {
+            const removedCount = Math.max(1, previousDigits.length - nativeDigits.length);
+            removeManualTimeDigitsFromEnd(removedCount);
+            return;
+        }
+
+        if (nativeDigits.length > previousDigits.length) {
+            appendManualTimeDigits(getInsertedManualDigits(previousDigits, nativeDigits));
+            return;
+        }
+
+        if (nativeDigits.length < previousDigits.length) {
+            removeManualTimeDigitsFromEnd(previousDigits.length - nativeDigits.length);
+            return;
+        }
+
+        setManualTimeDigits(nativeDigits);
     });
 
     hiddenInput.addEventListener('keydown', (event) => {
+        setManualTimeInputCaretToEnd(hiddenInput);
+
         if (event.key === '.' || event.key === ',') {
             event.preventDefault();
             return;
