@@ -3228,6 +3228,12 @@ function getManualTimeInputEventText(event) {
     return event.data ?? event.dataTransfer?.getData?.('text') ?? '';
 }
 
+function preventManualTimeInputEvent(event) {
+    if (!event.cancelable) return false;
+    event.preventDefault();
+    return event.defaultPrevented;
+}
+
 function removeManualTimeDigitsFromEnd(count = 1) {
     const removeCount = Math.max(1, count);
     setManualTimeDigits(quickActionsState.manualDigits.slice(0, -removeCount));
@@ -5905,7 +5911,7 @@ function initTimerQuickActions() {
         const inputType = event.inputType || '';
 
         if (inputType === 'insertLineBreak') {
-            event.preventDefault();
+            if (!preventManualTimeInputEvent(event)) return;
             void submitManualTimeEntry({ closeEntry: false });
             return;
         }
@@ -5917,21 +5923,21 @@ function initTimerQuickActions() {
                 return;
             }
 
+            if (!preventManualTimeInputEvent(event)) return;
             setManualTimeInputCaretToEnd(hiddenInput);
-            event.preventDefault();
             appendManualTimeDigits(insertedText);
             return;
         }
 
         if (inputType.startsWith('delete')) {
-            event.preventDefault();
+            if (!preventManualTimeInputEvent(event)) return;
             setManualTimeInputCaretToEnd(hiddenInput);
             removeManualTimeDigitsFromEnd();
         }
     });
 
     hiddenInput.addEventListener('paste', (event) => {
-        event.preventDefault();
+        if (!preventManualTimeInputEvent(event)) return;
         setManualTimeInputCaretToEnd(hiddenInput);
         appendManualTimeDigits(event.clipboardData?.getData('text') || '');
     });
