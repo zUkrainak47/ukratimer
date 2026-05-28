@@ -1524,7 +1524,12 @@ function handlePopState(event) {
 
     // Special case: Timer primed/holding/ready
     const state = timer.getState();
-    if (state === 'holding' || state === 'ready' || isInspectionState(state)) {
+    if (isInspectionState(state)) {
+        timer.cancelInspection();
+        return;
+    }
+
+    if (state === 'holding' || state === 'ready') {
         timer.cancelPendingStart();
     }
 }
