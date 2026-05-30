@@ -1,4 +1,4 @@
-import { getEffectiveTime } from './utils.js?v=2026052301';
+import { getEffectiveTime } from './utils.js?v=2026052901';
 
 const MAX_ROLLING_STAT_WINDOW = 99999;
 
@@ -407,14 +407,14 @@ function buildRollingAverageValues(times, windowSize, trim) {
     return values;
 }
 
-function buildRollingStatValues(times, config) {
+export function buildRollingStatValues(times, config) {
     if (config.kind === 'mo') {
         return buildRollingMeanValues(times, config.windowSize);
     }
     return buildRollingAverageValues(times, config.windowSize, config.trim);
 }
 
-function buildRollingBestFlags(values) {
+export function buildRollingBestFlags(values) {
     const flags = new Array(values.length).fill(false);
     let rollingBest = Infinity;
 

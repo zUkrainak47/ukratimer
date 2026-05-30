@@ -356,6 +356,20 @@ select {
     mask-image: url('../resources/settings.svg');
 }
 
+.icon-mask-compress {
+    width: 1em;
+    height: 1em;
+    -webkit-mask-image: url('../resources/compress.svg');
+    mask-image: url('../resources/compress.svg');
+}
+
+.icon-mask-expand {
+    width: 1em;
+    height: 1em;
+    -webkit-mask-image: url('../resources/expand.svg');
+    mask-image: url('../resources/expand.svg');
+}
+
 .icon-mask-distribution {
     width: 1em;
     height: 1em;
@@ -581,6 +595,7 @@ body.zen.camera-background-active:not(.mobile-viewport) #right-panel > :not(#cub
 }
 
 body.zen #btn-settings,
+body.zen #btn-phase-panel-width-toggle,
 body.zen #scramble-type-menu-desktop,
 body.zen #scramble-type-menu-mobile,
 body.zen:not(.mobile-viewport) #btn-edit-scramble,
@@ -630,6 +645,7 @@ body.zen.mobile-viewport #scramble-top-row {
 #left-panel,
 #right-panel,
 #btn-settings,
+#btn-phase-panel-width-toggle,
 #scramble-container,
 #timer-info,
 #timer-display-wrapper {

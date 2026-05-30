@@ -58,6 +58,37 @@ export function formatSolveTime(solve) {
   return str;
 }
 
+export const MIN_PHASE_COUNT = 1;
+export const MAX_PHASE_COUNT = 10;
+
+export function normalizePhaseCount(value, fallback = MIN_PHASE_COUNT) {
+  const parsed = Math.floor(Number(value));
+  const fallbackValue = Math.floor(Number(fallback));
+  const safeFallback = Number.isFinite(fallbackValue)
+    ? Math.min(MAX_PHASE_COUNT, Math.max(MIN_PHASE_COUNT, fallbackValue))
+    : MIN_PHASE_COUNT;
+
+  if (!Number.isFinite(parsed)) return safeFallback;
+  return Math.min(MAX_PHASE_COUNT, Math.max(MIN_PHASE_COUNT, parsed));
+}
+
+export function getSolvePhaseSplits(solve) {
+  if (!Array.isArray(solve?.phaseSplits)) return [];
+
+  return solve.phaseSplits
+    .map((value) => Math.round(Number(value)))
+    .filter((value) => Number.isFinite(value) && value >= 0);
+}
+
+export function formatSolveTimeWithSplits(solve) {
+  const timeText = formatSolveTime(solve);
+  const phaseSplits = getSolvePhaseSplits(solve);
+
+  if (phaseSplits.length < 2) return timeText;
+
+  return `${timeText}=${phaseSplits.map((split) => formatTime(split)).join('+')}`;
+}
+
 /**
  * Format the large timer display for a solve.
  * DNF keeps the measured time and shows the penalty separately in the UI.

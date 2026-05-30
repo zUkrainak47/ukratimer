@@ -1,6 +1,6 @@
-import { formatTime, getEffectiveTime, EventEmitter } from './utils.js?v=2026052301';
-import { settings } from './settings.js?v=2026052301';
-import { parseGraphStatType } from './stats.js?v=2026052301';
+import { formatTime, getEffectiveTime, EventEmitter } from './utils.js?v=2026052901';
+import { settings } from './settings.js?v=2026052901';
+import { parseGraphStatType } from './stats.js?v=2026052901';
 
 /**
  * Time trend graph with pan/zoom controls.
@@ -55,6 +55,7 @@ let _ctx = null;
 let _solves = [];
 let _perSolve = [];
 let _statsCache = null;
+let _timeLineLabel = 'time';
 let _newBestSingles = [];
 let _hoveredIndex = -1;
 let _touchFocusedIndex = -1;
@@ -571,10 +572,11 @@ export function initGraph(canvas) {
     return observer;
 }
 
-export function updateGraph(solves, perSolveStats) {
+export function updateGraph(solves, perSolveStats, { timeLabel = 'time' } = {}) {
     _solves = solves;
     _perSolve = perSolveStats;
     _statsCache = null;
+    _timeLineLabel = timeLabel;
     _allTimesCache = { solvesRef: null, length: -1, times: [] };
     _rollingSeriesCache.clear();
     _newBestSingles = getNewBestSingleFlags(solves);
@@ -600,11 +602,13 @@ export function updateGraph(solves, perSolveStats) {
  * Update graph with a StatsCache for efficient per-solve lookups.
  * @param {object[]} solves
  * @param {import('./stats.js').StatsCache} cache
+ * @param {{ timeLabel?: string }} options
  */
-export function updateGraphData(solves, cache) {
+export function updateGraphData(solves, cache, { timeLabel = 'time' } = {}) {
     _solves = solves;
     _perSolve = [];
     _statsCache = cache;
+    _timeLineLabel = timeLabel;
     _allTimesCache = { solvesRef: null, length: -1, times: [] };
     _rollingSeriesCache.clear();
     _newBestSingles = null; // computed lazily from cache
@@ -694,7 +698,9 @@ function getAllTimes() {
         return _allTimesCache.times;
     }
 
-    const times = _solves.map(s => getEffectiveTime(s));
+    const times = _statsCache && typeof _statsCache.getTimes === 'function'
+        ? _statsCache.getTimes()
+        : _solves.map(s => getEffectiveTime(s));
     _allTimesCache = {
         solvesRef: _solves,
         length: _solves.length,
@@ -1127,7 +1133,8 @@ function render() {
 
         ctx.font = '11px JetBrains Mono, monospace';
         const solveLabelPrefix = hasComment ? '*' : '#';
-        const lines = [`${solveLabelPrefix}${getSolveDisplayIndex(activeIndex)}: ${text}`];
+        const lineLabel = _timeLineLabel && _timeLineLabel !== 'time' ? ` ${_timeLineLabel}` : '';
+        const lines = [`${solveLabelPrefix}${getSolveDisplayIndex(activeIndex)}${lineLabel}: ${text}`];
         lineDefinitions.forEach((line) => {
             const value = getLineStatValue(line.statType, activeIndex, allTimes);
             if (value != null) lines.push(`${line.statType}: ${formatTime(value)}`);

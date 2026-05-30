@@ -1,6 +1,6 @@
-import { settings } from './settings.js?v=2026052301';
-import { isHardwareTimeEntryMode, TIME_ENTRY_MODE_TIMER, TIME_ENTRY_MODE_TYPING } from './time-entry.js?v=2026052301';
-import { EventEmitter, formatTime, truncateTimeDisplay } from './utils.js?v=2026052301';
+import { settings } from './settings.js?v=2026052901';
+import { isHardwareTimeEntryMode, TIME_ENTRY_MODE_TIMER, TIME_ENTRY_MODE_TYPING } from './time-entry.js?v=2026052901';
+import { EventEmitter, formatTime, normalizePhaseCount, truncateTimeDisplay } from './utils.js?v=2026052901';
 
 const State = {
     IDLE: 'idle',
@@ -30,6 +30,9 @@ class Timer extends EventEmitter {
         this.state = State.IDLE;
         this.startTime = 0;
         this.elapsed = 0;
+        this._phaseCount = 1;
+        this._phaseSplitTimes = [];
+        this._phaseLastTimestamp = 0;
         this._inspectionStartTime = 0;
         this._inspectionElapsed = 0;
         this._pendingPenalty = null;
@@ -612,6 +615,9 @@ class Timer extends EventEmitter {
             && eventTs >= now - 500;
         this.startTime = hasUsableStartTimestamp ? eventTs : now;
         this.elapsed = 0;
+        this._phaseCount = normalizePhaseCount(settings.get('multiPhaseCount'), 1);
+        this._phaseSplitTimes = [];
+        this._phaseLastTimestamp = this.startTime;
 
         if (!this._shouldShowRunningTime()) {
             this._updateDisplay('...');
@@ -669,8 +675,35 @@ class Timer extends EventEmitter {
             && stopTimestamp <= now;
         const resolvedStopTime = hasUsableStopTimestamp ? stopTimestamp : now;
         this.elapsed = resolvedStopTime - this.startTime;
+        const phaseCount = normalizePhaseCount(this._phaseCount, 1);
+        const usesPhases = phaseCount > 1;
+
+        if (usesPhases) {
+            const phaseStart = this._phaseLastTimestamp || this.startTime;
+            const splitTime = Math.max(0, resolvedStopTime - phaseStart);
+            this._phaseSplitTimes.push(splitTime);
+            this._phaseLastTimestamp = resolvedStopTime;
+            this.emit('phaseSplit', {
+                index: this._phaseSplitTimes.length,
+                phaseCount,
+                splitTime,
+                splits: this._phaseSplitTimes.slice(),
+                elapsed: this.elapsed,
+            });
+
+            if (penaltyOverride !== 'DNF' && this._phaseSplitTimes.length < phaseCount) {
+                if (this._shouldShowRunningTime()) {
+                    this._updateDisplay(this._formatRunningDisplay(this.elapsed));
+                }
+                this._tick();
+                return;
+            }
+        }
 
         const finalPenalty = penaltyOverride ?? this._pendingPenalty ?? null;
+        const finalPhaseSplits = usesPhases
+            ? this._phaseSplitTimes.slice(0, phaseCount)
+            : [];
 
         this._setState(State.STOPPED);
         this._setColor(State.STOPPED);
@@ -678,7 +711,13 @@ class Timer extends EventEmitter {
 
         this._pendingPenalty = null;
         this._inspectionSnapshot = null;
-        this.emit('stopped', this.elapsed, finalPenalty);
+        this._phaseCount = 1;
+        this._phaseSplitTimes = [];
+        this._phaseLastTimestamp = 0;
+        this.emit('stopped', this.elapsed, finalPenalty, {
+            phaseCount,
+            phaseSplits: finalPhaseSplits,
+        });
     }
 
     _getEventTimestamp(event) {
@@ -1134,6 +1173,9 @@ class Timer extends EventEmitter {
         this._setColor(State.RUNNING);
         this.startTime = performance.now() - safeElapsed;
         this.elapsed = safeElapsed;
+        this._phaseCount = 1;
+        this._phaseSplitTimes = [];
+        this._phaseLastTimestamp = this.startTime;
 
         if (this._shouldShowRunningTime()) {
             this._updateDisplay(this._formatRunningDisplay(safeElapsed));
@@ -1173,7 +1215,13 @@ class Timer extends EventEmitter {
 
         this._pendingPenalty = null;
         this._inspectionSnapshot = null;
-        this.emit('stopped', this.elapsed, finalPenalty);
+        this._phaseCount = 1;
+        this._phaseSplitTimes = [];
+        this._phaseLastTimestamp = 0;
+        this.emit('stopped', this.elapsed, finalPenalty, {
+            phaseCount: 1,
+            phaseSplits: [],
+        });
     }
 
     cancelPendingStart() {
@@ -1204,6 +1252,9 @@ class Timer extends EventEmitter {
     }
 
     resetDisplay() {
+        this._phaseCount = 1;
+        this._phaseSplitTimes = [];
+        this._phaseLastTimestamp = 0;
         this._updateDisplay('0.00');
         this._setColor(State.IDLE);
         this._setState(State.IDLE);

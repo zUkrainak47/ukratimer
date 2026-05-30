@@ -3,7 +3,8 @@
 #right-panel,
 #timer-info,
 #mobile-panel-tabs,
-#btn-settings {
+#btn-settings,
+#btn-phase-panel-width-toggle {
     transition: opacity var(--transition-base), visibility var(--transition-base);
 }
 
@@ -15,7 +16,8 @@ body.solving #scramble-bar,
 body.solving #left-panel,
 body.solving #timer-info,
 body.solving #mobile-panel-tabs,
-body.solving #btn-settings {
+body.solving #btn-settings,
+body.solving #btn-phase-panel-width-toggle {
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
@@ -135,6 +137,7 @@ body.zen #inspection-voice-unlock-wrap {
 
 #scramble-bar {
     grid-area: scramble;
+    min-width: 0;
 }
 
 #left-panel {
@@ -144,6 +147,7 @@ body.zen #inspection-voice-unlock-wrap {
     gap: var(--space-sm);
     overflow: hidden;
     min-height: 0;
+    min-width: 0;
     z-index: 1;
 }
 
@@ -160,6 +164,7 @@ body.zen #inspection-voice-unlock-wrap {
     justify-content: center;
     position: relative;
     min-height: 0;
+    min-width: 0;
     padding-bottom: 12vh;
     z-index: 0;
 }
@@ -178,6 +183,7 @@ body.zen #inspection-voice-unlock-wrap {
     justify-content: flex-end;
     gap: var(--space-sm);
     padding-bottom: calc(var(--space-xl) * 2.5);
+    min-width: 0;
     overflow: hidden;
     min-height: 0;
     z-index: 1;
@@ -211,6 +217,8 @@ body.zen #inspection-voice-unlock-wrap {
     #left-panel {
         transform-origin: top left;
         justify-self: start;
+        width: var(--solves-panel-width, var(--sidebar-width));
+        max-width: none;
     }
 
     #right-panel {

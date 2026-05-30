@@ -1,6 +1,6 @@
-import { load, registerBeforeDataExportHook, save } from './storage.js?v=2026052301';
-import { normalizeTimeEntryMode, TIME_ENTRY_MODE_TIMER, TIME_ENTRY_MODE_TYPING } from './time-entry.js?v=2026052301';
-import { EventEmitter } from './utils.js?v=2026052301';
+import { load, registerBeforeDataExportHook, save } from './storage.js?v=2026052901';
+import { normalizeTimeEntryMode, TIME_ENTRY_MODE_TIMER, TIME_ENTRY_MODE_TYPING } from './time-entry.js?v=2026052901';
+import { EventEmitter, normalizePhaseCount } from './utils.js?v=2026052901';
 import {
     SETTING_SCOPE_GLOBAL,
     SETTING_SCOPE_SESSION,
@@ -8,8 +8,9 @@ import {
     canScopeSetting as canScopeSessionSetting,
     getLinkedSessionScopeKeys,
     getSessionScopedSettingKeys,
+    isDefaultSessionScopedSetting,
     normalizeSettingScopes,
-} from './setting-scopes.js?v=2026052301';
+} from './setting-scopes.js?v=2026052901';
 
 export {
     SETTING_SCOPE_GLOBAL,
@@ -32,6 +33,7 @@ const AUTO_EXPORT_EVERY_100_SOLVES_VALUES = new Set([
     AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE,
     AUTO_EXPORT_EVERY_100_SOLVES_FILE,
 ]);
+const MAIN_STATS_SOURCE_TIME = 'time';
 
 const THEME_ID_SET = new Set([THEME_DEFAULT_ID, THEME_OLED_ID, ...THEME_CUSTOM_IDS]);
 
@@ -455,6 +457,8 @@ const DEFAULTS = {
     inspectionAlerts: 'off', // 'off', 'voice', 'screen', 'both'
     timerUpdate: '0.01s',   // 'none', 'inspection', '1s', '0.1s', '0.01s'
     timeEntryMode: TIME_ENTRY_MODE_TIMER, // 'timer', 'typing', 'stackmat', 'bluetooth'
+    multiPhaseCount: 1,
+    multiPhaseSoundEnabled: true,
     stackmatInputDeviceId: '',
     holdDuration: 300,       // ms
     animationMode: 'auto',   // 'auto', 'on', 'off'
@@ -477,11 +481,13 @@ const DEFAULTS = {
     summaryStatsPreset: 'basic', // 'basic', 'extended', 'full', 'custom'
     summaryStatsCustom: 'mo3 ao5 ao12 ao100',
     summaryStatsList: ['mo3', 'ao5', 'ao12', 'ao100'],
+    mainStatsSource: MAIN_STATS_SOURCE_TIME,
     solvesTableStat1: 'ao5',
     solvesTableStat2: 'ao12',
     zenMode: false,
     cubeCollapsed: false,
     graphCollapsed: false,
+    solvesPanelWidthConstrained: false,
     cameraRightPanelSecondary: 'graph',
     battleRightPanelSecondary: 'graph',
     graphView: { visibleCount: 0, yZoom: 1, xPan: 1, yPan: 0 },
@@ -830,6 +836,30 @@ function normalizeSessionSettingValue(key, value) {
         return normalizeTimeEntryMode(value);
     }
 
+    if (key === 'multiPhaseCount') {
+        return normalizePhaseCount(value, DEFAULTS.multiPhaseCount);
+    }
+
+    if (key === 'multiPhaseSoundEnabled') {
+        return value !== false;
+    }
+
+    if (key === 'mainStatsSource') {
+        if (value === MAIN_STATS_SOURCE_TIME) return MAIN_STATS_SOURCE_TIME;
+
+        const phaseMatch = String(value ?? '').trim().toLowerCase().match(/^phase-([1-9]\d*)$/);
+        if (phaseMatch) {
+            return `phase-${Number(phaseMatch[1])}`;
+        }
+
+        const csTimerPhaseMatch = String(value ?? '').trim().toLowerCase().match(/^p([1-9]\d*)$/);
+        if (csTimerPhaseMatch) {
+            return `phase-${Number(csTimerPhaseMatch[1])}`;
+        }
+
+        return MAIN_STATS_SOURCE_TIME;
+    }
+
     if (key === 'animationMode') {
         if (value === true) return 'on';
         if (value === false) return 'off';
@@ -898,6 +928,16 @@ class Settings extends EventEmitter {
                 : loaded.googleDriveBackupReminderEvery100Solves,
             { defaultValue: DEFAULTS.autoExportEvery100Solves },
         );
+        this._settings.multiPhaseCount = normalizePhaseCount(
+            this._settings.multiPhaseCount,
+            DEFAULTS.multiPhaseCount,
+        );
+        this._settings.mainStatsSource = normalizeSessionSettingValue(
+            'mainStatsSource',
+            this._settings.mainStatsSource,
+        );
+        this._settings.multiPhaseSoundEnabled = this._settings.multiPhaseSoundEnabled !== false;
+        this._settings.solvesPanelWidthConstrained = this._settings.solvesPanelWidthConstrained === true;
         const nextAutoExportCheckpointSolveSequence = normalizeNonNegativeInteger(
             hasOwn(loaded, 'autoExportCheckpointSolveSequence')
                 ? loaded.autoExportCheckpointSolveSequence
@@ -1062,7 +1102,11 @@ class Settings extends EventEmitter {
             const nextActiveSessionSettings = { ...this._activeSessionSettings };
             const nextStoredActiveSessionSettings = { ...this._storedActiveSessionSettings };
             linkedKeys.forEach((linkedKey) => {
-                delete nextScopes[linkedKey];
+                if (isDefaultSessionScopedSetting(linkedKey)) {
+                    nextScopes[linkedKey] = SETTING_SCOPE_GLOBAL;
+                } else {
+                    delete nextScopes[linkedKey];
+                }
                 const promotedValue = normalizeSessionSettingValue(linkedKey, previousEffectiveValues[linkedKey]);
                 if (promotedValue !== undefined) {
                     this._settings[linkedKey] = promotedValue;
@@ -1359,6 +1403,36 @@ class Settings extends EventEmitter {
             this._settings.timeEntryMode = nextTimeEntryMode;
             this._saveAndApply();
             this.emit('change', 'timeEntryMode', nextTimeEntryMode);
+            return;
+        }
+
+        if (key === 'multiPhaseCount') {
+            const nextPhaseCount = normalizePhaseCount(value, DEFAULTS.multiPhaseCount);
+            if (this._settings.multiPhaseCount === nextPhaseCount) return;
+
+            this._settings.multiPhaseCount = nextPhaseCount;
+            this._saveAndApply();
+            this.emit('change', 'multiPhaseCount', nextPhaseCount);
+            return;
+        }
+
+        if (key === 'multiPhaseSoundEnabled') {
+            const nextEnabled = value !== false;
+            if (this._settings.multiPhaseSoundEnabled === nextEnabled) return;
+
+            this._settings.multiPhaseSoundEnabled = nextEnabled;
+            this._saveAndApply();
+            this.emit('change', 'multiPhaseSoundEnabled', nextEnabled);
+            return;
+        }
+
+        if (key === 'mainStatsSource') {
+            const nextSource = normalizeSessionSettingValue('mainStatsSource', value);
+            if (this._settings.mainStatsSource === nextSource) return;
+
+            this._settings.mainStatsSource = nextSource;
+            this._saveAndApply();
+            this.emit('change', 'mainStatsSource', nextSource);
             return;
         }
 
