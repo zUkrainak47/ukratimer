@@ -9,6 +9,7 @@ export const SESSION_SCOPABLE_SETTING_KEYS = Object.freeze([
     'timerUpdate',
     'timeEntryMode',
     'multiPhaseCount',
+    'multiPhaseHideSplitsWhileSolving',
     'multiPhaseSoundEnabled',
     'theme',
     'animationMode',

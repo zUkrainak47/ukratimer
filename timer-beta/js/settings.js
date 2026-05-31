@@ -476,6 +476,7 @@ const DEFAULTS = {
     timerUpdate: '0.01s',   // 'none', 'inspection', '1s', '0.1s', '0.01s'
     timeEntryMode: TIME_ENTRY_MODE_TIMER, // 'timer', 'typing', 'stackmat', 'bluetooth'
     multiPhaseCount: 1,
+    multiPhaseHideSplitsWhileSolving: false,
     multiPhaseSoundEnabled: true,
     stackmatInputDeviceId: '',
     holdDuration: 300,       // ms
@@ -863,6 +864,10 @@ function normalizeSessionSettingValue(key, value) {
         return value !== false;
     }
 
+    if (key === 'multiPhaseHideSplitsWhileSolving') {
+        return value === true;
+    }
+
     if (key === 'timeTableVerticalGridLines') {
         return normalizeTimeTableVerticalGridLines(value);
     }
@@ -963,6 +968,7 @@ class Settings extends EventEmitter {
             this._settings.timeTableVerticalGridLines,
         );
         this._settings.multiPhaseSoundEnabled = this._settings.multiPhaseSoundEnabled !== false;
+        this._settings.multiPhaseHideSplitsWhileSolving = this._settings.multiPhaseHideSplitsWhileSolving === true;
         this._settings.solvesPanelWidthConstrained = this._settings.solvesPanelWidthConstrained === true;
         const nextAutoExportCheckpointSolveSequence = normalizeNonNegativeInteger(
             hasOwn(loaded, 'autoExportCheckpointSolveSequence')
@@ -1449,6 +1455,16 @@ class Settings extends EventEmitter {
             this._settings.multiPhaseSoundEnabled = nextEnabled;
             this._saveAndApply();
             this.emit('change', 'multiPhaseSoundEnabled', nextEnabled);
+            return;
+        }
+
+        if (key === 'multiPhaseHideSplitsWhileSolving') {
+            const nextEnabled = value === true;
+            if (this._settings.multiPhaseHideSplitsWhileSolving === nextEnabled) return;
+
+            this._settings.multiPhaseHideSplitsWhileSolving = nextEnabled;
+            this._saveAndApply();
+            this.emit('change', 'multiPhaseHideSplitsWhileSolving', nextEnabled);
             return;
         }
 

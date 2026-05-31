@@ -8938,10 +8938,15 @@ function handleBluetoothTimerEvent(event) {
 
 // ──── Timer Events ────
 async function onSolveComplete(elapsed, penalty = null, phaseInfo = {}) {
+    const finalPhaseSplits = Array.isArray(phaseInfo?.phaseSplits) ? phaseInfo.phaseSplits : [];
+    if (finalPhaseSplits.length > 1) {
+        renderPhaseSplitDisplay(finalPhaseSplits);
+    }
+
     try {
         await commitSolve(elapsed, penalty, {
             isManual: isCurrentScrambleManual(),
-            phaseSplits: phaseInfo?.phaseSplits || [],
+            phaseSplits: finalPhaseSplits,
             phaseCount: phaseInfo?.phaseCount || 1,
         });
     } finally {
@@ -8951,13 +8956,13 @@ async function onSolveComplete(elapsed, penalty = null, phaseInfo = {}) {
 
 function onTimerStarted() {
     pushHistoryState();
-    renderPhaseSplitDisplay([]);
+    renderPhaseSplitDisplay([], { phaseCount: getConfiguredPhaseCount() });
     // Info hidden via onTimerStateChange
 }
 
 function onTimerPhaseSplit({ phaseCount = 1, splits = [] } = {}) {
     if (phaseCount < 2) return;
-    renderPhaseSplitDisplay(splits);
+    renderPhaseSplitDisplay(splits, { phaseCount });
     playPhaseSplitSound();
 }
 
@@ -9943,13 +9948,23 @@ function syncPhaseSplitDisplayFromSolves(solves = sessionManager.getFilteredSolv
     renderPhaseSplitDisplay(lastSplits.length > 1 ? lastSplits : []);
 }
 
-function renderPhaseSplitDisplay(splits = []) {
+function renderPhaseSplitDisplay(splits = [], { phaseCount = null } = {}) {
     const normalizedSplits = Array.isArray(splits)
         ? splits.filter((value) => Number.isFinite(value) && value >= 0)
         : [];
     const hasSplits = normalizedSplits.length > 0;
     const state = timer.getState();
-    const isLiveSplit = hasSplits && state === 'running';
+    const isRunning = state === 'running';
+    const requestedPhaseCount = Number(phaseCount);
+    const progressPhaseCount = Math.max(
+        normalizedSplits.length,
+        Number.isFinite(requestedPhaseCount) ? Math.floor(requestedPhaseCount) : 0,
+    );
+    const shouldRenderProgressDots = isRunning
+        && settings.get('multiPhaseHideSplitsWhileSolving') === true
+        && progressPhaseCount > 1;
+    const hasDisplayContent = hasSplits || shouldRenderProgressDots;
+    const isLiveSplit = isRunning && hasDisplayContent;
 
     if (phaseSplitDisplayHideTimeout) {
         clearTimeout(phaseSplitDisplayHideTimeout);
@@ -9958,6 +9973,22 @@ function renderPhaseSplitDisplay(splits = []) {
 
     document.querySelectorAll('[data-phase-splits-display]').forEach((displayEl) => {
         displayEl.classList.toggle('phase-splits-live', isLiveSplit);
+        displayEl.classList.toggle('phase-splits-obscured', shouldRenderProgressDots);
+
+        if (shouldRenderProgressDots) {
+            displayEl.replaceChildren(...Array.from({ length: progressPhaseCount }, (_, index) => {
+                const dotEl = document.createElement('span');
+                dotEl.className = 'phase-split-progress-dot';
+                dotEl.dataset.phaseIndex = String(index + 1);
+                dotEl.setAttribute('aria-hidden', 'true');
+                dotEl.classList.toggle('is-active', index < normalizedSplits.length);
+                return dotEl;
+            }));
+            displayEl.setAttribute('aria-label', `Phase ${normalizedSplits.length} of ${progressPhaseCount}`);
+            displayEl.hidden = false;
+            displayEl.classList.add('is-visible');
+            return;
+        }
 
         if (hasSplits) {
             displayEl.replaceChildren(...normalizedSplits.map((split, index) => {
@@ -9967,20 +9998,22 @@ function renderPhaseSplitDisplay(splits = []) {
                 splitEl.dataset.phaseIndex = String(index + 1);
                 return splitEl;
             }));
+            displayEl.removeAttribute('aria-label');
             displayEl.hidden = false;
             displayEl.classList.add('is-visible');
             return;
         }
 
+        displayEl.removeAttribute('aria-label');
         displayEl.classList.remove('is-visible');
     });
 
     const timerDisplayWrapper = document.getElementById('timer-display-wrapper');
-    if (hasSplits) {
+    if (hasDisplayContent) {
         timerDisplayWrapper?.classList.add('phase-splits-visible');
     }
 
-    if (hasSplits) {
+    if (hasDisplayContent) {
         syncPhaseSplitDisplayPosition();
         requestAnimationFrame(syncPhaseSplitDisplayPosition);
         return;
@@ -9992,6 +10025,8 @@ function renderPhaseSplitDisplay(splits = []) {
             displayEl.replaceChildren();
             displayEl.hidden = true;
             displayEl.classList.remove('phase-splits-live');
+            displayEl.classList.remove('phase-splits-obscured');
+            displayEl.removeAttribute('aria-label');
         });
         timerDisplayWrapper?.classList.remove('phase-splits-visible');
         timerDisplayWrapper?.style.setProperty('--phase-splits-height', '0px');
@@ -13083,6 +13118,15 @@ function initSettingsPanel() {
         };
     }
 
+    const multiPhaseHideSplitsToggle = document.getElementById('setting-multi-phase-hide-splits');
+    if (multiPhaseHideSplitsToggle) {
+        multiPhaseHideSplitsToggle.checked = settings.get('multiPhaseHideSplitsWhileSolving') === true;
+        multiPhaseHideSplitsToggle.onchange = () => {
+            settings.set('multiPhaseHideSplitsWhileSolving', multiPhaseHideSplitsToggle.checked);
+            multiPhaseHideSplitsToggle.blur();
+        };
+    }
+
     // Animations mode
     const animSelect = document.getElementById('setting-animations');
     if (animSelect) {
@@ -14820,6 +14864,7 @@ function initSettingsPanel() {
         { key: 'timerUpdate', controlId: 'setting-timer-update' },
         { key: 'timeEntryMode', controlId: 'setting-time-entry-mode', read: () => normalizeTimeEntryMode(settings.get('timeEntryMode')) },
         { key: 'multiPhaseCount', controlId: 'setting-multi-phase-count', read: () => getConfiguredPhaseCount() },
+        { key: 'multiPhaseHideSplitsWhileSolving', controlId: 'setting-multi-phase-hide-splits' },
         { key: 'multiPhaseSoundEnabled', controlId: 'setting-multi-phase-sound' },
         { key: 'theme', controlId: 'setting-theme' },
         { key: 'animationMode', controlId: 'setting-animations' },

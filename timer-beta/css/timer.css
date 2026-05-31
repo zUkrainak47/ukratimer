@@ -920,6 +920,31 @@ body.camera-background-active.typing-entry-mode:not(.coarse-pointer) :is(#cube-c
     visibility: visible;
 }
 
+.phase-splits-display.phase-splits-obscured {
+    gap: calc(var(--space-sm) + 2px);
+}
+
+.phase-split-progress-dot {
+    width: 0.78em;
+    height: 0.78em;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--text-muted) 68%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-secondary) 22%, transparent);
+    opacity: 0.5;
+    transition:
+        background-color var(--transition-fast),
+        box-shadow var(--transition-fast),
+        opacity var(--transition-fast),
+        transform var(--transition-fast);
+}
+
+.phase-split-progress-dot.is-active {
+    background: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-subtle);
+    opacity: 1;
+    transform: scale(1.08);
+}
+
 body.solving .phase-splits-display {
     opacity: 0;
     visibility: hidden;
