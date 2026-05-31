@@ -21,6 +21,7 @@ export const SESSION_SCOPABLE_SETTING_KEYS = Object.freeze([
     'mainStatsSource',
     'solvesTableStat1',
     'solvesTableStat2',
+    'timeTableVerticalGridLines',
     'showDelta',
     'deltaReference',
     'newBestPopupEnabled',

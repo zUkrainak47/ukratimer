@@ -1633,6 +1633,15 @@
     word-break: break-word;
 }
 
+.modal-mobile-entry-phase-splits {
+    margin-top: 4px;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    line-height: 1.45;
+    color: var(--text-tertiary);
+    word-break: break-word;
+}
+
 .modal-mobile-export-toast {
     position: absolute;
     top: calc(100% + 6px);

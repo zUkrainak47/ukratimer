@@ -392,6 +392,9 @@ const MAX_CUSTOM_SUMMARY_STATS = 12;
 const MAX_ROLLING_STAT_INPUT_LENGTH = 7;
 const MAX_DELTA_REFERENCE_INPUT_LENGTH = 7;
 const SOLVES_TABLE_STAT_SETTING_KEYS = ['solvesTableStat1', 'solvesTableStat2'];
+const TIME_TABLE_VERTICAL_GRID_LINES_SETTING = 'timeTableVerticalGridLines';
+const TIME_TABLE_VERTICAL_GRID_LINES_MULTI_PHASE_ONLY = 'multi-phase-only';
+const TIME_TABLE_VERTICAL_GRID_LINES_ON = 'on';
 const MIN_SOLVES_TABLE_COLUMN_WIDTH_PX = 58;
 const PHASE_SOURCE_TIME_COLUMN_MIN_WIDTH_PX = 108;
 const MOBILE_PHASE_SOURCE_TIME_COLUMN_MIN_WIDTH_PX = 104;
@@ -5669,7 +5672,7 @@ async function init() {
             syncInspectionSpeechUnlockPromptVisibility();
         }
         if (key === 'newBestPopupEnabled' && !settings.get('newBestPopupEnabled')) clearNewBestAlert();
-        if (key === 'statsFilter' || key === 'customFilterDuration' || key === 'showDelta' || key === 'deltaReference' || key === 'theme' || key === 'customThemes' || key.startsWith('graphColor') || key.startsWith('graphLine') || key === 'graphTooltipDateEnabled' || key === 'newBestColor' || key === 'summaryStatsPreset' || key === 'summaryStatsCustom' || key === 'summaryStatsList' || key === 'mainStatsSource' || key.startsWith('solvesTableStat') || key === 'multiPhaseCount' || key === 'dailyStreakGoal') {
+        if (key === 'statsFilter' || key === 'customFilterDuration' || key === 'showDelta' || key === 'deltaReference' || key === 'theme' || key === 'customThemes' || key.startsWith('graphColor') || key.startsWith('graphLine') || key === 'graphTooltipDateEnabled' || key === 'newBestColor' || key === 'summaryStatsPreset' || key === 'summaryStatsCustom' || key === 'summaryStatsList' || key === 'mainStatsSource' || key.startsWith('solvesTableStat') || key === TIME_TABLE_VERTICAL_GRID_LINES_SETTING || key === 'multiPhaseCount' || key === 'dailyStreakGoal') {
             if (key === 'statsFilter' || key === 'customFilterDuration') rebuildStatsCache();
             if (key === 'summaryStatsPreset' || key === 'summaryStatsCustom' || key === 'summaryStatsList') {
                 syncModalStatNavigation();
@@ -10926,6 +10929,12 @@ function syncSolvesPanelWidthPreferenceFromSettings() {
     isSolvesPanelWidthConstrained = settings.get(SOLVES_PANEL_WIDTH_CONSTRAINED_SETTING) === true;
 }
 
+function shouldShowSolvesTableVerticalGridLines(phaseColumnCount = getVisiblePhaseColumnCount()) {
+    const mode = settings.get(TIME_TABLE_VERTICAL_GRID_LINES_SETTING);
+    return mode === TIME_TABLE_VERTICAL_GRID_LINES_ON
+        || (mode === TIME_TABLE_VERTICAL_GRID_LINES_MULTI_PHASE_ONLY && phaseColumnCount > 0);
+}
+
 function syncSolvesPanelWidthToggle(canToggle = false) {
     const btn = document.getElementById('btn-phase-panel-width-toggle');
     if (!btn) return;
@@ -11108,6 +11117,7 @@ function syncSolvesTableHeader(configuredColumns, solves = sessionManager.getFil
 
     const widthUnit = phaseColumnCount > 0 ? 'px' : '%';
     table.classList.toggle('has-phase-columns', phaseColumnCount > 0);
+    table.classList.toggle('show-vertical-grid-lines', shouldShowSolvesTableVerticalGridLines(phaseColumnCount));
     table.style.setProperty('--solves-table-index-width', `${Number(indexWidth).toFixed(3)}${widthUnit}`);
     table.style.setProperty('--solves-table-time-width', `${Number(timeWidth).toFixed(3)}${widthUnit}`);
     table.style.setProperty('--solves-table-stat-width', `${Number(statWidth).toFixed(3)}${widthUnit}`);
@@ -14829,6 +14839,7 @@ function initSettingsPanel() {
         { key: 'summaryStatsCustom', controlId: 'setting-summary-stats-custom' },
         { key: 'solvesTableStat1', controlId: 'setting-solves-table-stat1', read: () => String(settings.get('solvesTableStat1') || DEFAULTS.solvesTableStat1) },
         { key: 'solvesTableStat2', controlId: 'setting-solves-table-stat2', read: () => String(settings.get('solvesTableStat2') || DEFAULTS.solvesTableStat2) },
+        { key: TIME_TABLE_VERTICAL_GRID_LINES_SETTING, controlId: 'setting-time-table-vertical-grid-lines' },
         { key: 'graphTooltipDateEnabled', controlId: 'setting-graph-tooltip-date' },
         { key: 'graphLine1Stat', controlId: 'setting-graph-line1-stat', read: () => String(settings.get('graphLine1Stat') || DEFAULTS.graphLine1Stat) },
         { key: 'graphLine2Stat', controlId: 'setting-graph-line2-stat', read: () => String(settings.get('graphLine2Stat') || DEFAULTS.graphLine2Stat) },
@@ -15172,6 +15183,17 @@ function initSettingsPanel() {
         input: document.getElementById(row.inputId),
         feedback: document.getElementById(row.feedbackId),
     })).filter((row) => row.input && row.feedback);
+
+    const timeTableVerticalGridLinesSelect = document.getElementById('setting-time-table-vertical-grid-lines');
+    if (timeTableVerticalGridLinesSelect) {
+        timeTableVerticalGridLinesSelect.value = String(
+            settings.get(TIME_TABLE_VERTICAL_GRID_LINES_SETTING) || TIME_TABLE_VERTICAL_GRID_LINES_MULTI_PHASE_ONLY,
+        );
+        timeTableVerticalGridLinesSelect.onchange = () => {
+            settings.set(TIME_TABLE_VERTICAL_GRID_LINES_SETTING, timeTableVerticalGridLinesSelect.value);
+            timeTableVerticalGridLinesSelect.blur();
+        };
+    }
 
     if (solvesTableSettingRows.length) {
         const readSolvesTableSettingState = () => {

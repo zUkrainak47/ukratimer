@@ -1,4 +1,4 @@
-import { formatTime, formatSolveTime, formatSolveTimeWithSplits, formatReadableDate, formatDateTime, getEffectiveTime } from './utils.js?v=2026052901';
+import { formatTime, formatSolveTime, formatSolveTimeWithSplits, formatReadableDate, formatDateTime, getEffectiveTime, getSolvePhaseSplits } from './utils.js?v=2026052901';
 import { sessionManager } from './session.js?v=2026052901';
 
 let _overlay = null;
@@ -328,6 +328,13 @@ function buildSolveShareText(singleLabel, solveIndex, timeStr, solve) {
     ].join('\n');
 }
 
+function formatMobilePhaseSplits(solve) {
+    const phaseSplits = getSolvePhaseSplits(solve);
+    if (phaseSplits.length < 2) return '';
+
+    return phaseSplits.map((split) => formatTime(split)).join(' + ');
+}
+
 function buildAverageShareContent(label, valueStr, solves, trim = 1, options = {}) {
     const optionTimes = Array.isArray(options.times) && options.times.length === solves.length
         ? options.times
@@ -352,18 +359,21 @@ function buildAverageShareContent(label, valueStr, solves, trim = 1, options = {
     const mobileEntries = [];
     solves.forEach((solve, i) => {
         const tStr = formatEntryTime(solve, i, times[i]);
+        const mobileTimeStr = formatSolveTime(solve);
         const displayIndex = displayIndices[i];
         const isBest = bestIndices.has(i);
         const isWorst = worstIndices.has(i);
         const display = (isBest || isWorst) ? `(${tStr})` : tStr;
+        const mobileDisplay = (isBest || isWorst) ? `(${mobileTimeStr})` : mobileTimeStr;
         const lineTime = `${display}${getCommentSuffix(solve)}`;
         if (isCompactSummary) {
             compactValues.push(lineTime);
         }
         mobileEntries.push({
             position: displayIndex,
-            time: display,
+            time: mobileDisplay,
             scramble: solve.scramble,
+            phaseSplits: formatMobilePhaseSplits(solve),
             date: isCompactSummary ? '' : formatMobilePreviewTimestamp(solve.timestamp),
             comment: modalCopyOptions.includeComments ? String(solve?.comment ?? '').trim() : '',
             solveId: solve.id,
@@ -1500,9 +1510,16 @@ function createMobileEntry(entry, { interactiveOverride = null } = {}) {
     scramble.className = 'modal-mobile-entry-scramble';
     scramble.textContent = entry.scramble;
 
+    const phaseSplits = document.createElement('div');
+    phaseSplits.className = 'modal-mobile-entry-phase-splits';
+    phaseSplits.textContent = entry.phaseSplits || '';
+    if (!entry.phaseSplits) {
+        phaseSplits.hidden = true;
+    }
+
     head.append(timeBlock);
     if (entry.date) head.append(date);
-    item.append(head, scramble);
+    item.append(head, scramble, phaseSplits);
     return item;
 }
 
@@ -1592,6 +1609,7 @@ function buildSolveDetailPayload(title, timeStr, solve, index, singleLabel, shar
             position: index + 1,
             time: timeStr,
             scramble: solve.scramble,
+            phaseSplits: formatMobilePhaseSplits(solve),
             date: formatMobilePreviewTimestamp(solve.timestamp),
             comment: '',
             compact: false,

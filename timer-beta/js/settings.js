@@ -26,12 +26,20 @@ export const AUTO_EXPORT_EVERY_100_SOLVES_NEVER = 'n';
 export const AUTO_EXPORT_EVERY_100_SOLVES_REMIND = 'a';
 export const AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE = 'ggl';
 export const AUTO_EXPORT_EVERY_100_SOLVES_FILE = 'f';
+export const TIME_TABLE_VERTICAL_GRID_LINES_OFF = 'off';
+export const TIME_TABLE_VERTICAL_GRID_LINES_MULTI_PHASE_ONLY = 'multi-phase-only';
+export const TIME_TABLE_VERTICAL_GRID_LINES_ON = 'on';
 const THEME_BASE_IDS = Object.freeze([THEME_DEFAULT_ID, THEME_OLED_ID]);
 const AUTO_EXPORT_EVERY_100_SOLVES_VALUES = new Set([
     AUTO_EXPORT_EVERY_100_SOLVES_NEVER,
     AUTO_EXPORT_EVERY_100_SOLVES_REMIND,
     AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE,
     AUTO_EXPORT_EVERY_100_SOLVES_FILE,
+]);
+const TIME_TABLE_VERTICAL_GRID_LINE_VALUES = new Set([
+    TIME_TABLE_VERTICAL_GRID_LINES_OFF,
+    TIME_TABLE_VERTICAL_GRID_LINES_MULTI_PHASE_ONLY,
+    TIME_TABLE_VERTICAL_GRID_LINES_ON,
 ]);
 const MAIN_STATS_SOURCE_TIME = 'time';
 
@@ -452,6 +460,16 @@ export function normalizeAutoExportEvery100Solves(
         : invalidValue;
 }
 
+function normalizeTimeTableVerticalGridLines(value) {
+    const normalized = typeof value === 'string'
+        ? value.trim().toLowerCase()
+        : String(value ?? '').trim().toLowerCase();
+
+    return TIME_TABLE_VERTICAL_GRID_LINE_VALUES.has(normalized)
+        ? normalized
+        : DEFAULTS.timeTableVerticalGridLines;
+}
+
 const DEFAULTS = {
     inspectionTime: 'off',  // 'off', '15s'
     inspectionAlerts: 'off', // 'off', 'voice', 'screen', 'both'
@@ -484,6 +502,7 @@ const DEFAULTS = {
     mainStatsSource: MAIN_STATS_SOURCE_TIME,
     solvesTableStat1: 'ao5',
     solvesTableStat2: 'ao12',
+    timeTableVerticalGridLines: TIME_TABLE_VERTICAL_GRID_LINES_MULTI_PHASE_ONLY,
     zenMode: false,
     cubeCollapsed: false,
     graphCollapsed: false,
@@ -844,6 +863,10 @@ function normalizeSessionSettingValue(key, value) {
         return value !== false;
     }
 
+    if (key === 'timeTableVerticalGridLines') {
+        return normalizeTimeTableVerticalGridLines(value);
+    }
+
     if (key === 'mainStatsSource') {
         if (value === MAIN_STATS_SOURCE_TIME) return MAIN_STATS_SOURCE_TIME;
 
@@ -935,6 +958,9 @@ class Settings extends EventEmitter {
         this._settings.mainStatsSource = normalizeSessionSettingValue(
             'mainStatsSource',
             this._settings.mainStatsSource,
+        );
+        this._settings.timeTableVerticalGridLines = normalizeTimeTableVerticalGridLines(
+            this._settings.timeTableVerticalGridLines,
         );
         this._settings.multiPhaseSoundEnabled = this._settings.multiPhaseSoundEnabled !== false;
         this._settings.solvesPanelWidthConstrained = this._settings.solvesPanelWidthConstrained === true;
@@ -1423,6 +1449,16 @@ class Settings extends EventEmitter {
             this._settings.multiPhaseSoundEnabled = nextEnabled;
             this._saveAndApply();
             this.emit('change', 'multiPhaseSoundEnabled', nextEnabled);
+            return;
+        }
+
+        if (key === 'timeTableVerticalGridLines') {
+            const nextMode = normalizeTimeTableVerticalGridLines(value);
+            if (this._settings.timeTableVerticalGridLines === nextMode) return;
+
+            this._settings.timeTableVerticalGridLines = nextMode;
+            this._saveAndApply();
+            this.emit('change', 'timeTableVerticalGridLines', nextMode);
             return;
         }
 
