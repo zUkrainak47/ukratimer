@@ -16,19 +16,15 @@
 }
 
 #timer-popup-overlay {
-    position: absolute;
-    left: 50%;
-    top: 0;
+    position: fixed;
+    left: var(--timer-popup-overlay-left, 50vw);
+    top: var(--timer-popup-overlay-top, 50vh);
     width: 0;
     height: 0;
-    font-size: var(--text-timer);
+    font-size: var(--timer-popup-overlay-font-size, var(--text-timer));
     overflow: visible;
     pointer-events: none;
     z-index: 60;
-}
-
-body.camera-background-active #center-panel > #timer-popup-overlay {
-    top: 25%;
 }
 
 #timer-delta {
@@ -517,31 +513,6 @@ body:not(.coarse-pointer) #manual-time-submit {
 
 body:not(.mobile-viewport) #inspection-cancel-wrap {
     display: none !important;
-}
-
-#center-panel:has(.timer-popup.visible),
-#center-panel.timer-popup-active {
-    z-index: 61;
-}
-
-/* Desktop only: let pointer events pass through center-panel so scramble text
-   remains hoverable/clickable beneath the elevated stacking context.
-   Mobile must NOT do this — touches on center-panel are needed to start the timer. */
-@media (pointer: fine) {
-    #center-panel:has(.timer-popup.visible),
-    #center-panel.timer-popup-active {
-        pointer-events: none;
-    }
-
-    #center-panel:has(.timer-popup.visible) > *,
-    #center-panel.timer-popup-active > * {
-        pointer-events: auto;
-    }
-}
-
-#timer-display-wrapper:has(.timer-popup.visible),
-#timer-display-wrapper.timer-popup-active {
-    z-index: 60;
 }
 
 .timer-action-btn {

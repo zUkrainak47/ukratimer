@@ -313,7 +313,6 @@ const popupState = {
     hardwareTimer: { elementId: 'hardware-timer-alert', hideTimeout: null, clearTimeout: null },
     backupReminder: { elementId: 'backup-reminder-alert', hideTimeout: null, clearTimeout: null },
 };
-const TIMER_POPUP_ACTIVE_CLASS = 'timer-popup-active';
 const TIMER_POPUP_ELEMENT_IDS = [
     'inspection-alert',
     'new-best-alert',
@@ -352,6 +351,8 @@ let phaseSplitDisplayHideTimeout = null;
 const PHASE_SPLIT_DISPLAY_FADE_OUT_MS = 220;
 
 function syncTimerPopupStacking() {
+    syncTimerPopupOverlayPlacement();
+
     const visiblePopupElements = [];
 
     TIMER_POPUP_ELEMENT_IDS.forEach((elementId) => {
@@ -378,10 +379,7 @@ function syncTimerPopupStacking() {
         }
     });
 
-    const hasVisiblePopup = visiblePopupElements.length > 0;
-    document.getElementById('center-panel')?.classList.toggle(TIMER_POPUP_ACTIVE_CLASS, hasVisiblePopup);
-    document.getElementById('timer-popup-overlay')?.classList.toggle(TIMER_POPUP_ACTIVE_CLASS, hasVisiblePopup);
-    document.getElementById('timer-display-wrapper')?.classList.toggle(TIMER_POPUP_ACTIVE_CLASS, hasVisiblePopup);
+    syncTimerPopupOverlayPosition();
 }
 const SUMMARY_STAT_PRESETS = {
     basic: ['mo3', 'ao5', 'ao12', 'ao100'],
@@ -2999,21 +2997,191 @@ function stopCameraBackgroundStream({ preserveError = false } = {}) {
 }
 
 function syncTimerPopupOverlayPlacement() {
+    syncTimerPopupOverlayPosition();
+}
+
+function resolveTimerLayoutTargets({
+    timerDisplayWrapper = getEl('timer-display-wrapper'),
+    timerDisplay = getEl('timer-display'),
+    quickActions = getEl('timer-quick-actions'),
+    rightPanel = getEl('right-panel'),
+    zenButton = getEl('btn-zen'),
+    scrambleContainer = getEl('scramble-container'),
+    scrambleText = getEl('scramble-text'),
+    scrambleTextWrapper = getEl('scramble-text-wrapper'),
+    cubeTimerSlot = getEl('cube-camera-timer-slot'),
+    graphTimerSlot = getEl('graph-camera-timer-slot'),
+} = {}) {
+    if (!timerDisplayWrapper) return null;
+
+    const state = timer.getState();
+    const isZen = document.body.classList.contains('zen');
+    const isSolving = document.body.classList.contains('solving');
+    const activeCameraTimerHost = [cubeTimerSlot, graphTimerSlot]
+        .find((slot) => slot?.contains(timerDisplayWrapper)) || null;
+    const isCameraTimerHost = document.body.classList.contains('camera-background-active')
+        && Boolean(activeCameraTimerHost);
+    const isMobileTimerView = mobileViewportQuery.matches && document.body.dataset.mobilePanel === 'timer';
+    const centerTimerEnabled = settings.get('centerTimer');
+    const hideUIWhileSolving = settings.get('hideUIWhileSolving');
+    const effectiveCenterTimer = mobileViewportQuery.matches ? centerTimerEnabled : (centerTimerEnabled && hideUIWhileSolving);
+    const shouldApplyMobileTimerPositioning = isMobileTimerView && (centerTimerEnabled || isZen);
+    const shouldFocusTimer = state === 'running' || state === 'ready' || isInspectionState(state);
+    const shouldViewportCenterTimer = shouldFocusTimer && (effectiveCenterTimer || (isMobileTimerView && isZen));
+    const shouldPositionIdleMobileTimer = shouldApplyMobileTimerPositioning && !shouldFocusTimer;
+    const shouldPositionMobileScramble = isMobileTimerView
+        && !isSolving
+        && scrambleContainer
+        && scrambleTextWrapper
+        && zenButton;
+    const shouldFreezeMobileManualEntryLayout = isMobileTimerView
+        && quickActionsState.manualEntryActive
+        && !isPersistentTypingEntryModeEnabled();
+
+    if (shouldFreezeMobileManualEntryLayout) {
+        return {
+            isMobileTimerView,
+            isSolving,
+            shouldFreezeMobileManualEntryLayout,
+            shouldPositionMobileScramble,
+            state,
+            targetScrambleCenterY: null,
+            targetTimerCenterY: null,
+            timerTransform: timerDisplayWrapper.style.transform || viewportLayoutState.timerTransform || '',
+        };
+    }
+
+    let targetTimerCenterY = null;
+    let targetTimerCenterX = null;
+    let targetTimerRect = null;
+    let targetScrambleCenterY = null;
+
+    if (shouldViewportCenterTimer) {
+        if (!isMobileTimerView && isCameraTimerHost) {
+            const hostRect = getLayoutRect(activeCameraTimerHost);
+            if (hostRect) {
+                targetTimerCenterX = hostRect.left + hostRect.width / 2;
+                targetTimerCenterY = hostRect.top + hostRect.height / 2;
+                targetTimerRect = getLayoutRect(timerDisplay || timerDisplayWrapper);
+            } else {
+                targetTimerCenterY = window.innerHeight / 2;
+            }
+        } else {
+            if (isMobileTimerView) targetTimerCenterX = window.innerWidth / 2;
+            targetTimerCenterY = window.innerHeight / 2;
+        }
+    } else if (isMobileTimerView && !shouldFocusTimer) {
+        const rightRect = rightPanel?.getBoundingClientRect();
+        const zenRect = zenButton?.getBoundingClientRect();
+        const scrambleRect = getLayoutRect(scrambleText || scrambleTextWrapper);
+        const timerRect = getLayoutRect(timerDisplay || timerDisplayWrapper);
+        const quickActionsRect = quickActions && !quickActions.hidden
+            ? getLayoutRect(quickActions)
+            : null;
+        const duetRect = combineLayoutRects(timerRect, quickActionsRect);
+        const zenCenterY = zenRect ? zenRect.top + zenRect.height / 2 : 0;
+        const freeBottom = rightRect?.top ?? window.innerHeight;
+        const preservedScrambleCenterY = scrambleRect
+            ? ((3 * zenCenterY) + (freeBottom - 12)) / 4
+            : zenCenterY;
+
+        if (isZen) {
+            if (mobileLandscapeQuery.matches) {
+                targetScrambleCenterY = preservedScrambleCenterY;
+            }
+            if (shouldPositionIdleMobileTimer) {
+                targetTimerCenterX = window.innerWidth / 2;
+                targetTimerCenterY = window.innerHeight / 2;
+            }
+        } else {
+            targetScrambleCenterY = preservedScrambleCenterY;
+            if (shouldPositionIdleMobileTimer) {
+                const scrambleBottom = scrambleRect
+                    ? preservedScrambleCenterY + (scrambleRect.height / 2)
+                    : zenCenterY;
+                targetTimerCenterY = (scrambleBottom + freeBottom) / 2;
+                targetTimerRect = duetRect || timerRect;
+            }
+        }
+    }
+
+    let timerTransform = '';
+
+    if (targetTimerCenterY != null) {
+        if (isMobileTimerView && shortMobileLandscapeQuery.matches && (state === 'idle' || state === 'stopped' || state === 'holding')) {
+            targetTimerCenterY += 30;
+        }
+
+        const targetRect = targetTimerRect || getLayoutRect(timerDisplay || timerDisplayWrapper);
+        if (targetRect) {
+            const timerCenterX = targetRect.left + targetRect.width / 2;
+            const timerCenterY = targetRect.top + targetRect.height / 2;
+            const offsetX = targetTimerCenterX != null && targetRect.width < window.innerWidth - 24
+                ? targetTimerCenterX - timerCenterX
+                : 0;
+            const offsetY = targetTimerCenterY - timerCenterY;
+            timerTransform = `translate(${Math.round(offsetX * 10) / 10}px, ${Math.round(offsetY * 10) / 10}px)`;
+        }
+    }
+
+    return {
+        isMobileTimerView,
+        isSolving,
+        shouldFreezeMobileManualEntryLayout,
+        shouldPositionMobileScramble,
+        state,
+        targetScrambleCenterY,
+        targetTimerCenterY,
+        timerTransform,
+    };
+}
+
+function syncTimerPopupOverlayPosition() {
+    const overlay = getEl('timer-popup-overlay');
+    if (!overlay) return;
+
     const centerPanel = getEl('center-panel');
     const timerDisplayWrapper = getEl('timer-display-wrapper');
-    const timerDisplayStack = getEl('timer-display-stack');
-    const overlay = getEl('timer-popup-overlay');
-    if (!centerPanel || !timerDisplayWrapper || !timerDisplayStack || !overlay) return;
 
-    const shouldDetachOverlay = wantsCameraBackground();
-    const targetParent = shouldDetachOverlay ? centerPanel : timerDisplayWrapper;
+    if (document.body && overlay.parentElement !== document.body) {
+        document.body.appendChild(overlay);
+    }
 
-    if (overlay.parentElement !== targetParent) {
-        if (shouldDetachOverlay) {
-            centerPanel.insertBefore(overlay, getEl('center-panel-timer-slot') || null);
-        } else {
-            timerDisplayWrapper.insertBefore(overlay, timerDisplayStack);
-        }
+    if (!centerPanel || !timerDisplayWrapper) {
+        overlay.style.visibility = 'hidden';
+        return;
+    }
+
+    const timerFontSize = getComputedStyle(timerDisplayWrapper).fontSize;
+    if (timerFontSize) {
+        overlay.style.setProperty('--timer-popup-overlay-font-size', timerFontSize);
+    }
+
+    const usesCameraAnchor = wantsCameraBackground();
+    const anchorRect = usesCameraAnchor
+        ? (getLayoutRect(centerPanel) || centerPanel.getBoundingClientRect())
+        : (getLayoutRect(timerDisplayWrapper) || timerDisplayWrapper.getBoundingClientRect());
+    if (!anchorRect || (!anchorRect.width && !anchorRect.height)) {
+        overlay.style.visibility = 'hidden';
+        return;
+    }
+
+    overlay.style.removeProperty('visibility');
+
+    const targetTransform = usesCameraAnchor
+        ? ''
+        : (resolveTimerLayoutTargets({ timerDisplayWrapper })?.timerTransform || '');
+    const targetTranslate = getTransformTranslate(targetTransform);
+    const anchorLeft = anchorRect.left + (anchorRect.width / 2);
+    const anchorTop = usesCameraAnchor
+        ? anchorRect.top + (anchorRect.height * 0.25)
+        : anchorRect.top;
+
+    if (Number.isFinite(anchorLeft)) {
+        overlay.style.setProperty('--timer-popup-overlay-left', `${Math.round((anchorLeft + targetTranslate.x) * 10) / 10}px`);
+    }
+    if (Number.isFinite(anchorTop)) {
+        overlay.style.setProperty('--timer-popup-overlay-top', `${Math.round((anchorTop + targetTranslate.y) * 10) / 10}px`);
     }
 }
 
@@ -4049,6 +4217,7 @@ function scheduleViewportLayoutSync() {
         viewportLayoutFrame = null;
         syncViewportLayout();
         syncPhaseSplitDisplayPosition();
+        syncTimerPopupOverlayPosition();
     });
 }
 
@@ -4366,6 +4535,15 @@ function getTransformTranslate(transformValue) {
         };
     }
 
+    const translateMatch = transformValue.match(/^translate(?:3d)?\((.+)\)$/);
+    if (translateMatch) {
+        const values = translateMatch[1].split(',').map((value) => Number.parseFloat(value.trim()));
+        return {
+            x: values[0] || 0,
+            y: values[1] || 0,
+        };
+    }
+
     return { x: 0, y: 0 };
 }
 
@@ -4586,110 +4764,44 @@ function syncViewportLayout() {
 
     if (!timerDisplayWrapper) return;
 
-    const state = timer.getState();
-    const isZen = document.body.classList.contains('zen');
-    const isSolving = document.body.classList.contains('solving');
-    const activeCameraTimerHost = [cubeTimerSlot, graphTimerSlot]
-        .find((slot) => slot?.contains(timerDisplayWrapper)) || null;
-    const isCameraTimerHost = document.body.classList.contains('camera-background-active')
-        && Boolean(activeCameraTimerHost);
-    const isMobileTimerView = mobileViewportQuery.matches && document.body.dataset.mobilePanel === 'timer';
-    const centerTimerEnabled = settings.get('centerTimer');
-    const hideUIWhileSolving = settings.get('hideUIWhileSolving');
-    const effectiveCenterTimer = mobileViewportQuery.matches ? centerTimerEnabled : (centerTimerEnabled && hideUIWhileSolving);
-    const shouldApplyMobileTimerPositioning = isMobileTimerView && (centerTimerEnabled || isZen);
-    const shouldFocusTimer = state === 'running' || state === 'ready' || isInspectionState(state);
-    const shouldViewportCenterTimer = shouldFocusTimer && (effectiveCenterTimer || (isMobileTimerView && isZen));
-    const shouldPositionIdleMobileTimer = shouldApplyMobileTimerPositioning && !shouldFocusTimer;
-    const shouldPositionMobileScramble = isMobileTimerView
-        && !isSolving
-        && scrambleContainer
-        && scrambleTextWrapper
-        && zenButton;
-    const shouldFreezeMobileManualEntryLayout = isMobileTimerView
-        && quickActionsState.manualEntryActive
-        && !isPersistentTypingEntryModeEnabled();
+    const timerLayoutTargets = resolveTimerLayoutTargets({
+        timerDisplayWrapper,
+        timerDisplay,
+        quickActions,
+        rightPanel,
+        zenButton,
+        scrambleContainer,
+        scrambleText,
+        scrambleTextWrapper,
+        cubeTimerSlot,
+        graphTimerSlot,
+    });
+    if (!timerLayoutTargets) return;
 
-    let targetTimerCenterY = null;
-    let targetTimerCenterX = null;
-    let targetTimerRect = null;
-    let targetScrambleCenterY = null;
+    const {
+        isMobileTimerView,
+        isSolving,
+        shouldFreezeMobileManualEntryLayout,
+        shouldPositionMobileScramble,
+        state,
+        targetScrambleCenterY,
+        targetTimerCenterY,
+        timerTransform,
+    } = timerLayoutTargets;
 
-    if (shouldFreezeMobileManualEntryLayout) return;
-
-    if (shouldViewportCenterTimer) {
-        if (!isMobileTimerView && isCameraTimerHost) {
-            const hostRect = getLayoutRect(activeCameraTimerHost);
-            if (hostRect) {
-                targetTimerCenterX = hostRect.left + hostRect.width / 2;
-                targetTimerCenterY = hostRect.top + hostRect.height / 2;
-                targetTimerRect = getLayoutRect(timerDisplay || timerDisplayWrapper);
-            } else {
-                targetTimerCenterY = window.innerHeight / 2;
-            }
-        } else {
-            if (isMobileTimerView) targetTimerCenterX = window.innerWidth / 2;
-            targetTimerCenterY = window.innerHeight / 2;
-        }
-    } else if (isMobileTimerView && !shouldFocusTimer) {
-        const rightRect = rightPanel?.getBoundingClientRect();
-        const zenRect = zenButton?.getBoundingClientRect();
-        const scrambleRect = getLayoutRect(scrambleText || scrambleTextWrapper);
-        const timerRect = getLayoutRect(timerDisplay || timerDisplayWrapper);
-        const quickActionsRect = quickActions && !quickActions.hidden
-            ? getLayoutRect(quickActions)
-            : null;
-        const duetRect = combineLayoutRects(timerRect, quickActionsRect);
-        const zenCenterY = zenRect ? zenRect.top + zenRect.height / 2 : 0;
-        const freeBottom = rightRect?.top ?? window.innerHeight;
-        const preservedScrambleCenterY = scrambleRect
-            ? ((3 * zenCenterY) + (freeBottom - 12)) / 4
-            : zenCenterY;
-        if (isZen) {
-            if (mobileLandscapeQuery.matches) {
-                targetScrambleCenterY = preservedScrambleCenterY;
-            }
-            if (shouldPositionIdleMobileTimer) {
-                targetTimerCenterX = window.innerWidth / 2;
-                targetTimerCenterY = window.innerHeight / 2;
-            }
-        } else {
-            targetScrambleCenterY = preservedScrambleCenterY;
-            if (shouldPositionIdleMobileTimer) {
-                const scrambleBottom = scrambleRect
-                    ? preservedScrambleCenterY + (scrambleRect.height / 2)
-                    : zenCenterY;
-                targetTimerCenterY = (scrambleBottom + freeBottom) / 2;
-                targetTimerRect = duetRect || timerRect;
-            }
-        }
+    if (shouldFreezeMobileManualEntryLayout) {
+        syncTimerPopupOverlayPosition();
+        return;
     }
 
-    if (targetTimerCenterY != null) {
-        if (isMobileTimerView && shortMobileLandscapeQuery.matches && (state === 'idle' || state === 'stopped' || state === 'holding')) {
-            targetTimerCenterY += 30;
-        }
-        const targetRect = targetTimerRect || getLayoutRect(timerDisplay || timerDisplayWrapper);
-        const timerCenterX = targetRect.left + targetRect.width / 2;
-        const timerCenterY = targetRect.top + targetRect.height / 2;
-        const offsetX = targetTimerCenterX != null && targetRect.width < window.innerWidth - 24
-            ? targetTimerCenterX - timerCenterX
-            : 0;
-        const offsetY = targetTimerCenterY - timerCenterY;
-        applyCachedTransform(
-            timerDisplayWrapper,
-            'timerTransform',
-            `translate(${Math.round(offsetX * 10) / 10}px, ${Math.round(offsetY * 10) / 10}px)`,
-        );
-    } else {
-        applyCachedTransform(timerDisplayWrapper, 'timerTransform', '');
-    }
+    applyCachedTransform(timerDisplayWrapper, 'timerTransform', timerTransform);
 
     syncDesktopLargeScrambleTextFit();
     syncScrambleSurfaceFrame(scrambleTextWrapper);
 
     if (shouldApplyFrozenMobileScrambleLayout()) {
         applyCachedTransform(scrambleContainer, 'scrambleTransform', mobileScrambleFreezeState.transform);
+        syncTimerPopupOverlayPosition();
         return;
     }
 
@@ -4698,6 +4810,7 @@ function syncViewportLayout() {
         if (isMobileTimerView && !mobileScrambleFreezeState.locked && (state === 'idle' || state === 'stopped')) {
             captureMobileScrambleLayoutSnapshot();
         }
+        syncTimerPopupOverlayPosition();
         return;
     }
 
@@ -4723,6 +4836,7 @@ function syncViewportLayout() {
     if (isMobileTimerView && !mobileScrambleFreezeState.locked && (state === 'idle' || state === 'stopped')) {
         captureMobileScrambleLayoutSnapshot();
     }
+    syncTimerPopupOverlayPosition();
 }
 
 function setActiveMobilePanel(panel) {
