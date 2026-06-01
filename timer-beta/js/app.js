@@ -4348,9 +4348,13 @@ function syncDesktopScrambleBounds() {
     const rightPanelRect = getVisibleLayoutRectById('right-panel');
     const rootStyles = getComputedStyle(document.documentElement);
     const sidebarWidth = parseFloat(rootStyles.getPropertyValue('--sidebar-width')) || 300;
+    const rightPanelWidth = parseFloat(rootStyles.getPropertyValue('--right-panel-width')) || 300;
     const panelScale = parseFloat(rootStyles.getPropertyValue('--desktop-panel-scale')) || 1;
     const leftPanelAnchorRight = leftPanelRect
         ? leftPanelRect.left + (sidebarWidth * panelScale)
+        : null;
+    const rightPanelAnchorLeft = rightPanelRect
+        ? rightPanelRect.right - (rightPanelWidth * panelScale)
         : null;
     const leadingTopControls = [
         'btn-settings',
@@ -4407,6 +4411,14 @@ function syncDesktopScrambleBounds() {
         }
     } else {
         nextWidth = scrambleBarInnerWidth;
+        const panelMargin = 24;
+        if (leftPanelAnchorRight != null && rightPanelAnchorLeft != null) {
+            nextWidth = Math.min(
+                nextWidth,
+                Math.max(0, rightPanelAnchorLeft - leftPanelAnchorRight - (panelMargin * 2)),
+            );
+        }
+
         const halfWidthLimit = Math.max(
             0,
             Math.min(
