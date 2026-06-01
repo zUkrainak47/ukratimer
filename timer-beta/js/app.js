@@ -4343,7 +4343,6 @@ function syncDesktopScrambleBounds() {
     const scrambleContainerRect = scrambleContainer.getBoundingClientRect();
     const centerX = scrambleBarRect.left + (scrambleBarRect.width / 2);
     const controlGap = 16;
-    const desktopScrambleMaxWidth = 660;
     const minimumTopRightButtonCount = 2;
     const topRightButtonSlotPitch = 36;
     const leftLimit = scrambleBarRect.left + paddingLeft;
@@ -4433,7 +4432,7 @@ function syncDesktopScrambleBounds() {
         nextWidth = Math.min(nextWidth, Math.floor(halfWidthLimit * 2));
     }
 
-    const nextWidthPx = Math.round(Math.min(nextWidth, desktopScrambleMaxWidth));
+    const nextWidthPx = Math.round(Math.max(0, nextWidth));
     const centerRelativeX = centerX - scrambleContainerRect.left;
     const textLeftEdge = centerRelativeX - (nextWidthPx / 2);
     const textRightEdge = centerRelativeX + (nextWidthPx / 2);
@@ -14989,6 +14988,19 @@ function initSettingsPanel() {
         syncSettingsRowSeparators();
     };
 
+    const updateMultiPhaseDetailVisibility = () => {
+        const showDetailSettings = getConfiguredPhaseCount() > 1;
+        [
+            document.getElementById('setting-multi-phase-hide-splits')?.closest('.setting-row'),
+            document.getElementById('setting-multi-phase-sound')?.closest('.setting-row'),
+        ].forEach((row) => {
+            if (!row) return;
+            row.hidden = !showDetailSettings;
+            row.style.display = showDetailSettings ? '' : 'none';
+        });
+        syncSettingsRowSeparators();
+    };
+
     const updateTimeEntryVisibility = () => {
         if (!timeEntryRow) return;
         timeEntryRow.style.display = '';
@@ -15072,6 +15084,7 @@ function initSettingsPanel() {
         });
         updateCenterTimerState();
         updateTimeEntryVisibility();
+        updateMultiPhaseDetailVisibility();
         syncScopeModeHardwareButtons();
         syncSummarySettingsUI();
         syncSettingsRowSeparators();
@@ -15169,6 +15182,10 @@ function initSettingsPanel() {
         syncSettingScopeControls();
         syncScopedControlValues();
     });
+    settings.on('reset', () => {
+        syncSettingScopeControls();
+        syncScopedControlValues();
+    });
 
     if (hideUIToggle) {
         hideUIToggle.checked = settings.get('hideUIWhileSolving');
@@ -15184,6 +15201,7 @@ function initSettingsPanel() {
     updateCenterTimerState();
     updateSwipeDownGestureVisibility();
     updateBackgroundSpacebarVisibility();
+    updateMultiPhaseDetailVisibility();
     updateTimeEntryVisibility();
     syncScopeModeHardwareButtons();
     syncCameraBackgroundSettingControls();
@@ -15192,6 +15210,7 @@ function initSettingsPanel() {
         updateCenterTimerState();
         updateSwipeDownGestureVisibility();
         updateBackgroundSpacebarVisibility();
+        updateMultiPhaseDetailVisibility();
         updateTimeEntryVisibility();
         syncScopeModeHardwareButtons();
         void syncCameraBackgroundMode();
