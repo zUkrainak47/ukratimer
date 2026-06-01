@@ -1,7 +1,7 @@
 import { timer, State as TimerState } from './timer.js?v=2026060101';
 import { SCRAMBLE_TYPE_OPTIONS, generateScrambleBatchForType, generateScrambleForType, getScramble, getCurrentScramble, getCurrentScrambleType, getPrevScramble, getNextScramble, getSelectedScrambleType, setCurrentScramble, setScrambleType, isCurrentScrambleManual, hasPrevScramble, isViewingPreviousScramble, preloadScrambleEngines, needsCubingWarmup, runCubingWarmup } from './scramble.js?v=2026060101';
 import { sessionManager } from './session.js?v=2026060101';
-import { settings, DEFAULTS, THEME_OPTIONS, THEME_COLOR_SECTIONS, THEME_DEFAULT_ID, THEME_OLED_ID, THEME_CUSTOM_IDS, SETTING_SCOPE_GLOBAL, SETTING_SCOPE_SESSION, SESSION_SCOPABLE_SETTING_KEYS, AUTO_EXPORT_EVERY_100_SOLVES_NEVER, AUTO_EXPORT_EVERY_100_SOLVES_REMIND, AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE, AUTO_EXPORT_EVERY_100_SOLVES_FILE, composeThemeColor, decomposeThemeColor, getLinkedSessionScopeKeys, getThemePresetColors, isCustomThemeId, normalizeAutoExportEvery100Solves } from './settings.js?v=2026060101';
+import { settings, DEFAULTS, THEME_OPTIONS, THEME_COLOR_SECTIONS, THEME_DEFAULT_ID, THEME_OLED_ID, THEME_CUSTOM_IDS, SETTING_SCOPE_GLOBAL, SETTING_SCOPE_SESSION, SESSION_SCOPABLE_SETTING_KEYS, AUTO_EXPORT_EVERY_100_SOLVES_NEVER, AUTO_EXPORT_EVERY_100_SOLVES_REMIND, AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE, AUTO_EXPORT_EVERY_100_SOLVES_FILE, composeThemeColor, decomposeThemeColor, getLinkedSessionScopeKeys, getThemePresetColors, isCustomThemeId, isInspectionTimeEnabled, normalizeAutoExportEvery100Solves } from './settings.js?v=2026060101';
 import { buildRollingBestFlags, buildRollingStatValues, parseGraphStatType, parseRollingStatType, rollingStatAt, StatsCache } from './stats.js?v=2026060101';
 import { formatTime, formatSolveTime, formatSolveTimeWithSplits, formatTimerDisplayTime, getEffectiveTime, getSolvePhaseSplits, normalizePhaseCount, formatDate, formatDateTime, parseTimeInputToMs, truncateTimeDisplay } from './utils.js?v=2026060101';
 import { initModal, showSolveDetail, showAverageDetail, closeModal, closeMoveSessionMenus, customConfirm, customConfirmChoice, customPrompt, getModalSelectionContext, setModalStatNavigator, setModalStatButtons, armModalGhostClickGuard } from './modal.js?v=2026060101';
@@ -1636,7 +1636,7 @@ function shouldShowInspectionSpeechUnlockPrompt() {
     if (inspectionSpeechUnlockState.dismissed) return false;
     const timerState = timer.getState();
     if (timerState !== 'idle' && timerState !== 'stopped') return false;
-    if (settings.get('inspectionTime') !== '15s') return false;
+    if (!isInspectionTimeEnabled(settings.get('inspectionTime'))) return false;
 
     const alertMode = settings.get('inspectionAlerts');
     return alertMode === 'voice' || alertMode === 'both';
@@ -8951,7 +8951,7 @@ function handleStackmatPacket(packet) {
         return;
     }
 
-    const inspectionEnabled = settings.get('inspectionTime') === '15s';
+    const inspectionEnabled = isInspectionTimeEnabled(settings.get('inspectionTime'));
     const timerState = timer.getState();
     const displayText = formatHardwareTimeDisplay(packet.timeMs);
 
@@ -9024,7 +9024,7 @@ function handleBluetoothTimerEvent(event) {
             timer.startExternalInspection({ elapsedMs: solveTime });
             break;
         case BluetoothTimerState.GAN_RESET:
-            if (settings.get('inspectionTime') === '15s' && (timer.getState() === TimerState.IDLE || timer.getState() === TimerState.STOPPED)) {
+            if (isInspectionTimeEnabled(settings.get('inspectionTime')) && (timer.getState() === TimerState.IDLE || timer.getState() === TimerState.STOPPED)) {
                 timer.startExternalInspection();
             } else if (timer.getState() !== TimerState.RUNNING) {
                 timer.setExternalState(TimerState.IDLE, { displayText: '0.00' });
@@ -13212,12 +13212,11 @@ function initSettingsPanel() {
         }
     });
 
-    // WCA inspection toggle
-    const inspectionTimeToggle = document.getElementById('setting-inspection-time');
-    inspectionTimeToggle.checked = settings.get('inspectionTime') === '15s';
-    inspectionTimeToggle.onchange = () => {
-        settings.set('inspectionTime', inspectionTimeToggle.checked ? '15s' : 'off');
-        inspectionTimeToggle.blur();
+    const inspectionTimeSelect = document.getElementById('setting-inspection-time');
+    inspectionTimeSelect.value = settings.get('inspectionTime');
+    inspectionTimeSelect.onchange = () => {
+        settings.set('inspectionTime', inspectionTimeSelect.value);
+        inspectionTimeSelect.blur();
     };
 
     const inspectionAlertsSelect = document.getElementById('setting-inspection-alerts');
@@ -15020,7 +15019,7 @@ function initSettingsPanel() {
         { key: 'showDelta', controlId: 'setting-show-delta' },
         { key: 'deltaReference', controlId: 'setting-delta-reference', read: () => String(settings.get('deltaReference') || '') },
         { key: 'newBestPopupEnabled', controlId: 'setting-new-best-popup' },
-        { key: 'inspectionTime', controlId: 'setting-inspection-time', read: () => settings.get('inspectionTime') === '15s' },
+        { key: 'inspectionTime', controlId: 'setting-inspection-time' },
         { key: 'inspectionAlerts', controlId: 'setting-inspection-alerts' },
         { key: 'hideUIWhileSolving', controlId: 'setting-hide-ui' },
         { key: 'centerTimer', controlId: 'setting-center-timer' },

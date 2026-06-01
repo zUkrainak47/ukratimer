@@ -31,6 +31,9 @@ const AUTO_EXPORT_EVERY_100_SOLVES_NEVER = 'n';
 const AUTO_EXPORT_EVERY_100_SOLVES_REMIND = 'a';
 const AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE = 'ggl';
 const AUTO_EXPORT_EVERY_100_SOLVES_FILE = 'f';
+const INSPECTION_TIME_OFF = 'off';
+const INSPECTION_TIME_COUNT_UP = 'ap';
+const INSPECTION_TIME_COUNT_DOWN = 'a';
 const LEGACY_AUTO_EXPORT_EVERY_100_SOLVES_KEY = 'googleDriveBackupReminderEvery100Solves';
 const LEGACY_AUTO_EXPORT_CHECKPOINT_SOLVE_COUNT_KEY = 'googleDriveBackupCheckpointSolveCount';
 const LEGACY_AUTO_EXPORT_LAST_REMINDER_SOLVE_COUNT_KEY = 'googleDriveBackupLastReminderSolveCount';
@@ -39,6 +42,11 @@ const AUTO_EXPORT_EVERY_100_SOLVES_VALUES = new Set([
     AUTO_EXPORT_EVERY_100_SOLVES_REMIND,
     AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE,
     AUTO_EXPORT_EVERY_100_SOLVES_FILE,
+]);
+const INSPECTION_TIME_VALUES = new Set([
+    INSPECTION_TIME_OFF,
+    INSPECTION_TIME_COUNT_UP,
+    INSPECTION_TIME_COUNT_DOWN,
 ]);
 
 export function registerBeforeDataExportHook(callback) {
@@ -194,6 +202,34 @@ function _normalizeAutoExportEvery100Solves(
         : invalidValue;
 }
 
+function _normalizeInspectionTime(value) {
+    if (value === true) return INSPECTION_TIME_COUNT_UP;
+    if (value === false || value == null) return INSPECTION_TIME_OFF;
+
+    const normalized = typeof value === 'string'
+        ? value.trim().toLowerCase()
+        : String(value).trim().toLowerCase();
+
+    if (normalized === '15s' || normalized === 'count-up' || normalized === 'counting-up') {
+        return INSPECTION_TIME_COUNT_UP;
+    }
+    if (normalized === 'count-down' || normalized === 'counting-down') {
+        return INSPECTION_TIME_COUNT_DOWN;
+    }
+    return INSPECTION_TIME_VALUES.has(normalized)
+        ? normalized
+        : INSPECTION_TIME_OFF;
+}
+
+function _isInspectionTimeEnabled(value) {
+    return _normalizeInspectionTime(value) !== INSPECTION_TIME_OFF;
+}
+
+function _mapInspectionTimeToCsTimerUseIns(value) {
+    const inspectionTime = _normalizeInspectionTime(value);
+    return inspectionTime === INSPECTION_TIME_OFF ? 'n' : inspectionTime;
+}
+
 function _sanitizeAutoExportEvery100SolvesSetting(settingsData) {
     const source = settingsData && typeof settingsData === 'object' ? settingsData : {};
     const sanitized = { ...source };
@@ -209,6 +245,7 @@ function _sanitizeAutoExportEvery100SolvesSetting(settingsData) {
 
 function _sanitizeAutoExportSequenceSettings(settingsData, { minimumSolveSequence = 0 } = {}) {
     const sanitized = _sanitizeAutoExportEvery100SolvesSetting(settingsData);
+    sanitized.inspectionTime = _normalizeInspectionTime(sanitized.inspectionTime);
     const legacyCheckpointSolveSequence = _normalizeNonNegativeInteger(
         sanitized[LEGACY_AUTO_EXPORT_CHECKPOINT_SOLVE_COUNT_KEY],
         0,
@@ -294,6 +331,10 @@ function _stampAutoExportSequenceSettings(settingsData, solveSequence = 0) {
 function _sanitizeSessionSettingsForTransport(sessionSettings) {
     const source = sessionSettings && typeof sessionSettings === 'object' ? sessionSettings : {};
     const sanitized = { ...source };
+
+    if (_hasOwn(sanitized, 'inspectionTime')) {
+        sanitized.inspectionTime = _normalizeInspectionTime(sanitized.inspectionTime);
+    }
 
     LOCAL_ONLY_SESSION_SETTING_KEYS.forEach((key) => {
         delete sanitized[key];
@@ -2336,7 +2377,7 @@ function _buildCsTimerCompatibleProperties(settingsData, { includeBackgroundImag
     const statsSource = _mapInternalMainStatsSourceToCsTimer(settingsData?.mainStatsSource);
 
     return {
-        useIns: settingsData?.inspectionTime === '15s' ? 'ap' : 'n',
+        useIns: _mapInspectionTimeToCsTimerUseIns(settingsData?.inspectionTime),
         voiceIns: settingsData?.inspectionAlerts === 'voice' || settingsData?.inspectionAlerts === 'both' ? '1' : 'n',
         timeU,
         input: settingsData?.timeEntryMode === 'typing'
@@ -2575,7 +2616,11 @@ function _deriveSettingsFromCsTimerProperties(properties) {
     };
 
     if (_hasOwn(properties, 'useIns')) {
-        settingsData.inspectionTime = properties?.useIns === 'n' ? 'off' : '15s';
+        settingsData.inspectionTime = properties?.useIns === 'n'
+            ? INSPECTION_TIME_OFF
+            : (_isInspectionTimeEnabled(properties?.useIns)
+                ? _normalizeInspectionTime(properties.useIns)
+                : INSPECTION_TIME_COUNT_UP);
     }
 
     if (_hasOwn(properties, 'voiceIns')) {

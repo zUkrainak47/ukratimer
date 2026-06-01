@@ -26,6 +26,9 @@ export const AUTO_EXPORT_EVERY_100_SOLVES_NEVER = 'n';
 export const AUTO_EXPORT_EVERY_100_SOLVES_REMIND = 'a';
 export const AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE = 'ggl';
 export const AUTO_EXPORT_EVERY_100_SOLVES_FILE = 'f';
+export const INSPECTION_TIME_OFF = 'off';
+export const INSPECTION_TIME_COUNT_UP = 'ap';
+export const INSPECTION_TIME_COUNT_DOWN = 'a';
 export const TIME_TABLE_VERTICAL_GRID_LINES_OFF = 'off';
 export const TIME_TABLE_VERTICAL_GRID_LINES_MULTI_PHASE_ONLY = 'multi-phase-only';
 export const TIME_TABLE_VERTICAL_GRID_LINES_ON = 'on';
@@ -35,6 +38,11 @@ const AUTO_EXPORT_EVERY_100_SOLVES_VALUES = new Set([
     AUTO_EXPORT_EVERY_100_SOLVES_REMIND,
     AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE,
     AUTO_EXPORT_EVERY_100_SOLVES_FILE,
+]);
+const INSPECTION_TIME_VALUES = new Set([
+    INSPECTION_TIME_OFF,
+    INSPECTION_TIME_COUNT_UP,
+    INSPECTION_TIME_COUNT_DOWN,
 ]);
 const TIME_TABLE_VERTICAL_GRID_LINE_VALUES = new Set([
     TIME_TABLE_VERTICAL_GRID_LINES_OFF,
@@ -460,6 +468,33 @@ export function normalizeAutoExportEvery100Solves(
         : invalidValue;
 }
 
+export function normalizeInspectionTime(value) {
+    if (value === true) return INSPECTION_TIME_COUNT_UP;
+    if (value === false || value == null) return INSPECTION_TIME_OFF;
+
+    const normalized = typeof value === 'string'
+        ? value.trim().toLowerCase()
+        : String(value).trim().toLowerCase();
+
+    if (normalized === '15s' || normalized === 'count-up' || normalized === 'counting-up') {
+        return INSPECTION_TIME_COUNT_UP;
+    }
+    if (normalized === 'count-down' || normalized === 'counting-down') {
+        return INSPECTION_TIME_COUNT_DOWN;
+    }
+    return INSPECTION_TIME_VALUES.has(normalized)
+        ? normalized
+        : INSPECTION_TIME_OFF;
+}
+
+export function isInspectionTimeEnabled(value) {
+    return normalizeInspectionTime(value) !== INSPECTION_TIME_OFF;
+}
+
+export function isInspectionTimeCountingDown(value) {
+    return normalizeInspectionTime(value) === INSPECTION_TIME_COUNT_DOWN;
+}
+
 function normalizeTimeTableVerticalGridLines(value) {
     const normalized = typeof value === 'string'
         ? value.trim().toLowerCase()
@@ -471,7 +506,7 @@ function normalizeTimeTableVerticalGridLines(value) {
 }
 
 const DEFAULTS = {
-    inspectionTime: 'off',  // 'off', '15s'
+    inspectionTime: INSPECTION_TIME_OFF,  // 'off', 'ap' counting up, 'a' counting down
     inspectionAlerts: 'off', // 'off', 'voice', 'screen', 'both'
     timerUpdate: '0.01s',   // 'none', 'inspection', '1s', '0.1s', '0.01s'
     timeEntryMode: TIME_ENTRY_MODE_TIMER, // 'timer', 'typing', 'stackmat', 'bluetooth'
@@ -852,6 +887,10 @@ function cloneSettingValue(value) {
 function normalizeSessionSettingValue(key, value) {
     if (!SESSION_SCOPABLE_SETTING_KEY_SET.has(key)) return undefined;
 
+    if (key === 'inspectionTime') {
+        return normalizeInspectionTime(value);
+    }
+
     if (key === 'timeEntryMode') {
         return normalizeTimeEntryMode(value);
     }
@@ -956,6 +995,7 @@ class Settings extends EventEmitter {
                 : loaded.googleDriveBackupReminderEvery100Solves,
             { defaultValue: DEFAULTS.autoExportEvery100Solves },
         );
+        this._settings.inspectionTime = normalizeInspectionTime(this._settings.inspectionTime);
         this._settings.multiPhaseCount = normalizePhaseCount(
             this._settings.multiPhaseCount,
             DEFAULTS.multiPhaseCount,
@@ -1435,6 +1475,16 @@ class Settings extends EventEmitter {
             this._settings.timeEntryMode = nextTimeEntryMode;
             this._saveAndApply();
             this.emit('change', 'timeEntryMode', nextTimeEntryMode);
+            return;
+        }
+
+        if (key === 'inspectionTime') {
+            const nextInspectionTime = normalizeInspectionTime(value);
+            if (this._settings.inspectionTime === nextInspectionTime) return;
+
+            this._settings.inspectionTime = nextInspectionTime;
+            this._saveAndApply();
+            this.emit('change', 'inspectionTime', nextInspectionTime);
             return;
         }
 

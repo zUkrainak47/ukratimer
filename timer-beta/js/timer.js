@@ -1,4 +1,4 @@
-import { settings } from './settings.js?v=2026060101';
+import { isInspectionTimeCountingDown, isInspectionTimeEnabled, settings } from './settings.js?v=2026060101';
 import { isHardwareTimeEntryMode, TIME_ENTRY_MODE_TIMER, TIME_ENTRY_MODE_TYPING } from './time-entry.js?v=2026060101';
 import { EventEmitter, formatTime, normalizePhaseCount, truncateTimeDisplay } from './utils.js?v=2026060101';
 
@@ -529,7 +529,7 @@ class Timer extends EventEmitter {
         this._setColor(State.INSPECTING);
 
         if (this._shouldShowInspectionCount()) {
-            this._updateDisplay('0');
+            this._updateDisplay(this._formatInspectionDisplay(0));
         } else {
             this._updateDisplay('Inspect');
         }
@@ -775,7 +775,7 @@ class Timer extends EventEmitter {
     }
 
     _inspectionEnabled() {
-        return settings.get('inspectionTime') === '15s';
+        return isInspectionTimeEnabled(settings.get('inspectionTime'));
     }
 
     _shouldShowInspectionCount() {
@@ -796,6 +796,9 @@ class Timer extends EventEmitter {
     _formatInspectionDisplay(elapsed) {
         const penalty = this._getInspectionPenalty(elapsed);
         if (penalty) return penalty;
+        if (isInspectionTimeCountingDown(settings.get('inspectionTime'))) {
+            return String(Math.max(0, 15 - Math.floor(elapsed / 1000)));
+        }
         return String(Math.floor(elapsed / 1000));
     }
 
