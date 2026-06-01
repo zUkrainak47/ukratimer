@@ -17,6 +17,13 @@ function freezeChangelogEntry(entry) {
 
 export const CHANGELOG_ENTRIES = Object.freeze([
     {
+        id: '2026-06-01-multi-phase',
+        date: '2026-06-01',
+        title: 'Multiphase',
+        summary: 'You can now time each phase of your solve separately.'
+    },
+
+    {
         id: '2026-05-22-streak-heatmap',
         date: '2026-05-22',
         title: 'Daily Streak Calendar',
