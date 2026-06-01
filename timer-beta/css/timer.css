@@ -932,6 +932,40 @@ body.solving .phase-splits-display.phase-splits-live.is-visible {
     left: 50%;
     top: var(--phase-splits-desktop-center-y, calc(100% + clamp(64px, 12vh, 144px)));
     transform: translate(-50%, -50%);
+    min-height: 1.5em;
+    line-height: 1.5;
+}
+
+body.camera-background-live:not(.mobile-viewport) .phase-splits-display-desktop {
+    isolation: isolate;
+    opacity: 1;
+    visibility: visible;
+}
+
+body.camera-background-live:not(.mobile-viewport) .phase-splits-display-desktop[hidden] {
+    display: flex !important;
+}
+
+body.camera-background-live:not(.mobile-viewport) .phase-splits-display-desktop::before {
+    content: '';
+    position: absolute;
+    inset: -8px -14px;
+    border-radius: 16px;
+    background:
+        linear-gradient(180deg, var(--panel-sheen), var(--panel-sheen-fade)),
+        rgba(24, 29, 35, 0.52);
+    border: 1px solid var(--floating-surface-border);
+    box-shadow: var(--shadow-sm);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    pointer-events: none;
+    z-index: -1;
+}
+
+body.camera-background-live:not(.mobile-viewport) .phase-splits-display-desktop:not(.is-visible) > *,
+body.solving.camera-background-live:not(.mobile-viewport) .phase-splits-display-desktop:not(.phase-splits-live) > * {
+    opacity: 0;
+    visibility: hidden;
 }
 
 .phase-splits-display-mobile {

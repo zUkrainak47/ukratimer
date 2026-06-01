@@ -3152,12 +3152,16 @@ function syncTimerPopupOverlayPosition() {
         return;
     }
 
-    const timerFontSize = getComputedStyle(timerDisplayWrapper).fontSize;
-    if (timerFontSize) {
-        overlay.style.setProperty('--timer-popup-overlay-font-size', timerFontSize);
+    const usesCameraAnchor = wantsCameraBackground();
+    if (usesCameraAnchor) {
+        overlay.style.removeProperty('--timer-popup-overlay-font-size');
+    } else {
+        const timerFontSize = getComputedStyle(timerDisplayWrapper).fontSize;
+        if (timerFontSize) {
+            overlay.style.setProperty('--timer-popup-overlay-font-size', timerFontSize);
+        }
     }
 
-    const usesCameraAnchor = wantsCameraBackground();
     const anchorRect = usesCameraAnchor
         ? (getLayoutRect(centerPanel) || centerPanel.getBoundingClientRect())
         : (getLayoutRect(timerDisplayWrapper) || timerDisplayWrapper.getBoundingClientRect());
@@ -10022,9 +10026,19 @@ function renderPhaseMeanChips(solves) {
     syncSessionInfoPlacement();
 }
 
+function isDesktopPhaseSplitSurfaceForcedVisible(displayEl) {
+    return Boolean(displayEl)
+        && displayEl.classList.contains('phase-splits-display-desktop')
+        && document.body.classList.contains('camera-background-live')
+        && !mobileViewportQuery.matches;
+}
+
 function getVisiblePhaseSplitDisplays() {
     return Array.from(document.querySelectorAll('[data-phase-splits-display]'))
-        .filter((displayEl) => !displayEl.hidden && displayEl.getClientRects().length > 0);
+        .filter((displayEl) => (
+            (!displayEl.hidden || isDesktopPhaseSplitSurfaceForcedVisible(displayEl))
+            && displayEl.getClientRects().length > 0
+        ));
 }
 
 function syncPhaseSplitDisplayPosition() {
@@ -10135,14 +10149,16 @@ function renderPhaseSplitDisplay(splits = [], { phaseCount = null } = {}) {
     });
 
     const timerDisplayWrapper = document.getElementById('timer-display-wrapper');
+    const desktopDisplayEl = document.getElementById('phase-splits-display-desktop');
+    const hasForcedDesktopSurface = isDesktopPhaseSplitSurfaceForcedVisible(desktopDisplayEl);
     if (hasDisplayContent) {
         timerDisplayWrapper?.classList.add('phase-splits-visible');
     }
 
-    if (hasDisplayContent) {
+    if (hasDisplayContent || hasForcedDesktopSurface) {
         syncPhaseSplitDisplayPosition();
         requestAnimationFrame(syncPhaseSplitDisplayPosition);
-        return;
+        if (hasDisplayContent) return;
     }
 
     phaseSplitDisplayHideTimeout = setTimeout(() => {
@@ -10155,8 +10171,13 @@ function renderPhaseSplitDisplay(splits = [], { phaseCount = null } = {}) {
             displayEl.removeAttribute('aria-label');
         });
         timerDisplayWrapper?.classList.remove('phase-splits-visible');
-        timerDisplayWrapper?.style.setProperty('--phase-splits-height', '0px');
-        document.getElementById('center-panel-timer-slot')?.style.removeProperty('--phase-splits-desktop-center-y');
+        if (isDesktopPhaseSplitSurfaceForcedVisible(desktopDisplayEl)) {
+            syncPhaseSplitDisplayPosition();
+            requestAnimationFrame(syncPhaseSplitDisplayPosition);
+        } else {
+            timerDisplayWrapper?.style.setProperty('--phase-splits-height', '0px');
+            document.getElementById('center-panel-timer-slot')?.style.removeProperty('--phase-splits-desktop-center-y');
+        }
         phaseSplitDisplayHideTimeout = null;
     }, PHASE_SPLIT_DISPLAY_FADE_OUT_MS);
 }
