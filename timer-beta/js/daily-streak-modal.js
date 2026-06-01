@@ -1,12 +1,12 @@
-import { settings } from './settings.js?v=2026060102';
+import { settings } from './settings.js?v=2026060103';
 import {
     dailyStreakStore,
     dayKeyToTimestamp,
     normalizeDailyStreakGoal,
     shiftDayKey,
     toDayKey,
-} from './streaks.js?v=2026060102';
-import { formatReadableDate, formatTime, getEffectiveTime } from './utils.js?v=2026060102';
+} from './streaks.js?v=2026060103';
+import { formatReadableDate, formatTime, getEffectiveTime } from './utils.js?v=2026060103';
 
 const WEEK_COUNT = 53;
 const DAYS_PER_WEEK = 7;
