@@ -999,10 +999,55 @@
     gap: 16px;
 }
 
+.daily-streak-filter-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.daily-streak-filter-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+}
+
+.daily-streak-filter-field>span {
+    color: var(--text-tertiary);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.daily-streak-filter-select {
+    width: 100%;
+    min-width: 0;
+    min-height: 34px;
+    padding: 0 10px;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-md);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    font: inherit;
+    font-size: var(--text-sm);
+    font-weight: 600;
+}
+
+.daily-streak-filter-select:focus,
+.daily-streak-filter-select:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-subtle);
+}
+
 .daily-streak-overview {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 10px;
+}
+
+.daily-streak-overview[hidden] {
+    display: none !important;
 }
 
 .daily-streak-stat-card {
@@ -1064,10 +1109,13 @@
 }
 
 .daily-streak-calendar-scroll {
+    --daily-streak-hover-outset: 4px;
     min-width: 0;
+    margin-inline: calc(-1 * var(--daily-streak-hover-outset));
     overflow-x: auto;
     overflow-y: hidden;
-    padding-bottom: 8px;
+    padding-inline: var(--daily-streak-hover-outset);
+    padding-bottom: calc(8px + var(--daily-streak-hover-outset));
     scrollbar-width: thin;
     scrollbar-color: var(--text-muted) transparent;
 }
@@ -1160,27 +1208,27 @@
 }
 
 .daily-streak-level-0 {
-    background: var(--surface-ghost-muted);
+    background: #000;
+}
+
+.daily-streak-day.is-goal-missed {
+    background: #282828;
 }
 
 .daily-streak-level-1 {
-    background: rgba(88, 166, 255, 0.22);
-    background: color-mix(in srgb, var(--accent) 20%, var(--bg-tertiary));
+    background: #023a16;
 }
 
 .daily-streak-level-2 {
-    background: rgba(63, 185, 80, 0.42);
-    background: color-mix(in srgb, var(--success) 42%, var(--bg-tertiary));
+    background: #186d2e;
 }
 
 .daily-streak-level-3 {
-    background: rgba(63, 185, 80, 0.68);
-    background: color-mix(in srgb, var(--success) 68%, var(--bg-tertiary));
+    background: #2ba044;
 }
 
 .daily-streak-level-4 {
-    background: #3fb950;
-    background: color-mix(in srgb, var(--success) 86%, var(--accent) 14%);
+    background: #57d463;
 }
 
 .daily-streak-legend {
@@ -1228,11 +1276,31 @@
     line-height: 1.25;
 }
 
+.daily-streak-detail-shell {
+    display: grid;
+}
+
+.daily-streak-detail,
+.daily-streak-empty-state {
+    grid-area: 1 / 1;
+    min-width: 0;
+}
+
 .daily-streak-detail {
     padding: 14px 16px;
     border: 1px solid var(--surface-border);
     border-radius: var(--radius-lg);
     background: var(--bg-tertiary);
+}
+
+.daily-streak-detail[hidden],
+.daily-streak-empty-state[hidden] {
+    display: none !important;
+}
+
+.daily-streak-modal-box.daily-streak-empty-only .daily-streak-detail {
+    visibility: hidden;
+    pointer-events: none;
 }
 
 .daily-streak-detail-heading {
@@ -1246,12 +1314,14 @@
 .daily-streak-detail-date {
     color: var(--text-primary);
     font-weight: 800;
+    line-height: 1.5;
 }
 
 .daily-streak-detail-status {
     color: var(--text-secondary);
     font-size: var(--text-sm);
     font-weight: 700;
+    line-height: 1.5;
 }
 
 .daily-streak-detail-grid {
@@ -1273,6 +1343,7 @@
     color: var(--text-tertiary);
     font-size: var(--text-xs);
     font-weight: 700;
+    line-height: 1.5;
     text-transform: uppercase;
 }
 
@@ -1282,6 +1353,7 @@
     color: var(--text-primary);
     font-family: var(--font-mono);
     font-size: var(--text-base);
+    line-height: 1.5;
     font-variant-numeric: tabular-nums;
 }
 
@@ -1293,9 +1365,14 @@
     margin-top: 10px;
     color: var(--text-secondary);
     font-size: var(--text-sm);
+    line-height: 1.5;
 }
 
 .daily-streak-empty-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
     border: 1px dashed var(--surface-border);
     border-radius: var(--radius-lg);
     padding: 18px;
@@ -1314,6 +1391,11 @@
     .daily-streak-modal-body {
         gap: 12px;
         padding: 14px;
+    }
+
+    .daily-streak-filter-row {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 8px;
     }
 
     .daily-streak-overview {

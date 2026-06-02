@@ -1774,7 +1774,7 @@ export function showSolveDetail(solve, index, isBest = null, { enableStatNavigat
         } : null;
     }
     const timeStr = formatSolveTime(solve);
-    const title = `Solve #${index + 1}`;
+    const title = `#${index + 1}`;
 
     if (isBest === null) {
         const solves = sessionManager.getFilteredSolvesForSessionId(solve.sessionId);

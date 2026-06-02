@@ -1,5 +1,8 @@
 import { settings } from './settings.js?v=2026060103';
+import { SCRAMBLE_TYPE_OPTIONS } from './scramble.js?v=2026060103';
+import { sessionManager } from './session.js?v=2026060103';
 import {
+    computeDailyStreakState,
     dailyStreakStore,
     dayKeyToTimestamp,
     normalizeDailyStreakGoal,
@@ -11,6 +14,25 @@ import { formatReadableDate, formatTime, getEffectiveTime } from './utils.js?v=2
 const WEEK_COUNT = 53;
 const DAYS_PER_WEEK = 7;
 const WEEKDAY_LABELS = Object.freeze(['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']);
+const ALL_FILTER_VALUE = 'all';
+const FILTER_MODE_SCRAMBLE_TYPE = 'scrambleType';
+const FILTER_MODE_SESSION = 'session';
+const HEATMAP_GREEN_STOPS = Object.freeze([
+    Object.freeze({ r: 2, g: 58, b: 22 }),
+    Object.freeze({ r: 24, g: 109, b: 46 }),
+    Object.freeze({ r: 43, g: 160, b: 68 }),
+    Object.freeze({ r: 87, g: 212, b: 99 }),
+]);
+const HEATMAP_SINGLE_VALUE_RATIO = 0.5;
+const SCRAMBLE_TYPE_LABEL_BY_ID = new Map(
+    SCRAMBLE_TYPE_OPTIONS.map((option) => [
+        option.id,
+        option.menuLabel || option.buttonLabel || option.id,
+    ]),
+);
+const SCRAMBLE_TYPE_ORDER_BY_ID = new Map(
+    SCRAMBLE_TYPE_OPTIONS.map((option, index) => [option.id, index]),
+);
 const monthFormatter = new Intl.DateTimeFormat(undefined, { month: 'short' });
 const fullMonthFormatter = new Intl.DateTimeFormat(undefined, { month: 'long' });
 const touchPrimaryQuery = window.matchMedia('(hover: none) and (pointer: coarse)');
@@ -28,6 +50,9 @@ let _tooltip = null;
 let _detail = null;
 let _legend = null;
 let _emptyState = null;
+let _filterModeSelect = null;
+let _filterValueLabel = null;
+let _filterValueSelect = null;
 let _mouseDownTarget = null;
 let _mouseUpTarget = null;
 let _previousFocus = null;
@@ -46,6 +71,17 @@ function createEmptyState() {
         selectedDayKey: '',
         hoveredDayKey: '',
         buttonByDayKey: new Map(),
+        filterMode: FILTER_MODE_SCRAMBLE_TYPE,
+        scrambleTypeFilter: ALL_FILTER_VALUE,
+        sessionFilter: ALL_FILTER_VALUE,
+        availableScrambleTypes: [],
+        availableSessions: [],
+        hasAnySolves: false,
+        heatmapTimeScale: {
+            min: 0,
+            max: 0,
+            count: 0,
+        },
         totalSolves: 0,
         activeDays: 0,
         goalDays: 0,
@@ -98,13 +134,100 @@ function createDaySummary(dayKey) {
     };
 }
 
-function getActivityLevel(count, goal) {
-    if (count <= 0) return 0;
-    if (goal <= 0) return Math.min(4, Math.max(1, Math.ceil(count / 5)));
-    if (count < goal) return 1;
-    if (count < goal * 2) return 2;
-    if (count < goal * 3) return 3;
-    return 4;
+function getScrambleTypeLabel(type) {
+    return SCRAMBLE_TYPE_LABEL_BY_ID.get(type) || String(type || '').toUpperCase();
+}
+
+function sortScrambleTypes(types) {
+    return [...types].sort((left, right) => {
+        const leftIndex = SCRAMBLE_TYPE_ORDER_BY_ID.has(left)
+            ? SCRAMBLE_TYPE_ORDER_BY_ID.get(left)
+            : Number.POSITIVE_INFINITY;
+        const rightIndex = SCRAMBLE_TYPE_ORDER_BY_ID.has(right)
+            ? SCRAMBLE_TYPE_ORDER_BY_ID.get(right)
+            : Number.POSITIVE_INFINITY;
+
+        if (leftIndex !== rightIndex) return leftIndex - rightIndex;
+        return getScrambleTypeLabel(left).localeCompare(getScrambleTypeLabel(right));
+    });
+}
+
+function normalizeScrambleType(value) {
+    return typeof value === 'string' ? value.trim().toLowerCase() : '';
+}
+
+function getSolveScrambleType(solve, sessionById) {
+    const solveScrambleType = normalizeScrambleType(solve?.scrambleType);
+    if (solveScrambleType) return solveScrambleType;
+
+    const sessionScrambleType = normalizeScrambleType(sessionById.get(solve?.sessionId)?.scrambleType);
+    return sessionScrambleType;
+}
+
+function buildFilterContext(solves) {
+    const sessions = sessionManager.getSessions();
+    const sessionById = new Map(sessions.map((session) => [session.id, session]));
+    const scrambleTypeSet = new Set();
+
+    sessions.forEach((session) => {
+        const scrambleType = normalizeScrambleType(session?.scrambleType);
+        if (scrambleType) scrambleTypeSet.add(scrambleType);
+    });
+
+    (Array.isArray(solves) ? solves : []).forEach((solve) => {
+        const scrambleType = getSolveScrambleType(solve, sessionById);
+        if (scrambleType) scrambleTypeSet.add(scrambleType);
+    });
+
+    return {
+        sessions,
+        sessionById,
+        availableScrambleTypes: sortScrambleTypes(scrambleTypeSet),
+    };
+}
+
+function normalizeFilterMode(mode) {
+    return mode === FILTER_MODE_SESSION ? FILTER_MODE_SESSION : FILTER_MODE_SCRAMBLE_TYPE;
+}
+
+function getResolvedFilters(context) {
+    const scrambleTypeSet = new Set(context.availableScrambleTypes);
+    const sessionIdSet = new Set(context.sessions.map((session) => session.id));
+    const filterMode = normalizeFilterMode(_state.filterMode);
+    const scrambleTypeFilter = _state.scrambleTypeFilter === ALL_FILTER_VALUE || scrambleTypeSet.has(_state.scrambleTypeFilter)
+        ? _state.scrambleTypeFilter
+        : ALL_FILTER_VALUE;
+    const sessionFilter = _state.sessionFilter === ALL_FILTER_VALUE || sessionIdSet.has(_state.sessionFilter)
+        ? _state.sessionFilter
+        : ALL_FILTER_VALUE;
+
+    return {
+        filterMode,
+        scrambleTypeFilter,
+        sessionFilter,
+    };
+}
+
+function filterSolves(solves, context, filters) {
+    return (Array.isArray(solves) ? solves : []).filter((solve) => {
+        if (
+            filters.filterMode === FILTER_MODE_SESSION
+            && filters.sessionFilter !== ALL_FILTER_VALUE
+            && solve?.sessionId !== filters.sessionFilter
+        ) {
+            return false;
+        }
+
+        if (
+            filters.filterMode === FILTER_MODE_SCRAMBLE_TYPE
+            && filters.scrambleTypeFilter !== ALL_FILTER_VALUE
+            && getSolveScrambleType(solve, context.sessionById) !== filters.scrambleTypeFilter
+        ) {
+            return false;
+        }
+
+        return true;
+    });
 }
 
 function buildDaySummaries(solves, goal) {
@@ -141,11 +264,77 @@ function buildDaySummaries(solves, goal) {
 
     daySummaries.forEach((summary) => {
         summary.meanTime = summary.validCount > 0 ? summary.totalTime / summary.validCount : null;
-        summary.level = getActivityLevel(summary.count, goal);
         summary.goalMet = goal > 0 && summary.count >= goal;
     });
 
     return daySummaries;
+}
+
+function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+}
+
+function interpolate(left, right, ratio) {
+    return left + ((right - left) * ratio);
+}
+
+function getHeatmapColor(ratio) {
+    const normalizedRatio = clamp(ratio, 0, 1);
+    const scaledRatio = normalizedRatio * (HEATMAP_GREEN_STOPS.length - 1);
+    const leftIndex = Math.floor(scaledRatio);
+    const rightIndex = Math.min(leftIndex + 1, HEATMAP_GREEN_STOPS.length - 1);
+    const stopRatio = scaledRatio - leftIndex;
+    const left = HEATMAP_GREEN_STOPS[leftIndex];
+    const right = HEATMAP_GREEN_STOPS[rightIndex];
+    const r = Math.round(interpolate(left.r, right.r, stopRatio));
+    const g = Math.round(interpolate(left.g, right.g, stopRatio));
+    const b = Math.round(interpolate(left.b, right.b, stopRatio));
+    return `rgb(${r}, ${g}, ${b})`;
+}
+
+function shouldUseSummaryForHeatmap(summary, goal) {
+    if (!summary) return false;
+    return goal > 0 ? Boolean(summary.goalMet) : summary.count > 0;
+}
+
+function getVisibleTotalTimeScale(daySummaries, firstDayKey, todayKey, goal) {
+    let min = Number.POSITIVE_INFINITY;
+    let max = 0;
+    let count = 0;
+    let cursorKey = firstDayKey;
+
+    while (cursorKey <= todayKey) {
+        const summary = daySummaries.get(cursorKey);
+        if (shouldUseSummaryForHeatmap(summary, goal)) {
+            const totalTime = Number.isFinite(summary.totalTime) && summary.totalTime > 0 ? summary.totalTime : 0;
+            min = Math.min(min, totalTime);
+            max = Math.max(max, totalTime);
+            count += 1;
+        }
+        cursorKey = shiftDayKey(cursorKey, 1);
+    }
+
+    return {
+        min: count > 0 ? min : 0,
+        max: count > 0 ? max : 0,
+        count,
+    };
+}
+
+function getSummaryHeatmapRatio(summary) {
+    if (!summary || !_state.heatmapTimeScale.count) return 0;
+    if (_state.heatmapTimeScale.max <= _state.heatmapTimeScale.min) return HEATMAP_SINGLE_VALUE_RATIO;
+
+    const totalTime = Number.isFinite(summary.totalTime) && summary.totalTime > 0 ? summary.totalTime : 0;
+    return clamp(
+        (totalTime - _state.heatmapTimeScale.min) / (_state.heatmapTimeScale.max - _state.heatmapTimeScale.min),
+        0,
+        1,
+    );
+}
+
+function getHeatmapLevel(ratio) {
+    return Math.min(4, Math.max(1, Math.ceil(clamp(ratio, 0, 1) * 4)));
 }
 
 function computeBestStreak(daySummaries, goal, todayKey) {
@@ -173,9 +362,14 @@ function computeBestStreak(daySummaries, goal, todayKey) {
 function buildCalendarState() {
     const goal = normalizeDailyStreakGoal(settings.get('dailyStreakGoal'));
     const todayKey = toDayKey(Date.now());
-    const streakState = dailyStreakStore.getState(goal);
-    const daySummaries = buildDaySummaries(dailyStreakStore.getSolves(), goal);
+    const allSolves = dailyStreakStore.getSolves();
+    const filterContext = buildFilterContext(allSolves);
+    const filters = getResolvedFilters(filterContext);
+    const filteredSolves = filterSolves(allSolves, filterContext, filters);
+    const streakState = computeDailyStreakState(filteredSolves, goal);
+    const daySummaries = buildDaySummaries(filteredSolves, goal);
     const { firstDayKey } = getVisibleRange(todayKey);
+    const heatmapTimeScale = getVisibleTotalTimeScale(daySummaries, firstDayKey, todayKey, goal);
     let totalSolves = 0;
     let activeDays = 0;
     let goalDays = 0;
@@ -196,6 +390,13 @@ function buildCalendarState() {
         selectedDayKey: _state.selectedDayKey || todayKey,
         hoveredDayKey: '',
         buttonByDayKey: new Map(),
+        filterMode: filters.filterMode,
+        scrambleTypeFilter: filters.scrambleTypeFilter,
+        sessionFilter: filters.sessionFilter,
+        availableScrambleTypes: filterContext.availableScrambleTypes,
+        availableSessions: filterContext.sessions,
+        hasAnySolves: allSolves.length > 0,
+        heatmapTimeScale,
         totalSolves,
         activeDays,
         goalDays,
@@ -292,6 +493,66 @@ function setText(selector, text) {
     if (el) el.textContent = text;
 }
 
+function hasActiveFilters() {
+    if (_state.filterMode === FILTER_MODE_SESSION) {
+        return _state.sessionFilter !== ALL_FILTER_VALUE;
+    }
+    return _state.scrambleTypeFilter !== ALL_FILTER_VALUE;
+}
+
+function setSelectOptions(selectEl, options, selectedValue) {
+    if (!selectEl) return;
+
+    const fragment = document.createDocumentFragment();
+    options.forEach(({ value, label }) => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = label;
+        fragment.append(option);
+    });
+
+    selectEl.replaceChildren(fragment);
+    selectEl.value = selectedValue;
+}
+
+function getSessionFilterLabel(session) {
+    const solveCount = Number.isFinite(session?.solveCount) ? session.solveCount : 0;
+    return `${session?.name || 'Session'} (${solveCount})`;
+}
+
+function renderFilterControls() {
+    if (!_filterModeSelect || !_filterValueSelect) return;
+
+    const scrambleTypeOptions = [
+        { value: ALL_FILTER_VALUE, label: 'All puzzle types' },
+        ..._state.availableScrambleTypes.map((scrambleType) => ({
+            value: scrambleType,
+            label: getScrambleTypeLabel(scrambleType),
+        })),
+    ];
+    const sessionOptions = [
+        { value: ALL_FILTER_VALUE, label: 'All sessions' },
+        ..._state.availableSessions.map((session) => ({
+            value: session.id,
+            label: getSessionFilterLabel(session),
+        })),
+    ];
+    const isSessionMode = _state.filterMode === FILTER_MODE_SESSION;
+    const valueOptions = isSessionMode ? sessionOptions : scrambleTypeOptions;
+    const selectedValue = isSessionMode ? _state.sessionFilter : _state.scrambleTypeFilter;
+
+    _filterModeSelect.value = _state.filterMode;
+    if (_filterValueLabel) {
+        _filterValueLabel.textContent = isSessionMode ? 'Session' : 'Puzzle type';
+    }
+    _filterValueSelect.setAttribute(
+        'aria-label',
+        isSessionMode ? 'Daily streak session filter' : 'Daily streak puzzle type filter',
+    );
+
+    setSelectOptions(_filterValueSelect, valueOptions, selectedValue);
+}
+
 function renderOverview() {
     if (!_subtitle || !_overview || !_legend) return;
 
@@ -300,9 +561,17 @@ function renderOverview() {
     const currentStreak = streakState.currentStreak || 0;
     const remainingToday = Math.max(0, _state.goal - todayCount);
 
-    _subtitle.textContent = _state.goal > 0
+    const hasGoal = _state.goal > 0;
+
+    _subtitle.textContent = hasGoal
         ? `Goal: ${plural(_state.goal, 'solve')} per day`
-        : 'Daily streak goal is off';
+        : plural(_state.activeDays, 'active day');
+    _overview.hidden = !hasGoal;
+
+    if (!hasGoal) {
+        renderLegend();
+        return;
+    }
 
     setText('[data-daily-streak-modal-stat="current"]', String(currentStreak));
     setText('[data-daily-streak-modal-stat-label="current"]', currentStreak === 1 ? 'day' : 'days');
@@ -316,18 +585,32 @@ function renderOverview() {
     setText('[data-daily-streak-modal-stat="active"]', String(_state.activeDays));
     setText('[data-daily-streak-modal-stat-sub="active"]', `${plural(_state.goalDays, 'goal day')}`);
 
-    _legend.querySelectorAll('[data-daily-streak-legend-level]').forEach((item) => {
-        item.setAttribute('aria-label', getLegendLabel(Number(item.dataset.dailyStreakLegendLevel || 0)));
-    });
+    renderLegend();
 }
 
 function getLegendLabel(level) {
     if (level <= 0) return 'No solves';
-    if (_state.goal <= 0) return `${level} activity level`;
-    if (level === 1) return `Less than ${_state.goal}`;
-    if (level === 2) return `${_state.goal}+`;
-    if (level === 3) return `${_state.goal * 2}+`;
-    return `${_state.goal * 3}+`;
+    const prefix = _state.goal > 0 ? 'Goal met' : 'Active day';
+    if (level === 1) return `${prefix}, lower total solving time`;
+    if (level === 2) return `${prefix}, moderate total solving time`;
+    if (level === 3) return `${prefix}, higher total solving time`;
+    return `${prefix}, highest total solving time`;
+}
+
+function renderLegend() {
+    if (!_legend) return;
+
+    _legend.setAttribute('aria-label', 'Daily solving time legend');
+    _legend.querySelectorAll('[data-daily-streak-legend-level]').forEach((item) => {
+        const level = Number(item.dataset.dailyStreakLegendLevel || 0);
+        item.setAttribute('aria-label', getLegendLabel(level));
+        if (level <= 0) {
+            item.style.removeProperty('background');
+            return;
+        }
+
+        item.style.background = getHeatmapColor((level - 1) / 3);
+    });
 }
 
 function renderMonthLabels() {
@@ -372,16 +655,24 @@ function renderCalendarGrid() {
         for (let dayIndex = 0; dayIndex < DAYS_PER_WEEK; dayIndex += 1) {
             const dayKey = shiftDayKey(_state.firstVisibleDayKey, (weekIndex * DAYS_PER_WEEK) + dayIndex);
             const summary = _state.daySummaries.get(dayKey);
-            const level = dayKey > _state.todayKey ? 0 : (summary?.level || 0);
+            const solveCount = summary?.count || 0;
+            const isPastOrToday = dayKey <= _state.todayKey;
+            const isHeatmapDay = isPastOrToday && shouldUseSummaryForHeatmap(summary, _state.goal);
+            const isGoalMetDay = _state.goal > 0 && isPastOrToday && Boolean(summary?.goalMet);
+            const isMissedGoalDay = _state.goal > 0 && isPastOrToday && solveCount > 0 && !isGoalMetDay;
+            const heatmapRatio = isHeatmapDay ? getSummaryHeatmapRatio(summary) : 0;
+            const level = isHeatmapDay ? getHeatmapLevel(heatmapRatio) : 0;
             const button = document.createElement('button');
             button.type = 'button';
             button.className = `daily-streak-day daily-streak-level-${level}`;
             button.dataset.dayKey = dayKey;
             button.style.gridColumn = String(weekIndex + 1);
             button.style.gridRow = String(dayIndex + 1);
+            if (isHeatmapDay) button.style.background = getHeatmapColor(heatmapRatio);
             button.setAttribute('aria-pressed', dayKey === _state.selectedDayKey ? 'true' : 'false');
 
-            if (summary?.goalMet) button.classList.add('is-goal-met');
+            if (isGoalMetDay) button.classList.add('is-goal-met');
+            if (isMissedGoalDay) button.classList.add('is-goal-missed');
             if (dayKey === _state.todayKey) button.classList.add('is-today');
             if (dayKey === _state.selectedDayKey) button.classList.add('is-selected');
             if (dayKey > _state.todayKey) button.classList.add('is-future');
@@ -412,6 +703,7 @@ function setSelectedDay(dayKey, { focus = false, showTooltip = true } = {}) {
     nextButton?.setAttribute('aria-pressed', 'true');
 
     renderDayDetail(dayKey);
+    renderEmptyState();
     if (showTooltip && nextButton) showTooltipForDay(dayKey, nextButton);
     if (focus && nextButton) nextButton.focus({ preventScroll: true });
 }
@@ -428,7 +720,7 @@ function renderDayDetail(dayKey = _state.selectedDayKey) {
     _detail.innerHTML = `
         <div class="daily-streak-detail-heading">
             <span class="daily-streak-detail-date"></span>
-            <span class="daily-streak-detail-status"></span>
+            ${_state.goal > 0 ? '<span class="daily-streak-detail-status"></span>' : ''}
         </div>
         <div class="daily-streak-detail-grid">
             <div>
@@ -456,7 +748,8 @@ function renderDayDetail(dayKey = _state.selectedDayKey) {
     `;
 
     _detail.querySelector('.daily-streak-detail-date').textContent = formatDayDate(dayKey);
-    _detail.querySelector('.daily-streak-detail-status').textContent = status;
+    const statusEl = _detail.querySelector('.daily-streak-detail-status');
+    if (statusEl) statusEl.textContent = status;
     _detail.querySelector('[data-detail-value="solves"]').textContent = String(count);
     _detail.querySelector('[data-detail-value="best"]').textContent = summary?.bestTime != null ? formatTime(summary.bestTime) : '-';
     _detail.querySelector('[data-detail-value="mean"]').textContent = summary?.meanTime != null ? formatTime(summary.meanTime) : '-';
@@ -467,7 +760,9 @@ function renderDayDetail(dayKey = _state.selectedDayKey) {
     if (isFuture) {
         meta.textContent = 'No data yet.';
     } else if (count === 0) {
-        meta.textContent = _state.goal > 0 ? `${plural(_state.goal, 'solve')} needed for the goal.` : 'No solves logged.';
+        meta.textContent = hasActiveFilters() && _state.hasAnySolves
+            ? 'No solves logged for this filter.'
+            : (_state.goal > 0 ? `${plural(_state.goal, 'solve')} needed for the goal.` : 'No solves logged.');
     } else {
         meta.textContent = formatSolveTimeOfDaySummary(summary);
     }
@@ -476,15 +771,31 @@ function renderDayDetail(dayKey = _state.selectedDayKey) {
 function renderEmptyState() {
     if (!_emptyState || !_modalBox) return;
 
-    const hasSolves = _state.totalSolves > 0;
-    _emptyState.hidden = hasSolves;
-    _modalBox.classList.toggle('daily-streak-empty-only', !hasSolves);
+    const hasMatchingSolves = _state.totalSolves > 0;
+    _emptyState.textContent = _state.hasAnySolves && hasActiveFilters()
+        ? 'No solves match this filter.'
+        : 'No solves have been logged yet.';
+    _emptyState.style.removeProperty('min-height');
+
+    if (_detail) {
+        if (hasMatchingSolves) {
+            _detail.hidden = false;
+            _detail.removeAttribute('aria-hidden');
+        } else {
+            _detail.hidden = false;
+            _detail.setAttribute('aria-hidden', 'true');
+        }
+    }
+
+    _emptyState.hidden = hasMatchingSolves;
+    _modalBox.classList.toggle('daily-streak-empty-only', !hasMatchingSolves);
 }
 
 function renderDailyStreakModal() {
     if (!_overlay) return;
 
     _state = buildCalendarState();
+    renderFilterControls();
     renderOverview();
     renderWeekdayLabels();
     renderMonthLabels();
@@ -502,6 +813,7 @@ function showTooltipForDay(dayKey, button) {
         `${plural(count, 'solve')} on ${formatTooltipDayDate(dayKey)}`,
         `best ${summary?.bestTime != null ? formatTime(summary.bestTime) : '-'}`,
         `mean ${summary?.meanTime != null ? formatTime(summary.meanTime) : '-'}`,
+        `total ${formatTotalDuration(summary?.totalTime)}`,
     ];
 
     _tooltip.textContent = '';
@@ -591,6 +903,23 @@ function handleGridKeydown(event) {
     setSelectedDay(nextDayKey, { focus: true, showTooltip: true });
 }
 
+function handleFilterChange(event) {
+    const nextMode = normalizeFilterMode(_filterModeSelect?.value);
+
+    _state.filterMode = nextMode;
+    if (event?.target === _filterValueSelect || !event?.target) {
+        const nextValue = _filterValueSelect?.value || ALL_FILTER_VALUE;
+        if (nextMode === FILTER_MODE_SESSION) {
+            _state.sessionFilter = nextValue;
+        } else {
+            _state.scrambleTypeFilter = nextValue;
+        }
+    }
+
+    hideTooltip();
+    renderDailyStreakModal();
+}
+
 function scrollCalendarToToday() {
     if (!_calendarScroll) return;
     window.requestAnimationFrame(() => {
@@ -612,9 +941,16 @@ export function refreshDailyStreakModal() {
     }
 }
 
+function blurFocusedModalElement() {
+    const activeElement = document.activeElement;
+    if (!(activeElement instanceof HTMLElement) || !_overlay?.contains(activeElement)) return;
+    activeElement.blur();
+}
+
 export function closeDailyStreakModal() {
     if (!_overlay) return;
 
+    blurFocusedModalElement();
     _overlay.classList.remove('active');
     _overlay.setAttribute('aria-hidden', 'true');
     _state.isOpen = false;
@@ -660,10 +996,19 @@ export function initDailyStreakModal() {
     _detail = document.getElementById('daily-streak-detail');
     _legend = document.getElementById('daily-streak-legend');
     _emptyState = document.getElementById('daily-streak-empty-state');
+    _filterModeSelect = document.getElementById('daily-streak-filter-mode');
+    _filterValueLabel = document.getElementById('daily-streak-filter-value-label');
+    _filterValueSelect = document.getElementById('daily-streak-filter-value');
 
     if (!_overlay || !_grid) return;
 
     _closeButton?.addEventListener('click', closeDailyStreakModal);
+    _filterModeSelect?.addEventListener('change', handleFilterChange);
+    _filterValueSelect?.addEventListener('change', handleFilterChange);
+
+    sessionManager.on('sessionChanged', refreshDailyStreakModal);
+    sessionManager.on('sessionUpdated', refreshDailyStreakModal);
+    sessionManager.on('sessionDeleted', refreshDailyStreakModal);
 
     _overlay.addEventListener('mousedown', (event) => {
         _mouseDownTarget = event.target;

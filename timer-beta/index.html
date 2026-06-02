@@ -821,6 +821,21 @@
           aria-label="Close daily streak calendar">✕</button>
       </div>
       <div class="modal-body daily-streak-modal-body">
+        <div class="daily-streak-filter-row" data-no-timer-start>
+          <label class="daily-streak-filter-field" for="daily-streak-filter-mode">
+            <span>Filter by</span>
+            <select id="daily-streak-filter-mode" class="daily-streak-filter-select"
+              aria-label="Daily streak filter mode">
+              <option value="scrambleType">Puzzle type</option>
+              <option value="session">Session</option>
+            </select>
+          </label>
+          <label class="daily-streak-filter-field" for="daily-streak-filter-value">
+            <span id="daily-streak-filter-value-label">Puzzle type</span>
+            <select id="daily-streak-filter-value" class="daily-streak-filter-select"
+              aria-label="Daily streak filter value"></select>
+          </label>
+        </div>
         <div id="daily-streak-overview" class="daily-streak-overview">
           <div class="daily-streak-stat-card">
             <span class="daily-streak-stat-label">Current</span>
@@ -853,7 +868,7 @@
                 aria-label="Daily solves calendar"></div>
             </div>
           </div>
-          <div id="daily-streak-legend" class="daily-streak-legend" aria-label="Daily solve volume legend">
+          <div id="daily-streak-legend" class="daily-streak-legend" aria-label="Daily solving time legend">
             <span>Less</span>
             <span class="daily-streak-legend-cell daily-streak-level-0" data-daily-streak-legend-level="0"
               aria-hidden="true"></span>
@@ -870,9 +885,11 @@
           <div id="daily-streak-tooltip" class="daily-streak-tooltip" hidden></div>
         </div>
 
-        <div id="daily-streak-detail" class="daily-streak-detail"></div>
-        <div id="daily-streak-empty-state" class="daily-streak-empty-state" hidden>
-          No solves have been logged yet.
+        <div class="daily-streak-detail-shell">
+          <div id="daily-streak-detail" class="daily-streak-detail"></div>
+          <div id="daily-streak-empty-state" class="daily-streak-empty-state" hidden>
+            No solves have been logged yet.
+          </div>
         </div>
       </div>
     </div>
@@ -1130,6 +1147,14 @@
                 <div class="setting-label">
                   Scramble Generator
                   <small>Generate a list to copy or download</small>
+                </div>
+              </button>
+            </div>
+            <div class="setting-row">
+              <button id="btn-open-daily-streak" class="setting-row-button" type="button">
+                <div class="setting-label">
+                  Daily Activity Calendar
+                  <small>View your daily solving activity</small>
                 </div>
               </button>
             </div>

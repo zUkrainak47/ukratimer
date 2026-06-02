@@ -9680,6 +9680,7 @@ function closeDailyStreakMobilePopup() {
 function initDailyStreakMobileControl() {
     const controlEl = getEl('daily-streak-mobile-control');
     const buttonEl = getEl('btn-daily-streak-mobile');
+    const settingsButtonEl = getEl('btn-open-daily-streak');
     const openButtons = document.querySelectorAll('[data-daily-streak-open]');
     if (!openButtons.length) return;
 
@@ -9689,6 +9690,13 @@ function initDailyStreakMobileControl() {
             closeDailyStreakMobilePopup();
             showDailyStreakModal();
         });
+    });
+
+    settingsButtonEl?.addEventListener('click', () => {
+        closeSettingsPanel({ isSwitching: true });
+        closeDailyStreakMobilePopup();
+        showDailyStreakModal();
+        settingsButtonEl.blur();
     });
 
     if (!controlEl || !buttonEl) return;
