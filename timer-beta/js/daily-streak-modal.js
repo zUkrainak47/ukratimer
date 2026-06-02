@@ -55,7 +55,6 @@ let _filterValueLabel = null;
 let _filterValueSelect = null;
 let _mouseDownTarget = null;
 let _mouseUpTarget = null;
-let _previousFocus = null;
 let _initialized = false;
 
 let _state = createEmptyState();
@@ -927,6 +926,11 @@ function scrollCalendarToToday() {
     });
 }
 
+function blurActiveElement() {
+    const activeElement = document.activeElement;
+    if (activeElement instanceof HTMLElement) activeElement.blur();
+}
+
 export function isDailyStreakModalOpen() {
     return Boolean(_overlay?.classList.contains('active'));
 }
@@ -955,17 +959,12 @@ export function closeDailyStreakModal() {
     _overlay.setAttribute('aria-hidden', 'true');
     _state.isOpen = false;
     hideTooltip();
-
-    if (_previousFocus && typeof _previousFocus.focus === 'function') {
-        _previousFocus.focus({ preventScroll: true });
-    }
-    _previousFocus = null;
 }
 
 export function showDailyStreakModal() {
     if (!_overlay) return;
 
-    _previousFocus = document.activeElement;
+    blurActiveElement();
     _state.selectedDayKey = toDayKey(Date.now());
     renderDailyStreakModal();
     _overlay.classList.add('active');
@@ -974,7 +973,7 @@ export function showDailyStreakModal() {
     scrollCalendarToToday();
 
     window.requestAnimationFrame(() => {
-        _closeButton?.focus({ preventScroll: true });
+        blurFocusedModalElement();
         hideTooltip();
     });
 }
