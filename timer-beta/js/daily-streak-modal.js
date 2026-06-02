@@ -524,7 +524,7 @@ function renderFilterControls() {
     if (!_filterModeSelect || !_filterValueSelect) return;
 
     const scrambleTypeOptions = [
-        { value: ALL_FILTER_VALUE, label: 'All puzzle types' },
+        { value: ALL_FILTER_VALUE, label: 'All scramble types' },
         ..._state.availableScrambleTypes.map((scrambleType) => ({
             value: scrambleType,
             label: getScrambleTypeLabel(scrambleType),
@@ -543,11 +543,11 @@ function renderFilterControls() {
 
     _filterModeSelect.value = _state.filterMode;
     if (_filterValueLabel) {
-        _filterValueLabel.textContent = isSessionMode ? 'Session' : 'Puzzle type';
+        _filterValueLabel.textContent = isSessionMode ? 'Session' : 'Scramble type';
     }
     _filterValueSelect.setAttribute(
         'aria-label',
-        isSessionMode ? 'Daily streak session filter' : 'Daily streak puzzle type filter',
+        isSessionMode ? 'Daily streak session filter' : 'Daily streak scramble type filter',
     );
 
     setSelectOptions(_filterValueSelect, valueOptions, selectedValue);
