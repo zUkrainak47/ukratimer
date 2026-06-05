@@ -5783,8 +5783,11 @@ async function init() {
         rebuildStatsCache();
         refreshUI();
     });
-    sessionManager.on('solveMoved', ({ solve } = {}) => {
-        dailyStreakStore.upsertSolve(solve);
+    sessionManager.on('solveMoved', ({ solve, solves } = {}) => {
+        const movedSolves = Array.isArray(solves) ? solves : (solve ? [solve] : []);
+        movedSolves.forEach((movedSolve) => {
+            dailyStreakStore.upsertSolve(movedSolve);
+        });
         if (window._isBulkAction) return;
         refreshSessionList();
         rebuildStatsCache();

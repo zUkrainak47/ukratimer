@@ -547,6 +547,7 @@ class SessionManager extends EventEmitter {
 
         this.emit('solveMoved', {
             solve,
+            solves: [solve],
             fromSessionId: sourceSession.id,
             toSessionId: targetSession.id,
         });
@@ -798,6 +799,7 @@ class SessionManager extends EventEmitter {
 
         this.emit('solveMoved', {
             solveIds: movedSolves.map((solve) => solve.id),
+            solves: movedSolves,
             fromSessionId: sourceSession.id,
             toSessionId: targetSession.id,
         });
