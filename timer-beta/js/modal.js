@@ -1033,9 +1033,16 @@ export function setModalStatButtons(buttons) {
 }
 
 function expandReadableStatLabel(rawLabel) {
-    return String(rawLabel ?? '').replace(/\b(mo|ao)([1-9]\d*)\b/gi, (_, kind, n) => (
+    const expanded = String(rawLabel ?? '').replace(/\b(mo|ao)([1-9]\d*)\b/gi, (_, kind, n) => (
         kind.toLowerCase() === 'mo' ? `Mean of ${n}` : `Average of ${n}`
     ));
+    return expanded
+        .replace(/^(Best\s+)(P\.[1-9]\d*)\s+((?:Mean|Average) of [1-9]\d*)$/i, (_, bestPrefix, phaseLabel, statLabel) => (
+            `${bestPrefix}${phaseLabel} ${statLabel.toLowerCase()}`
+        ))
+        .replace(/^(P\.[1-9]\d*)\s+((?:Mean|Average) of [1-9]\d*)$/i, (_, phaseLabel, statLabel) => (
+            `${phaseLabel} ${statLabel.toLowerCase()}`
+        ));
 }
 
 /**
@@ -1636,7 +1643,7 @@ function renderMobileDetail(detailPayload) {
 function getSolveDetailMetaLabel(singleLabel) {
     return singleLabel === 'Single' || singleLabel === 'Best single'
         ? singleLabel.toLowerCase()
-        : singleLabel;
+        : String(singleLabel ?? '').replace(/^Best\b/, 'best');
 }
 
 function buildSolveDetailPayload(title, timeStr, solve, index, singleLabel, shareText) {
@@ -1666,11 +1673,13 @@ function buildSolveDetailPayload(title, timeStr, solve, index, singleLabel, shar
 }
 
 function buildAverageDetailPayload(title, valueStr, label, entries, shareText, sessionId = sessionManager.getActiveSessionId()) {
+    const metaLabel = String(label ?? '').toLowerCase()
+        .replace(/\bp\.([1-9]\d*)\b/g, 'P.$1');
     return {
         title,
         value: valueStr,
-        meta: `${getSessionName(sessionId)} | ${label.toLowerCase()}`,
-        metaLabel: `${getSessionName(sessionId)} | ${label.toLowerCase()}`,
+        meta: `${getSessionName(sessionId)} | ${metaLabel}`,
+        metaLabel: `${getSessionName(sessionId)} | ${metaLabel}`,
         canMoveSolve: false,
         canCopyScramble: false,
         copyLabel: 'Copy Average',

@@ -9824,11 +9824,15 @@ function getMainStatsSourceLabel(source) {
     return phaseIndex == null ? 'time' : `P.${phaseIndex + 1}`;
 }
 
-function prefixStatLabelWithSource(label, source) {
+function formatStatLabelWithSource(label, source) {
     if (source === MAIN_STATS_SOURCE_TIME) return label;
     const sourceLabel = getMainStatsSourceLabel(source);
     const rawLabel = String(label ?? '').trim();
     if (!rawLabel || rawLabel.startsWith(`${sourceLabel} `)) return rawLabel || sourceLabel;
+    if (rawLabel.startsWith(`Best ${sourceLabel} `)) return rawLabel;
+    if (rawLabel.startsWith('Best ')) {
+        return `Best ${sourceLabel} ${rawLabel.slice(5).trim()}`;
+    }
     return `${sourceLabel} ${rawLabel}`;
 }
 
@@ -9889,6 +9893,19 @@ function getSolveMainStatsDisplayValue(solve, source = selectedMainStatsSource) 
 
     const phaseValue = getSolvePhaseValue(solve, phaseIndex);
     return Number.isFinite(phaseValue) ? phaseValue : null;
+}
+
+function formatSolveForMainStatsSource(solve, source = selectedMainStatsSource) {
+    const phaseIndex = getMainStatsSourcePhaseIndex(source);
+    if (phaseIndex == null) return formatSolveTime(solve);
+    if (solve?.penalty === 'DNF') return formatTime(Infinity);
+    return formatTime(getSolvePhaseValue(solve, phaseIndex));
+}
+
+function getSingleDetailLabelForMainStatsSource(source, isBest = false) {
+    const sourceLabel = getMainStatsSourceLabel(source);
+    if (source === MAIN_STATS_SOURCE_TIME) return isBest ? 'Best single' : 'Single';
+    return isBest ? `Best ${sourceLabel}` : sourceLabel;
 }
 
 function getMainStatsSourceTimes(solves, source = selectedMainStatsSource) {
@@ -10437,10 +10454,20 @@ function getSelectedStatSolveIndex(solves) {
 function openStatDetailAtIndex(type, solves, stats, index, options = {}) {
     if (index < 0 || index >= solves.length) return false;
     const targetLayer = options.targetLayer || 'primary';
+    const statSource = options.statSource || MAIN_STATS_SOURCE_TIME;
 
     if (type === 'time') {
-        const isBest = options.isBest ?? (stats.best.time != null && getEffectiveTime(solves[index]) === stats.best.time);
-        showSolveDetail(solves[index], index, isBest, { targetLayer });
+        const isBest = options.isBest ?? (
+            statSource === MAIN_STATS_SOURCE_TIME
+                ? stats.best.time != null && getEffectiveTime(solves[index]) === stats.best.time
+                : false
+        );
+        showSolveDetail(solves[index], index, isBest, {
+            targetLayer,
+            detailLabel: getSingleDetailLabelForMainStatsSource(statSource, isBest),
+            formatSolve: (solve) => formatSolveForMainStatsSource(solve, statSource),
+            statSource,
+        });
         return true;
     }
 
@@ -10454,14 +10481,13 @@ function openStatDetailAtIndex(type, solves, stats, index, options = {}) {
     const windowStart = index - config.windowSize + 1;
     const window = solves.slice(index - config.windowSize + 1, index + 1);
     const detailOptions = { targetLayer };
-    const statSource = options.statSource || MAIN_STATS_SOURCE_TIME;
     if (statSource !== MAIN_STATS_SOURCE_TIME) {
         detailOptions.times = times.slice(windowStart, index + 1);
-        detailOptions.formatMobileSolve = (solve) => formatSolveTimeWithSplits(solve);
-        detailOptions.showMobilePhaseSplits = false;
+        detailOptions.formatMobileSolve = (_solve, _index, time) => formatTime(time);
+        detailOptions.showMobilePhaseSplits = true;
     }
 
-    showAverageDetail(prefixStatLabelWithSource(options.label || type, statSource), value, window, config.trim, {
+    showAverageDetail(formatStatLabelWithSource(options.label || type, statSource), value, window, config.trim, {
         statType: type,
         sessionId: solves[index].sessionId,
         endIndex: index,
@@ -10809,7 +10835,12 @@ function handleStatClick(type, which, solves, stats) {
             });
         } else if (which === 'best') {
             const idx = sourceContext.best == null ? -1 : sourceTimes.indexOf(sourceContext.best);
-            if (idx >= 0) showSolveDetail(solves[idx], idx, true);
+            if (idx >= 0) {
+                openStatDetailAtIndex(type, solves, stats, idx, {
+                    isBest: true,
+                    statSource: source,
+                });
+            }
         }
         return;
     }
