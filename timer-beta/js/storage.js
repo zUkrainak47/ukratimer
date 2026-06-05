@@ -2056,7 +2056,6 @@ function _looksLikeCsTimerPhaseMarkers(markers, rawTime) {
 
 function _convertCsTimerPhaseDataToInternal(rawPhaseValues, rawTime, {
     declaredPhaseCount = null,
-    preferRawDurations = false,
 } = {}) {
     const rawValues = _normalizePhaseValueList(rawPhaseValues);
     if (rawValues.length === 0) {
@@ -2067,14 +2066,7 @@ function _convertCsTimerPhaseDataToInternal(rawPhaseValues, rawTime, {
         ? null
         : _normalizePhaseCount(declaredPhaseCount, rawValues.length + 1);
     const inferredPhaseCount = _normalizePhaseCount(rawValues.length + 1, rawValues.length + 1);
-    const phaseCount = normalizedDeclaredPhaseCount || inferredPhaseCount;
-
-    if (preferRawDurations) {
-        return {
-            phaseSplits: rawValues.slice(0, MAX_PHASE_COUNT),
-            phaseCount: _normalizePhaseCount(rawValues.length, phaseCount),
-        };
-    }
+    const phaseCount = Math.max(normalizedDeclaredPhaseCount || 0, inferredPhaseCount);
 
     const markerCount = Math.min(rawValues.length, Math.max(0, phaseCount - 1), MAX_PHASE_COUNT - 1);
     const markers = rawValues.slice(0, markerCount);
@@ -2895,8 +2887,7 @@ export async function importCsTimer(csData, { mode = IMPORT_MODE_REWRITE, onProg
             if (penaltyFlag === 2000) penalty = '+2';
             else if (penaltyFlag === -1) penalty = 'DNF';
             const phaseInfo = _convertCsTimerPhaseDataToInternal(rawPhaseSplits, rawTime, {
-                declaredPhaseCount: session.settings?.multiPhaseCount,
-                preferRawDurations: Boolean(metadata) && !session.hasNativePhaseCount,
+                declaredPhaseCount: session.hasNativePhaseCount ? session.settings?.multiPhaseCount : null,
             });
 
             const timestamp = Number(timestampSec) * 1000;
