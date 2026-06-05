@@ -11205,7 +11205,27 @@ function scaleSolvesTableWidths(widths, targetTotal) {
     return widths.map((width) => Math.max(0, width * scale));
 }
 
-function fitMobilePhaseLeadingWidths(widths, phaseColumnsWidth, availableWidth) {
+function scaleSolvesTableWidthsAboveMinimum(widths, targetTotal, minWidths = []) {
+    const currentTotal = getSolvesTableWidthTotal(widths);
+    const safeTargetTotal = Math.max(0, Number(targetTotal) || 0);
+    if (currentTotal <= 0 || safeTargetTotal <= 0 || safeTargetTotal >= currentTotal - 0.5) return widths;
+
+    const normalizedMinWidths = widths.map((width, index) => (
+        Math.min(Math.max(0, Number(minWidths[index]) || 0), Math.max(0, width))
+    ));
+    const minTotal = getSolvesTableWidthTotal(normalizedMinWidths);
+    if (safeTargetTotal <= minTotal + 0.5) return normalizedMinWidths;
+
+    const shrinkableTotal = currentTotal - minTotal;
+    if (shrinkableTotal <= 0) return normalizedMinWidths;
+
+    const scale = (safeTargetTotal - minTotal) / shrinkableTotal;
+    return widths.map((width, index) => (
+        normalizedMinWidths[index] + ((Math.max(0, width) - normalizedMinWidths[index]) * scale)
+    ));
+}
+
+function fitMobilePhaseLeadingWidths(widths, phaseColumnsWidth, availableWidth, { minWidths = [] } = {}) {
     const currentTotal = getSolvesTableWidthTotal(widths);
     const safeAvailableWidth = Math.max(0, Number(availableWidth) || 0);
     const safePhaseColumnsWidth = Math.max(0, Number(phaseColumnsWidth) || 0);
@@ -11228,7 +11248,9 @@ function fitMobilePhaseLeadingWidths(widths, phaseColumnsWidth, availableWidth) 
     );
 
     if (targetTotal >= currentTotal - 0.5) return widths;
-    return scaleSolvesTableWidths(widths, targetTotal);
+    return minWidths.length > 0
+        ? scaleSolvesTableWidthsAboveMinimum(widths, targetTotal, minWidths)
+        : scaleSolvesTableWidths(widths, targetTotal);
 }
 
 function getSolvesTableScrollbarGutterWidth(table) {
@@ -11354,6 +11376,11 @@ function syncSolvesTableHeader(configuredColumns, solves = sessionManager.getFil
                 leadingColumnWidths,
                 (phaseColumnCount * phaseWidth) + scrollbarGutterWidth,
                 tableContainerContentWidth,
+                {
+                    minWidths: isPhaseSourceSelected
+                        ? [0, phaseSourceTimeColumnMinWidth]
+                        : [],
+                },
             );
         }
         if (isPhaseSourceSelected) {
