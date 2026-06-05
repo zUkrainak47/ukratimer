@@ -9824,6 +9824,14 @@ function getMainStatsSourceLabel(source) {
     return phaseIndex == null ? 'time' : `P.${phaseIndex + 1}`;
 }
 
+function prefixStatLabelWithSource(label, source) {
+    if (source === MAIN_STATS_SOURCE_TIME) return label;
+    const sourceLabel = getMainStatsSourceLabel(source);
+    const rawLabel = String(label ?? '').trim();
+    if (!rawLabel || rawLabel.startsWith(`${sourceLabel} `)) return rawLabel || sourceLabel;
+    return `${sourceLabel} ${rawLabel}`;
+}
+
 function normalizeMainStatsSource(source, phaseColumnCount = getVisiblePhaseColumnCount()) {
     if (source === MAIN_STATS_SOURCE_TIME) return MAIN_STATS_SOURCE_TIME;
 
@@ -10449,9 +10457,11 @@ function openStatDetailAtIndex(type, solves, stats, index, options = {}) {
     const statSource = options.statSource || MAIN_STATS_SOURCE_TIME;
     if (statSource !== MAIN_STATS_SOURCE_TIME) {
         detailOptions.times = times.slice(windowStart, index + 1);
+        detailOptions.formatMobileSolve = (solve) => formatSolveTimeWithSplits(solve);
+        detailOptions.showMobilePhaseSplits = false;
     }
 
-    showAverageDetail(options.label || type, value, window, config.trim, {
+    showAverageDetail(prefixStatLabelWithSource(options.label || type, statSource), value, window, config.trim, {
         statType: type,
         sessionId: solves[index].sessionId,
         endIndex: index,
@@ -10467,7 +10477,9 @@ function openShortcutStatDetail(type) {
     const solves = sessionManager.getFilteredSolvesForSessionId(sessionId);
     if (solves.length === 0) return false;
 
-    const source = getSelectedMainStatsSource(solves);
+    const source = selection?.statSource
+        ? normalizeMainStatsSource(selection.statSource, getVisiblePhaseColumnCount(solves))
+        : getSelectedMainStatsSource(solves);
     const sourceContext = getMainStatsSourceContext(solves, source);
     const times = sourceContext.times;
     const stats = {
@@ -11803,7 +11815,14 @@ function renderSolvesTable(solves, stats) {
                 statSource: source,
             });
         } else if (td.classList.contains('phase-split-cell')) {
-            openStatDetailAtIndex('time', solves, stats, idx);
+            const phaseIndex = Number(td.dataset.phaseIndex) - 1;
+            if (!Number.isInteger(phaseIndex) || phaseIndex < 0) return;
+            const statSource = `phase-${phaseIndex + 1}`;
+            showSolveDetail(solves[idx], idx, false, {
+                detailLabel: getMainStatsSourceLabel(statSource),
+                formatSolve: (solve) => formatTime(getSolvePhaseValue(solve, phaseIndex)),
+                statSource,
+            });
         }
     };
 }

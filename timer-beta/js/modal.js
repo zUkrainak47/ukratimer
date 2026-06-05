@@ -340,9 +340,17 @@ function buildAverageShareContent(label, valueStr, solves, trim = 1, options = {
         ? options.times
         : null;
     const times = optionTimes || solves.map(s => getEffectiveTime(s));
-    const formatEntryTime = typeof options.formatSolve === 'function'
+    const hasCustomFormatSolve = typeof options.formatSolve === 'function';
+    const hasCustomFormatMobileSolve = typeof options.formatMobileSolve === 'function';
+    const formatEntryTime = hasCustomFormatSolve
         ? options.formatSolve
         : (solve) => formatSolveTimeWithSplits(solve);
+    const formatMobileEntryTime = hasCustomFormatMobileSolve
+        ? options.formatMobileSolve
+        : hasCustomFormatSolve
+            ? options.formatSolve
+            : (solve) => formatSolveTime(solve);
+    const shouldShowMobilePhaseSplits = options.showMobilePhaseSplits !== false;
     const sorted = [...times].map((t, i) => ({ time: t, index: i }))
         .sort((a, b) => a.time - b.time);
     const bestIndices = trim > 0 ? new Set(sorted.slice(0, trim).map(s => s.index)) : new Set();
@@ -359,7 +367,7 @@ function buildAverageShareContent(label, valueStr, solves, trim = 1, options = {
     const mobileEntries = [];
     solves.forEach((solve, i) => {
         const tStr = formatEntryTime(solve, i, times[i]);
-        const mobileTimeStr = formatSolveTime(solve);
+        const mobileTimeStr = formatMobileEntryTime(solve, i, times[i]);
         const displayIndex = displayIndices[i];
         const isBest = bestIndices.has(i);
         const isWorst = worstIndices.has(i);
@@ -373,7 +381,7 @@ function buildAverageShareContent(label, valueStr, solves, trim = 1, options = {
             position: displayIndex,
             time: mobileDisplay,
             scramble: solve.scramble,
-            phaseSplits: formatMobilePhaseSplits(solve),
+            phaseSplits: shouldShowMobilePhaseSplits ? formatMobilePhaseSplits(solve) : '',
             date: isCompactSummary ? '' : formatMobilePreviewTimestamp(solve.timestamp),
             comment: modalCopyOptions.includeComments ? String(solve?.comment ?? '').trim() : '',
             solveId: solve.id,
@@ -768,7 +776,10 @@ export function initModal() {
             sessionManager.togglePenalty(id, '+2');
             if (_currentSolveIndex !== null) {
                 const solve = sessionManager.getActiveSession().solves.find(s => s.id === id);
-                if (solve) showSolveDetail(solve, _currentSolveIndex);
+                if (solve) showSolveDetail(solve, _currentSolveIndex, _currentModalSource?.isBest ?? null, {
+                    enableStatNavigation: _currentModalSource?.enableStatNavigation !== false,
+                    ...getSingleDetailOptionsForSource(),
+                });
             }
         }
     };
@@ -778,7 +789,10 @@ export function initModal() {
             sessionManager.togglePenalty(id, 'DNF');
             if (_currentSolveIndex !== null) {
                 const solve = sessionManager.getActiveSession().solves.find(s => s.id === id);
-                if (solve) showSolveDetail(solve, _currentSolveIndex);
+                if (solve) showSolveDetail(solve, _currentSolveIndex, _currentModalSource?.isBest ?? null, {
+                    enableStatNavigation: _currentModalSource?.enableStatNavigation !== false,
+                    ...getSingleDetailOptionsForSource(),
+                });
             }
         }
     };
@@ -1311,12 +1325,12 @@ function refreshSingleSolveSharePreview() {
     const solve = solveSession?.solves?.find(s => s.id === _currentModalSource.solveId) || fallbackSolve;
     if (!solve) return;
 
-    const singleLabel = _currentModalSource.isBest ? 'Best single' : 'Single';
-    const timeStr = formatSolveTime(solve);
     const previewSolve = {
         ...solve,
         comment: String(_commentInput?.value ?? solve.comment ?? '').trim(),
     };
+    const singleLabel = getSingleDetailLabel(_currentModalSource);
+    const timeStr = formatSingleDetailTime(_currentModalSource, previewSolve);
 
     const nextShareText = buildSolveShareText(singleLabel, _currentModalSource.index, timeStr, previewSolve);
     _textarea.value = nextShareText;
@@ -1324,6 +1338,30 @@ function refreshSingleSolveSharePreview() {
     if (_currentDetailPayload) {
         _currentDetailPayload.shareText = nextShareText;
     }
+}
+
+function getSingleDetailLabel(source) {
+    if (typeof source?.detailLabel === 'string' && source.detailLabel.trim()) {
+        return source.detailLabel.trim();
+    }
+
+    return source?.isBest ? 'Best single' : 'Single';
+}
+
+function formatSingleDetailTime(source, solve) {
+    if (typeof source?.formatSolve === 'function') {
+        return source.formatSolve(solve, source.index);
+    }
+
+    return formatSolveTime(solve);
+}
+
+function getSingleDetailOptionsForSource(source = _currentModalSource) {
+    return {
+        detailLabel: source?.detailLabel || null,
+        formatSolve: typeof source?.formatSolve === 'function' ? source.formatSolve : null,
+        statSource: source?.statSource || null,
+    };
 }
 
 function rerenderCurrentModalSource() {
@@ -1336,6 +1374,7 @@ function rerenderCurrentModalSource() {
         if (!solve) return;
         showSolveDetail(solve, _currentModalSource.index, _currentModalSource.isBest, {
             enableStatNavigation: _currentModalSource.enableStatNavigation !== false,
+            ...getSingleDetailOptionsForSource(_currentModalSource),
         });
         return;
     }
@@ -1362,6 +1401,7 @@ function rerenderSecondaryModalSource() {
         showSolveDetail(solve, _secondaryModalSource.index, _secondaryModalSource.isBest, {
             enableStatNavigation: false,
             targetLayer: MODAL_LAYER_SECONDARY,
+            ...getSingleDetailOptionsForSource(_secondaryModalSource),
         });
         return;
     }
@@ -1593,12 +1633,19 @@ function renderMobileDetail(detailPayload) {
     _mobileList.scrollTop = 0;
 }
 
+function getSolveDetailMetaLabel(singleLabel) {
+    return singleLabel === 'Single' || singleLabel === 'Best single'
+        ? singleLabel.toLowerCase()
+        : singleLabel;
+}
+
 function buildSolveDetailPayload(title, timeStr, solve, index, singleLabel, shareText) {
+    const metaLabel = getSolveDetailMetaLabel(singleLabel);
     return {
         title,
         value: timeStr,
-        meta: `${getSessionName(solve.sessionId)} | ${singleLabel.toLowerCase()}`,
-        metaLabel: singleLabel.toLowerCase(),
+        meta: `${getSessionName(solve.sessionId)} | ${metaLabel}`,
+        metaLabel,
         canMoveSolve: true,
         canCopyScramble: true,
         copyLabel: 'Copy Solve',
@@ -1759,7 +1806,7 @@ export function getModalSelectionContext() {
 /**
  * Show a single solve detail.
  */
-export function showSolveDetail(solve, index, isBest = null, { enableStatNavigation = true, targetLayer = MODAL_LAYER_PRIMARY } = {}) {
+export function showSolveDetail(solve, index, isBest = null, { enableStatNavigation = true, targetLayer = MODAL_LAYER_PRIMARY, detailLabel = null, formatSolve = null, statSource = null } = {}) {
     if (targetLayer === MODAL_LAYER_SECONDARY) {
         _secondaryCurrentSolveIndex = index;
         _secondarySelectedStatContext = null;
@@ -1770,10 +1817,10 @@ export function showSolveDetail(solve, index, isBest = null, { enableStatNavigat
             sessionId: solve.sessionId,
             endIndex: index,
             endSolveId: solve.id,
+            ...(statSource ? { statSource } : {}),
             layer: MODAL_LAYER_PRIMARY,
         } : null;
     }
-    const timeStr = formatSolveTime(solve);
     const title = `#${index + 1}`;
 
     if (isBest === null) {
@@ -1788,8 +1835,6 @@ export function showSolveDetail(solve, index, isBest = null, { enableStatNavigat
         isBest = getEffectiveTime(solve) === bestTime && bestTime !== Infinity;
     }
 
-    const singleLabel = isBest ? 'Best single' : 'Single';
-
     const modalSource = {
         type: 'single',
         solveId: solve.id,
@@ -1798,7 +1843,13 @@ export function showSolveDetail(solve, index, isBest = null, { enableStatNavigat
         index,
         isBest,
         enableStatNavigation,
+        detailLabel,
+        formatSolve,
+        statSource,
     };
+    const singleLabel = getSingleDetailLabel(modalSource);
+    const timeStr = formatSingleDetailTime(modalSource, solve);
+
     if (targetLayer === MODAL_LAYER_SECONDARY) {
         _secondaryModalSource = modalSource;
     } else {
@@ -1823,7 +1874,7 @@ export function showSolveDetail(solve, index, isBest = null, { enableStatNavigat
  * @param {number} trim - how many best/worst to mark
  * @param {{ statType?: string, endIndex?: number, endSolveId?: string } | null} selectionContext
  */
-export function showAverageDetail(label, value, solves, trim = 1, selectionContext = null, { targetLayer = MODAL_LAYER_PRIMARY, times = null, formatSolve = null } = {}) {
+export function showAverageDetail(label, value, solves, trim = 1, selectionContext = null, { targetLayer = MODAL_LAYER_PRIMARY, times = null, formatSolve = null, formatMobileSolve = null, showMobilePhaseSplits = true } = {}) {
     if (targetLayer === MODAL_LAYER_SECONDARY) {
         _secondaryCurrentSolveIndex = null;
         _secondarySelectedStatContext = null;
@@ -1844,7 +1895,7 @@ export function showAverageDetail(label, value, solves, trim = 1, selectionConte
         solves,
         trim,
         selectionContext,
-        detailOptions: { times, formatSolve },
+        detailOptions: { times, formatSolve, formatMobileSolve, showMobilePhaseSplits },
     };
     if (targetLayer === MODAL_LAYER_SECONDARY) {
         _secondaryModalSource = modalSource;
@@ -1858,6 +1909,8 @@ export function showAverageDetail(label, value, solves, trim = 1, selectionConte
     const { shareText, mobileEntries } = buildAverageShareContent(label, valueStr, solves, trim, {
         times,
         formatSolve,
+        formatMobileSolve,
+        showMobilePhaseSplits,
     });
     const detailPayload = buildAverageDetailPayload(
         title,
