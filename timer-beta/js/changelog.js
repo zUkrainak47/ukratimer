@@ -18,16 +18,12 @@ function freezeChangelogEntry(entry) {
 export const CHANGELOG_ENTRIES = Object.freeze([
     {
         id: '2026-06-01-multi-phase',
-        date: '2026-06-01',
-        title: 'Multiphase',
-        summary: 'You can now time each phase of your solve separately.'
-    },
-
-    {
-        id: '2026-05-22-streak-heatmap',
-        date: '2026-05-22',
-        title: 'Daily Streak Calendar',
-        summary: 'Daily Streak now opens a calendar heatmap with per-day solve details.'
+        date: '2026-06-05',
+        title: 'Multiphase & Daily Activity Calendar',
+        items: [
+            'You can now time each phase of your solve separately at Settings > Timer > Multiphase.',
+            'Added a calendar heatmap with per-day solve details. Accessible at Settings > Tools or by clicking your Daily Streak.'
+        ]
     },
 
     {
