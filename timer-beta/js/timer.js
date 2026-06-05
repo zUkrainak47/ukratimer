@@ -218,6 +218,8 @@ class Timer extends EventEmitter {
         if (this.state === State.RUNNING) {
             e.preventDefault();
             e.stopImmediatePropagation();
+            if (e.code === 'Space') this._spaceDown = true;
+            if (e.repeat) return;
             this._stopTimer(null, this._getEventTimestamp(e));
             return;
         }
