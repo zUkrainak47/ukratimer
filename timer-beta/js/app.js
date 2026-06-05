@@ -399,6 +399,8 @@ const MOBILE_PHASE_SOURCE_TIME_COLUMN_MIN_WIDTH_PX = 104;
 const MOBILE_PHASE_LEADING_COLUMNS_MAX_WIDTH_PX = 360;
 const PHASE_LEADING_COLUMN_ADJUSTMENT_PX = 2;
 const PHASE_SESSION_INFO_EDGE_ADJUSTMENT_PX = 4;
+const SOLVES_TABLE_COMPOSITE_TIME_GAP_EM = 0.35;
+const SOLVES_TABLE_TIME_COLUMN_WIDTH_BUFFER_PX = 4;
 const DESKTOP_SOLVES_TABLE_WIDTHS = Object.freeze({
     phase: 70,
 });
@@ -1312,6 +1314,7 @@ let summaryRowsCache = { signature: '', rows: [] };
 const rollingStatSummaryCache = new Map();
 const MAIN_STATS_SOURCE_TIME = 'time';
 let selectedMainStatsSource = MAIN_STATS_SOURCE_TIME;
+let solvesTableTextMeasureContext = null;
 const domCache = new Map();
 const customSelectControllers = new Map();
 const viewportLayoutState = {
@@ -9957,24 +9960,22 @@ function getMainStatsSourceContext(solves, source = getSelectedMainStatsSource(s
     };
 }
 
-function formatMainStatsSourceDisplayValue(value, isMobile = false) {
+function formatMainStatsSourceDisplayValue(value) {
     if (value === Infinity) return 'DNF';
     if (value == null) return '-';
-
-    const formatted = formatTime(value);
-    return isMobile ? formatted : truncateTimeDisplay(formatted, 7);
+    return formatTime(value);
 }
 
 function formatSolvesTableTimeValue(solve, source, sourceDisplayValue, isMobile = false) {
-    const totalTime = isMobile
-        ? formatSolveTime(solve)
-        : truncateTimeDisplay(formatSolveTime(solve), 7);
-
     if (source === MAIN_STATS_SOURCE_TIME) {
+        const totalTime = isMobile
+            ? formatSolveTime(solve)
+            : truncateTimeDisplay(formatSolveTime(solve), 7);
         return escapeHtml(totalTime);
     }
 
-    const sourceTime = formatMainStatsSourceDisplayValue(sourceDisplayValue, isMobile);
+    const totalTime = formatSolveTime(solve);
+    const sourceTime = formatMainStatsSourceDisplayValue(sourceDisplayValue);
     const label = `(${totalTime}) ${sourceTime}`;
     return `<span class="solve-time-composite" aria-label="${escapeHtml(label)}">`
         + `<span class="solve-time-total">(${escapeHtml(totalTime)})</span>`
@@ -11092,6 +11093,76 @@ function getElementContentWidthPx(el) {
     return Math.max(0, el.clientWidth - getElementHorizontalPaddingPx(el));
 }
 
+function getRootCssLengthPx(propertyName, fallback = 0) {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(propertyName);
+    const parsed = parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function getSolvesTableTextMeasureContext() {
+    if (solvesTableTextMeasureContext) return solvesTableTextMeasureContext;
+
+    const canvas = document.createElement('canvas');
+    solvesTableTextMeasureContext = canvas.getContext('2d');
+    return solvesTableTextMeasureContext;
+}
+
+function getSolvesTableTextFont(table) {
+    const styles = getComputedStyle(table || document.documentElement);
+    if (styles.font) return styles.font;
+
+    const fontSize = styles.fontSize || '14px';
+    const fontFamily = styles.fontFamily || "'JetBrains Mono', monospace";
+    const fontWeight = styles.fontWeight || '400';
+    return `${fontWeight} ${fontSize} ${fontFamily}`;
+}
+
+function measureSolvesTableTextWidthPx(table, text, cache = null) {
+    const value = String(text ?? '');
+    const cached = cache?.get(value);
+    if (cached != null) return cached;
+
+    const context = getSolvesTableTextMeasureContext();
+    let width = 0;
+    if (context) {
+        context.font = getSolvesTableTextFont(table);
+        width = context.measureText(value).width;
+    }
+    if (!Number.isFinite(width) || width <= 0) {
+        const fontSize = parseFloat(getComputedStyle(table || document.documentElement).fontSize) || 14;
+        width = value.length * fontSize * 0.62;
+    }
+
+    cache?.set(value, width);
+    return width;
+}
+
+function getPhaseSourceTimeColumnMinWidthPx(solves, source, table) {
+    if (getMainStatsSourcePhaseIndex(source) == null || !Array.isArray(solves) || solves.length === 0) {
+        return 0;
+    }
+
+    const widthCache = new Map();
+    const tableStyles = getComputedStyle(table || document.documentElement);
+    const fontSize = parseFloat(tableStyles.fontSize) || 14;
+    const cellPaddingWidth = getRootCssLengthPx('--space-sm', 8) * 2;
+    const gapWidth = SOLVES_TABLE_COMPOSITE_TIME_GAP_EM * fontSize;
+    let maxContentWidth = 0;
+
+    solves.forEach((solve) => {
+        const totalTime = `(${formatSolveTime(solve)})`;
+        const sourceValue = getSolveMainStatsDisplayValue(solve, source);
+        const sourceTime = formatMainStatsSourceDisplayValue(sourceValue);
+        const contentWidth = measureSolvesTableTextWidthPx(table, totalTime, widthCache)
+            + gapWidth
+            + measureSolvesTableTextWidthPx(table, sourceTime, widthCache);
+        maxContentWidth = Math.max(maxContentWidth, contentWidth);
+    });
+
+    if (maxContentWidth <= 0) return 0;
+    return Math.ceil(maxContentWidth + cellPaddingWidth + SOLVES_TABLE_TIME_COLUMN_WIDTH_BUFFER_PX);
+}
+
 function createSolvesTableGridTemplate(widths, { useFixedTracks = false } = {}) {
     return widths
         .filter(({ value }) => Number.isFinite(value) && value > 0)
@@ -11258,6 +11329,12 @@ function syncSolvesTableHeader(configuredColumns, solves = sessionManager.getFil
         const initialIndexWidth = Math.max(0, widths.index - PHASE_LEADING_COLUMN_ADJUSTMENT_PX);
         const initialTimeWidth = Math.max(0, widths.time - PHASE_LEADING_COLUMN_ADJUSTMENT_PX);
         const baseStatWidth = Math.max(MIN_SOLVES_TABLE_COLUMN_WIDTH_PX, widths.stat);
+        const phaseSourceTimeColumnMinWidth = isPhaseSourceSelected
+            ? Math.max(
+                isMobile ? MOBILE_PHASE_SOURCE_TIME_COLUMN_MIN_WIDTH_PX : PHASE_SOURCE_TIME_COLUMN_MIN_WIDTH_PX,
+                getPhaseSourceTimeColumnMinWidthPx(solves, selectedSource, table),
+            )
+            : 0;
         let leadingColumnWidths = [
             initialIndexWidth,
             initialTimeWidth,
@@ -11268,7 +11345,7 @@ function syncSolvesTableHeader(configuredColumns, solves = sessionManager.getFil
         if (isPhaseSourceSelected) {
             leadingColumnWidths[1] = Math.max(
                 leadingColumnWidths[1],
-                isMobile ? MOBILE_PHASE_SOURCE_TIME_COLUMN_MIN_WIDTH_PX : PHASE_SOURCE_TIME_COLUMN_MIN_WIDTH_PX,
+                phaseSourceTimeColumnMinWidth,
             );
         }
         phaseWidth = Math.max(MIN_SOLVES_TABLE_COLUMN_WIDTH_PX, phaseWidths.phase);
@@ -11282,7 +11359,7 @@ function syncSolvesTableHeader(configuredColumns, solves = sessionManager.getFil
         if (isPhaseSourceSelected) {
             leadingColumnWidths[1] = Math.max(
                 leadingColumnWidths[1],
-                isMobile ? MOBILE_PHASE_SOURCE_TIME_COLUMN_MIN_WIDTH_PX : PHASE_SOURCE_TIME_COLUMN_MIN_WIDTH_PX,
+                phaseSourceTimeColumnMinWidth,
             );
         }
         [indexWidth, timeWidth] = leadingColumnWidths;

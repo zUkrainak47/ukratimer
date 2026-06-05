@@ -596,17 +596,16 @@
     display: inline-flex;
     align-items: baseline;
     justify-content: flex-end;
+    flex: 0 0 auto;
     gap: 0.35em;
-    min-width: 0;
-    max-width: 100%;
+    max-width: none;
+    white-space: nowrap;
 }
 
 .solve-time-total {
-    min-width: 0;
-    overflow: hidden;
+    flex: 0 0 auto;
     color: var(--text-tertiary);
     font-weight: 400;
-    text-overflow: ellipsis;
 }
 
 .solve-time-source {
