@@ -1315,6 +1315,8 @@ const rollingStatSummaryCache = new Map();
 const MAIN_STATS_SOURCE_TIME = 'time';
 let selectedMainStatsSource = MAIN_STATS_SOURCE_TIME;
 let solvesTableTextMeasureContext = null;
+let phaseSourceTimeColumnWidthRevision = 0;
+const phaseSourceTimeColumnWidthCache = new Map();
 const domCache = new Map();
 const customSelectControllers = new Map();
 const viewportLayoutState = {
@@ -5863,6 +5865,7 @@ async function init() {
         }
     });
     settings.on('reset', () => {
+        invalidatePhaseSourceTimeColumnWidthCache();
         syncSolvesPanelWidthPreferenceFromSettings();
         renderSolvesTable();
         clearPenaltyShortcutAlert();
@@ -9636,6 +9639,7 @@ function reconcileSelectedSolveState(solves = sessionManager.getFilteredSolves()
  * Called on session switch, filter change, import, delete, penalty toggle.
  */
 function rebuildStatsCache() {
+    invalidatePhaseSourceTimeColumnWidthCache();
     syncStatsCacheWithFilteredSolves(undefined, { force: true });
 }
 
@@ -11137,6 +11141,64 @@ function measureSolvesTableTextWidthPx(table, text, cache = null) {
     return width;
 }
 
+function invalidatePhaseSourceTimeColumnWidthCache() {
+    phaseSourceTimeColumnWidthRevision += 1;
+    phaseSourceTimeColumnWidthCache.clear();
+}
+
+function getPhaseSourceTimeColumnSolveSignature(solve) {
+    if (!solve) return '';
+
+    const phaseSplits = Array.isArray(solve.phaseSplits)
+        ? solve.phaseSplits.join(',')
+        : '';
+    return [
+        solve.id ?? '',
+        solve.timestamp ?? '',
+        solve.time ?? '',
+        solve.penalty ?? '',
+        solve.phaseCount ?? '',
+        phaseSplits,
+    ].join(':');
+}
+
+function getPhaseSourceTimeColumnWidthCacheKey(source, { font, fontSize, cellPaddingWidth, gapWidth }) {
+    return [
+        phaseSourceTimeColumnWidthRevision,
+        sessionManager.getActiveSessionId() || '',
+        source,
+        font,
+        Number(fontSize).toFixed(3),
+        Number(cellPaddingWidth).toFixed(3),
+        Number(gapWidth).toFixed(3),
+    ].join('|');
+}
+
+function getPhaseSourceTimeColumnMinWidthForContent(maxContentWidth, cellPaddingWidth) {
+    return maxContentWidth > 0
+        ? Math.ceil(maxContentWidth + cellPaddingWidth + SOLVES_TABLE_TIME_COLUMN_WIDTH_BUFFER_PX)
+        : 0;
+}
+
+function measurePhaseSourceTimeColumnContentWidthPx(solve, source, table, widthCache, gapWidth) {
+    const totalTime = `(${formatSolveTime(solve)})`;
+    const sourceValue = getSolveMainStatsDisplayValue(solve, source);
+    const sourceTime = formatMainStatsSourceDisplayValue(sourceValue);
+    return measureSolvesTableTextWidthPx(table, totalTime, widthCache)
+        + gapWidth
+        + measureSolvesTableTextWidthPx(table, sourceTime, widthCache);
+}
+
+function createPhaseSourceTimeColumnWidthCacheRecord(solves, maxContentWidth, cellPaddingWidth) {
+    return {
+        length: solves.length,
+        firstSignature: getPhaseSourceTimeColumnSolveSignature(solves[0]),
+        lastSignature: getPhaseSourceTimeColumnSolveSignature(solves[solves.length - 1]),
+        maxContentWidth,
+        minWidth: getPhaseSourceTimeColumnMinWidthForContent(maxContentWidth, cellPaddingWidth),
+    };
+}
+
 function getPhaseSourceTimeColumnMinWidthPx(solves, source, table) {
     if (getMainStatsSourcePhaseIndex(source) == null || !Array.isArray(solves) || solves.length === 0) {
         return 0;
@@ -11147,20 +11209,48 @@ function getPhaseSourceTimeColumnMinWidthPx(solves, source, table) {
     const fontSize = parseFloat(tableStyles.fontSize) || 14;
     const cellPaddingWidth = getRootCssLengthPx('--space-sm', 8) * 2;
     const gapWidth = SOLVES_TABLE_COMPOSITE_TIME_GAP_EM * fontSize;
+    const cacheKey = getPhaseSourceTimeColumnWidthCacheKey(source, {
+        font: getSolvesTableTextFont(table),
+        fontSize,
+        cellPaddingWidth,
+        gapWidth,
+    });
+    const cachedRecord = phaseSourceTimeColumnWidthCache.get(cacheKey);
+    const firstSignature = getPhaseSourceTimeColumnSolveSignature(solves[0]);
+    const lastSignature = getPhaseSourceTimeColumnSolveSignature(solves[solves.length - 1]);
+
+    if (
+        cachedRecord?.length === solves.length
+        && cachedRecord.firstSignature === firstSignature
+        && cachedRecord.lastSignature === lastSignature
+    ) {
+        return cachedRecord.minWidth;
+    }
+
+    if (
+        cachedRecord?.length + 1 === solves.length
+        && cachedRecord.firstSignature === firstSignature
+        && cachedRecord.lastSignature === getPhaseSourceTimeColumnSolveSignature(solves[solves.length - 2])
+    ) {
+        const maxContentWidth = Math.max(
+            cachedRecord.maxContentWidth,
+            measurePhaseSourceTimeColumnContentWidthPx(solves[solves.length - 1], source, table, widthCache, gapWidth),
+        );
+        const nextRecord = createPhaseSourceTimeColumnWidthCacheRecord(solves, maxContentWidth, cellPaddingWidth);
+        phaseSourceTimeColumnWidthCache.set(cacheKey, nextRecord);
+        return nextRecord.minWidth;
+    }
+
     let maxContentWidth = 0;
 
     solves.forEach((solve) => {
-        const totalTime = `(${formatSolveTime(solve)})`;
-        const sourceValue = getSolveMainStatsDisplayValue(solve, source);
-        const sourceTime = formatMainStatsSourceDisplayValue(sourceValue);
-        const contentWidth = measureSolvesTableTextWidthPx(table, totalTime, widthCache)
-            + gapWidth
-            + measureSolvesTableTextWidthPx(table, sourceTime, widthCache);
+        const contentWidth = measurePhaseSourceTimeColumnContentWidthPx(solve, source, table, widthCache, gapWidth);
         maxContentWidth = Math.max(maxContentWidth, contentWidth);
     });
 
-    if (maxContentWidth <= 0) return 0;
-    return Math.ceil(maxContentWidth + cellPaddingWidth + SOLVES_TABLE_TIME_COLUMN_WIDTH_BUFFER_PX);
+    const nextRecord = createPhaseSourceTimeColumnWidthCacheRecord(solves, maxContentWidth, cellPaddingWidth);
+    phaseSourceTimeColumnWidthCache.set(cacheKey, nextRecord);
+    return nextRecord.minWidth;
 }
 
 function createSolvesTableGridTemplate(widths, { useFixedTracks = false } = {}) {
