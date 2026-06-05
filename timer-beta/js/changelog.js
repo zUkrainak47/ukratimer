@@ -17,8 +17,8 @@ function freezeChangelogEntry(entry) {
 
 export const CHANGELOG_ENTRIES = Object.freeze([
     {
-        id: '2026-06-01-multi-phase',
-        date: '2026-06-05',
+        id: '2026-06-06-multi-phase',
+        date: '2026-06-06',
         title: 'Multiphase & Daily Activity Calendar',
         items: [
             'You can now time each phase of your solve separately at Settings > Timer > Multiphase.',

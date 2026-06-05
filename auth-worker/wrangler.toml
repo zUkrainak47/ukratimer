@@ -7,7 +7,7 @@ preview_urls = false
 [vars]
 GOOGLE_CLIENT_ID = "210179775275-e62l646u4b8157hqs7j2ovt6ap608bjo.apps.googleusercontent.com"
 ALLOWED_ORIGINS = "https://ukratimer.com,https://www.ukratimer.com,http://localhost:8080"
-APP_URL = "https://ukratimer.com/timer-beta/"
+APP_URL = "https://ukratimer.com/"
 
 [[kv_namespaces]]
 binding = "AUTH_SESSIONS"
