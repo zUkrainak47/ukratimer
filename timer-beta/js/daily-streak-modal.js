@@ -40,6 +40,8 @@ const touchPrimaryQuery = window.matchMedia('(hover: none) and (pointer: coarse)
 let _overlay = null;
 let _modalBox = null;
 let _closeButton = null;
+let _requestHistoryState = null;
+let _dismissHistoryState = null;
 let _subtitle = null;
 let _overview = null;
 let _weekdayLabels = null;
@@ -951,8 +953,18 @@ function blurFocusedModalElement() {
     activeElement.blur();
 }
 
-export function closeDailyStreakModal() {
-    if (!_overlay) return;
+function requestDailyStreakHistoryState() {
+    if (typeof _requestHistoryState === 'function') _requestHistoryState();
+}
+
+function dismissDailyStreakHistoryState() {
+    if (typeof _dismissHistoryState === 'function') _dismissHistoryState();
+}
+
+export function closeDailyStreakModal({ isPopState = false, preserveHistoryState = false } = {}) {
+    if (!_overlay?.classList.contains('active')) return;
+
+    if (!isPopState && !preserveHistoryState) dismissDailyStreakHistoryState();
 
     blurFocusedModalElement();
     _overlay.classList.remove('active');
@@ -961,9 +973,10 @@ export function closeDailyStreakModal() {
     hideTooltip();
 }
 
-export function showDailyStreakModal() {
+export function showDailyStreakModal({ preserveHistoryState = false } = {}) {
     if (!_overlay) return;
 
+    if (!isDailyStreakModalOpen() && !preserveHistoryState) requestDailyStreakHistoryState();
     blurActiveElement();
     _state.selectedDayKey = toDayKey(Date.now());
     renderDailyStreakModal();
@@ -978,7 +991,9 @@ export function showDailyStreakModal() {
     });
 }
 
-export function initDailyStreakModal() {
+export function initDailyStreakModal({ requestHistoryState = null, dismissHistoryState = null } = {}) {
+    if (typeof requestHistoryState === 'function') _requestHistoryState = requestHistoryState;
+    if (typeof dismissHistoryState === 'function') _dismissHistoryState = dismissHistoryState;
     if (_initialized) return;
     _initialized = true;
 

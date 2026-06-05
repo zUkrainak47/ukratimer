@@ -1509,6 +1509,11 @@ function handlePopState(event) {
         return;
     }
 
+    if (isDailyStreakModalOpen()) {
+        closeDailyStreakModal({ isPopState: true });
+        return;
+    }
+
     if (settingsOverlayEl?.classList.contains('active')) {
         closeSettingsPanel({ isPopState: true });
         return;
@@ -5655,7 +5660,10 @@ async function init() {
     const shouldLoadInitialScramble = !syncInitialScrambleUI();
     initModal();
     initTimeDistributionModal();
-    initDailyStreakModal();
+    initDailyStreakModal({
+        requestHistoryState: pushHistoryState,
+        dismissHistoryState: backToDismiss,
+    });
     setModalStatNavigator(openShortcutStatDetail);
     initShortcutTooltips();
     syncModalStatNavigation();
