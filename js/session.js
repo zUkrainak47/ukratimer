@@ -1,8 +1,8 @@
-import * as db from './db.js?v=2026052202';
-import { load, registerBeforeDataExportHook, save } from './storage.js?v=2026052202';
-import { generateId, EventEmitter, getStartOfToday, getStartOfWeek, getStartOfMonth, parseCustomStatsFilter } from './utils.js?v=2026052202';
-import { settings, SETTING_SCOPE_GLOBAL } from './settings.js?v=2026052202';
-import { SCRAMBLE_TYPE_OPTIONS } from './scramble.js?v=2026052202';
+import * as db from './db.js?v=2026060601';
+import { load, registerBeforeDataExportHook, save } from './storage.js?v=2026060601';
+import { generateId, EventEmitter, getStartOfToday, getStartOfWeek, getStartOfMonth, normalizePhaseCount, parseCustomStatsFilter } from './utils.js?v=2026060601';
+import { settings, SETTING_SCOPE_GLOBAL } from './settings.js?v=2026060601';
+import { SCRAMBLE_TYPE_OPTIONS } from './scramble.js?v=2026060601';
 
 const DEFAULT_SCRAMBLE_TYPE = '333';
 const LEGACY_SCRAMBLE_TYPE_STORAGE_KEY = 'scrambleType';
@@ -423,8 +423,14 @@ class SessionManager extends EventEmitter {
 
     // --- Solve CRUD ---
 
-    addSolve(time, scramble, isManual = false, penalty = null) {
+    addSolve(time, scramble, isManual = false, penalty = null, { phaseSplits = null, phaseCount = null } = {}) {
         const session = this.getActiveSession();
+        const normalizedPhaseSplits = Array.isArray(phaseSplits)
+            ? phaseSplits
+                .map((value) => Math.round(Number(value)))
+                .filter((value) => Number.isFinite(value) && value >= 0)
+                .slice(0, 10)
+            : [];
         const solve = {
             id: generateId(),
             sessionId: this._activeId,
@@ -434,6 +440,10 @@ class SessionManager extends EventEmitter {
             penalty,
             timestamp: Date.now(),
         };
+        if (normalizedPhaseSplits.length > 1) {
+            solve.phaseSplits = normalizedPhaseSplits;
+            solve.phaseCount = normalizePhaseCount(phaseCount, normalizedPhaseSplits.length);
+        }
         session.solves.push(solve);
         session.solveCount += 1;
         const persistence = db.addSolve(solve);
@@ -537,6 +547,7 @@ class SessionManager extends EventEmitter {
 
         this.emit('solveMoved', {
             solve,
+            solves: [solve],
             fromSessionId: sourceSession.id,
             toSessionId: targetSession.id,
         });
@@ -788,6 +799,7 @@ class SessionManager extends EventEmitter {
 
         this.emit('solveMoved', {
             solveIds: movedSolves.map((solve) => solve.id),
+            solves: movedSolves,
             fromSessionId: sourceSession.id,
             toSessionId: targetSession.id,
         });

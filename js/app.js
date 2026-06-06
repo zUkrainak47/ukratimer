@@ -1,21 +1,22 @@
-import { timer, State as TimerState } from './timer.js?v=2026052202';
-import { SCRAMBLE_TYPE_OPTIONS, generateScrambleBatchForType, generateScrambleForType, getScramble, getCurrentScramble, getCurrentScrambleType, getPrevScramble, getNextScramble, getSelectedScrambleType, setCurrentScramble, setScrambleType, isCurrentScrambleManual, hasPrevScramble, isViewingPreviousScramble, preloadScrambleEngines, needsCubingWarmup, runCubingWarmup } from './scramble.js?v=2026052202';
-import { sessionManager } from './session.js?v=2026052202';
-import { settings, DEFAULTS, THEME_OPTIONS, THEME_COLOR_SECTIONS, THEME_DEFAULT_ID, THEME_OLED_ID, THEME_CUSTOM_IDS, SETTING_SCOPE_GLOBAL, SETTING_SCOPE_SESSION, SESSION_SCOPABLE_SETTING_KEYS, AUTO_EXPORT_EVERY_100_SOLVES_NEVER, AUTO_EXPORT_EVERY_100_SOLVES_REMIND, AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE, AUTO_EXPORT_EVERY_100_SOLVES_FILE, composeThemeColor, decomposeThemeColor, getLinkedSessionScopeKeys, getThemePresetColors, isCustomThemeId, normalizeAutoExportEvery100Solves } from './settings.js?v=2026052202';
-import { parseGraphStatType, parseRollingStatType, rollingStatAt, StatsCache } from './stats.js?v=2026052202';
-import { formatTime, formatSolveTime, formatTimerDisplayTime, getEffectiveTime, formatDate, formatDateTime, parseTimeInputToMs, truncateTimeDisplay } from './utils.js?v=2026052202';
-import { initModal, showSolveDetail, showAverageDetail, closeModal, closeMoveSessionMenus, customConfirm, customConfirmChoice, customPrompt, getModalSelectionContext, setModalStatNavigator, setModalStatButtons, armModalGhostClickGuard } from './modal.js?v=2026052202';
-import { applyMegaminxScramble, applyPyraminxScramble, applyScramble, applySquare1Scramble, applySkewbScramble, applyClockScramble, clearCubeDisplay, drawMegaminxFacePreview, drawSquare1, drawClock, initCubeDisplay, updateCubeDisplay, updateMegaminxDisplay, updatePyraminxDisplay, updateSquare1Display, updateSkewbDisplay, updateClockDisplay } from './cube-display.js?v=2026052202';
-import { initGraph, updateGraph, updateGraphData, setLineVisibility, getLineVisibility, applyAction, graphEvents, getGraphLineDefinitions } from './graph.js?v=2026052202';
-import { closeTimeDistributionModal, initTimeDistributionModal, isTimeDistributionModalOpen, refreshTimeDistributionData, refreshTimeDistributionTheme, showTimeDistributionModal } from './distribution.js?v=2026052202';
-import { exportAll, importAll, isCsTimerFormat, importCsTimer, exportCsTimer, importSessionCsv, isTwistyTimerOtherTimersCsvFormat, TWISTY_TIMER_OTHER_TIMERS_EXPORT_MESSAGE, IMPORT_MODE_MERGE, IMPORT_MODE_REWRITE, load, save } from './storage.js?v=2026052202';
-import { connectGoogleDrive, consumeAuthSession, exportBackupToGoogleDrive, getGoogleDriveBackupInfo, hasGoogleDriveSession, importBackupFromGoogleDrive, isGoogleDriveSyncConfigured, restoreGoogleDriveSession, signOutOfGoogleDrive } from './google-drive-sync.js?v=2026052202';
-import { dailyStreakStore, normalizeDailyStreakGoal } from './streaks.js?v=2026052202';
-import { bluetoothTimerInput, BluetoothTimerState } from './hardware-bluetooth-timer.js?v=2026052202';
-import { stackmatInput } from './hardware-stackmat.js?v=2026052202';
-import { isHardwareTimeEntryMode, isTypingTimeEntryMode, normalizeTimeEntryMode, TIME_ENTRY_MODE_BLUETOOTH, TIME_ENTRY_MODE_STACKMAT, TIME_ENTRY_MODE_TIMER } from './time-entry.js?v=2026052202';
-import { battleManager } from './battle.js?v=2026052202';
-import { CHANGELOG_ENTRIES, LATEST_CHANGELOG_ENTRY_ID } from './changelog.js?v=2026052202';
+import { timer, State as TimerState } from './timer.js?v=2026060601';
+import { SCRAMBLE_TYPE_OPTIONS, generateScrambleBatchForType, generateScrambleForType, getScramble, getCurrentScramble, getCurrentScrambleType, getPrevScramble, getNextScramble, getSelectedScrambleType, setCurrentScramble, setScrambleType, isCurrentScrambleManual, hasPrevScramble, isViewingPreviousScramble, preloadScrambleEngines, needsCubingWarmup, runCubingWarmup } from './scramble.js?v=2026060601';
+import { sessionManager } from './session.js?v=2026060601';
+import { settings, DEFAULTS, THEME_OPTIONS, THEME_COLOR_SECTIONS, THEME_DEFAULT_ID, THEME_OLED_ID, THEME_CUSTOM_IDS, SETTING_SCOPE_GLOBAL, SETTING_SCOPE_SESSION, SESSION_SCOPABLE_SETTING_KEYS, AUTO_EXPORT_EVERY_100_SOLVES_NEVER, AUTO_EXPORT_EVERY_100_SOLVES_REMIND, AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE, AUTO_EXPORT_EVERY_100_SOLVES_FILE, composeThemeColor, decomposeThemeColor, getLinkedSessionScopeKeys, getThemePresetColors, isCustomThemeId, isInspectionTimeEnabled, normalizeAutoExportEvery100Solves } from './settings.js?v=2026060601';
+import { buildRollingBestFlags, buildRollingStatValues, parseGraphStatType, parseRollingStatType, rollingStatAt, StatsCache } from './stats.js?v=2026060601';
+import { formatTime, formatSolveTime, formatSolveTimeWithSplits, formatTimerDisplayTime, getEffectiveTime, getSolvePhaseSplits, normalizePhaseCount, formatDate, formatDateTime, parseTimeInputToMs, truncateTimeDisplay } from './utils.js?v=2026060601';
+import { initModal, showSolveDetail, showAverageDetail, closeModal, closeMoveSessionMenus, customConfirm, customConfirmChoice, customPrompt, getModalSelectionContext, setModalStatNavigator, setModalStatButtons, armModalGhostClickGuard } from './modal.js?v=2026060601';
+import { applyMegaminxScramble, applyPyraminxScramble, applyScramble, applySquare1Scramble, applySkewbScramble, applyClockScramble, clearCubeDisplay, drawMegaminxFacePreview, drawSquare1, drawClock, initCubeDisplay, updateCubeDisplay, updateMegaminxDisplay, updatePyraminxDisplay, updateSquare1Display, updateSkewbDisplay, updateClockDisplay } from './cube-display.js?v=2026060601';
+import { initGraph, updateGraph, updateGraphData, setLineVisibility, getLineVisibility, applyAction, graphEvents, getGraphLineDefinitions } from './graph.js?v=2026060601';
+import { closeTimeDistributionModal, initTimeDistributionModal, isTimeDistributionModalOpen, refreshTimeDistributionData, refreshTimeDistributionTheme, showTimeDistributionModal } from './distribution.js?v=2026060601';
+import { closeDailyStreakModal, initDailyStreakModal, isDailyStreakModalOpen, refreshDailyStreakModal, showDailyStreakModal } from './daily-streak-modal.js?v=2026060601';
+import { exportAll, importAll, isCsTimerFormat, importCsTimer, exportCsTimer, importSessionCsv, isTwistyTimerOtherTimersCsvFormat, TWISTY_TIMER_OTHER_TIMERS_EXPORT_MESSAGE, IMPORT_MODE_MERGE, IMPORT_MODE_REWRITE, load, save } from './storage.js?v=2026060601';
+import { connectGoogleDrive, consumeAuthSession, exportBackupToGoogleDrive, getGoogleDriveBackupInfo, hasGoogleDriveSession, importBackupFromGoogleDrive, isGoogleDriveSyncConfigured, restoreGoogleDriveSession, signOutOfGoogleDrive } from './google-drive-sync.js?v=2026060601';
+import { dailyStreakStore, normalizeDailyStreakGoal } from './streaks.js?v=2026060601';
+import { bluetoothTimerInput, BluetoothTimerState } from './hardware-bluetooth-timer.js?v=2026060601';
+import { stackmatInput } from './hardware-stackmat.js?v=2026060601';
+import { isHardwareTimeEntryMode, isTypingTimeEntryMode, normalizeTimeEntryMode, TIME_ENTRY_MODE_BLUETOOTH, TIME_ENTRY_MODE_STACKMAT, TIME_ENTRY_MODE_TIMER } from './time-entry.js?v=2026060601';
+import { battleManager } from './battle.js?v=2026060601';
+import { CHANGELOG_ENTRIES, LATEST_CHANGELOG_ENTRY_ID } from './changelog.js?v=2026060601';
 
 let currentScramble = '';
 let currentSortCol = null;
@@ -288,7 +289,7 @@ async function registerServiceWorker() {
     if (window.location?.protocol === 'file:') return;
 
     try {
-        const serviceWorkerUrl = new URL('../sw.js?v=2026052202', import.meta.url);
+        const serviceWorkerUrl = new URL('../sw.js?v=2026060601', import.meta.url);
         await navigator.serviceWorker.register(serviceWorkerUrl);
     } catch (error) {
         console.warn('Service worker registration failed:', error);
@@ -296,11 +297,15 @@ async function registerServiceWorker() {
 }
 
 // ──── Solves table virtualization state ────
-const TABLE_ROW_HEIGHT = 27; // px per row, matches CSS
+const TABLE_ROW_HEIGHT = 30; // px per row, matches CSS
+const SOLVES_PANEL_WIDTH_CONSTRAINED_SETTING = 'solvesPanelWidthConstrained';
 let _tableScrollHandler = null;
 let _tableSortedIndices = null; // cached sorted index order
 let _pendingSolvesTableViewportReset = false;
 let _tableSolves = null; // reference to current solves array
+let _phaseInfoScrollSyncing = false;
+let _suppressNextSolvesTableClick = false;
+let isSolvesPanelWidthConstrained = settings.get(SOLVES_PANEL_WIDTH_CONSTRAINED_SETTING) === true;
 const popupState = {
     inspection: { elementId: 'inspection-alert', hideTimeout: null, clearTimeout: null },
     newBest: { elementId: 'new-best-alert', hideTimeout: null, clearTimeout: null },
@@ -308,7 +313,6 @@ const popupState = {
     hardwareTimer: { elementId: 'hardware-timer-alert', hideTimeout: null, clearTimeout: null },
     backupReminder: { elementId: 'backup-reminder-alert', hideTimeout: null, clearTimeout: null },
 };
-const TIMER_POPUP_ACTIVE_CLASS = 'timer-popup-active';
 const TIMER_POPUP_ELEMENT_IDS = [
     'inspection-alert',
     'new-best-alert',
@@ -342,8 +346,13 @@ const bluetoothSessionState = {
 let currentHardwareSelectionTask = 0;
 let pendingHardwareModeReconnect = false;
 let isSettingScopeModeVisible = false;
+let phaseSplitAudioContext = null;
+let phaseSplitDisplayHideTimeout = null;
+const PHASE_SPLIT_DISPLAY_FADE_OUT_MS = 220;
 
 function syncTimerPopupStacking() {
+    syncTimerPopupOverlayPlacement();
+
     const visiblePopupElements = [];
 
     TIMER_POPUP_ELEMENT_IDS.forEach((elementId) => {
@@ -370,10 +379,7 @@ function syncTimerPopupStacking() {
         }
     });
 
-    const hasVisiblePopup = visiblePopupElements.length > 0;
-    document.getElementById('center-panel')?.classList.toggle(TIMER_POPUP_ACTIVE_CLASS, hasVisiblePopup);
-    document.getElementById('timer-popup-overlay')?.classList.toggle(TIMER_POPUP_ACTIVE_CLASS, hasVisiblePopup);
-    document.getElementById('timer-display-wrapper')?.classList.toggle(TIMER_POPUP_ACTIVE_CLASS, hasVisiblePopup);
+    syncTimerPopupOverlayPosition();
 }
 const SUMMARY_STAT_PRESETS = {
     basic: ['mo3', 'ao5', 'ao12', 'ao100'],
@@ -384,6 +390,23 @@ const MAX_CUSTOM_SUMMARY_STATS = 12;
 const MAX_ROLLING_STAT_INPUT_LENGTH = 7;
 const MAX_DELTA_REFERENCE_INPUT_LENGTH = 7;
 const SOLVES_TABLE_STAT_SETTING_KEYS = ['solvesTableStat1', 'solvesTableStat2'];
+const TIME_TABLE_VERTICAL_GRID_LINES_SETTING = 'timeTableVerticalGridLines';
+const TIME_TABLE_VERTICAL_GRID_LINES_MULTI_PHASE_ONLY = 'multi-phase-only';
+const TIME_TABLE_VERTICAL_GRID_LINES_ON = 'on';
+const MIN_SOLVES_TABLE_COLUMN_WIDTH_PX = 58;
+const PHASE_SOURCE_TIME_COLUMN_MIN_WIDTH_PX = 108;
+const MOBILE_PHASE_SOURCE_TIME_COLUMN_MIN_WIDTH_PX = 104;
+const MOBILE_PHASE_LEADING_COLUMNS_MAX_WIDTH_PX = 360;
+const PHASE_LEADING_COLUMN_ADJUSTMENT_PX = 2;
+const PHASE_SESSION_INFO_EDGE_ADJUSTMENT_PX = 4;
+const SOLVES_TABLE_COMPOSITE_TIME_GAP_EM = 0.35;
+const SOLVES_TABLE_TIME_COLUMN_WIDTH_BUFFER_PX = 4;
+const DESKTOP_SOLVES_TABLE_WIDTHS = Object.freeze({
+    phase: 70,
+});
+const MOBILE_SOLVES_TABLE_WIDTHS = Object.freeze({
+    phase: 64,
+});
 const DELTA_REFERENCE_SINGLE_TOKENS = new Set(['single', 'prev', 'last']);
 const DELTA_REFERENCE_MEAN_TOKENS = new Set(['mean', 'session']);
 const SHIFT_STAT_SHORTCUT_CODES = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8', 'Digit9', 'Digit0', 'Minus', 'Equal'];
@@ -1268,7 +1291,7 @@ const ALT_SCRAMBLE_TYPE_SHORTCUTS = new Map([
     ['KeyC', 'clock'],
     ['KeyS', 'skewb'],
 ]);
-const blockingOverlayIds = ['modal-overlay', 'distribution-overlay', 'scramble-preview-overlay', 'confirm-overlay', 'prompt-overlay', 'shortcuts-overlay', 'chart-image-overlay', 'changelog-overlay', 'theme-customization-overlay', 'battle-overlay', 'graph-overlay', 'battle-create-overlay', 'scramble-generator-overlay'];
+const blockingOverlayIds = ['modal-overlay', 'distribution-overlay', 'daily-streak-overlay', 'scramble-preview-overlay', 'confirm-overlay', 'prompt-overlay', 'shortcuts-overlay', 'chart-image-overlay', 'changelog-overlay', 'theme-customization-overlay', 'battle-overlay', 'graph-overlay', 'battle-create-overlay', 'scramble-generator-overlay'];
 const THEME_OPTION_LABELS = new Map(THEME_OPTIONS.map(({ value, label }) => [value, label]));
 let settingsOverlayEl = null;
 let shortcutsOverlayEl = null;
@@ -1289,6 +1312,11 @@ let instantTimerTabLayoutCleanupFrame = null;
 let desktopScrambleTransitionSyncFrame = null;
 let summaryRowsCache = { signature: '', rows: [] };
 const rollingStatSummaryCache = new Map();
+const MAIN_STATS_SOURCE_TIME = 'time';
+let selectedMainStatsSource = MAIN_STATS_SOURCE_TIME;
+let solvesTableTextMeasureContext = null;
+let phaseSourceTimeColumnWidthRevision = 0;
+const phaseSourceTimeColumnWidthCache = new Map();
 const domCache = new Map();
 const customSelectControllers = new Map();
 const viewportLayoutState = {
@@ -1486,6 +1514,11 @@ function handlePopState(event) {
         return;
     }
 
+    if (isDailyStreakModalOpen()) {
+        closeDailyStreakModal({ isPopState: true });
+        return;
+    }
+
     if (settingsOverlayEl?.classList.contains('active')) {
         closeSettingsPanel({ isPopState: true });
         return;
@@ -1613,7 +1646,7 @@ function shouldShowInspectionSpeechUnlockPrompt() {
     if (inspectionSpeechUnlockState.dismissed) return false;
     const timerState = timer.getState();
     if (timerState !== 'idle' && timerState !== 'stopped') return false;
-    if (settings.get('inspectionTime') !== '15s') return false;
+    if (!isInspectionTimeEnabled(settings.get('inspectionTime'))) return false;
 
     const alertMode = settings.get('inspectionAlerts');
     return alertMode === 'voice' || alertMode === 'both';
@@ -2974,21 +3007,195 @@ function stopCameraBackgroundStream({ preserveError = false } = {}) {
 }
 
 function syncTimerPopupOverlayPlacement() {
+    syncTimerPopupOverlayPosition();
+}
+
+function resolveTimerLayoutTargets({
+    timerDisplayWrapper = getEl('timer-display-wrapper'),
+    timerDisplay = getEl('timer-display'),
+    quickActions = getEl('timer-quick-actions'),
+    rightPanel = getEl('right-panel'),
+    zenButton = getEl('btn-zen'),
+    scrambleContainer = getEl('scramble-container'),
+    scrambleText = getEl('scramble-text'),
+    scrambleTextWrapper = getEl('scramble-text-wrapper'),
+    cubeTimerSlot = getEl('cube-camera-timer-slot'),
+    graphTimerSlot = getEl('graph-camera-timer-slot'),
+} = {}) {
+    if (!timerDisplayWrapper) return null;
+
+    const state = timer.getState();
+    const isZen = document.body.classList.contains('zen');
+    const isSolving = document.body.classList.contains('solving');
+    const activeCameraTimerHost = [cubeTimerSlot, graphTimerSlot]
+        .find((slot) => slot?.contains(timerDisplayWrapper)) || null;
+    const isCameraTimerHost = document.body.classList.contains('camera-background-active')
+        && Boolean(activeCameraTimerHost);
+    const isMobileTimerView = mobileViewportQuery.matches && document.body.dataset.mobilePanel === 'timer';
+    const centerTimerEnabled = settings.get('centerTimer');
+    const hideUIWhileSolving = settings.get('hideUIWhileSolving');
+    const effectiveCenterTimer = mobileViewportQuery.matches ? centerTimerEnabled : (centerTimerEnabled && hideUIWhileSolving);
+    const shouldApplyMobileTimerPositioning = isMobileTimerView && (centerTimerEnabled || isZen);
+    const shouldFocusTimer = state === 'running' || state === 'ready' || isInspectionState(state);
+    const shouldViewportCenterTimer = shouldFocusTimer && (effectiveCenterTimer || (isMobileTimerView && isZen));
+    const shouldPositionIdleMobileTimer = shouldApplyMobileTimerPositioning && !shouldFocusTimer;
+    const shouldPositionMobileScramble = isMobileTimerView
+        && !isSolving
+        && scrambleContainer
+        && scrambleTextWrapper
+        && zenButton;
+    const shouldFreezeMobileManualEntryLayout = isMobileTimerView
+        && quickActionsState.manualEntryActive
+        && !isPersistentTypingEntryModeEnabled();
+
+    if (shouldFreezeMobileManualEntryLayout) {
+        return {
+            isMobileTimerView,
+            isSolving,
+            shouldFreezeMobileManualEntryLayout,
+            shouldPositionMobileScramble,
+            state,
+            targetScrambleCenterY: null,
+            targetTimerCenterY: null,
+            timerTransform: timerDisplayWrapper.style.transform || viewportLayoutState.timerTransform || '',
+        };
+    }
+
+    let targetTimerCenterY = null;
+    let targetTimerCenterX = null;
+    let targetTimerRect = null;
+    let targetScrambleCenterY = null;
+
+    if (shouldViewportCenterTimer) {
+        if (!isMobileTimerView && isCameraTimerHost) {
+            const hostRect = getLayoutRect(activeCameraTimerHost);
+            if (hostRect) {
+                targetTimerCenterX = hostRect.left + hostRect.width / 2;
+                targetTimerCenterY = hostRect.top + hostRect.height / 2;
+                targetTimerRect = getLayoutRect(timerDisplay || timerDisplayWrapper);
+            } else {
+                targetTimerCenterY = window.innerHeight / 2;
+            }
+        } else {
+            if (isMobileTimerView) targetTimerCenterX = window.innerWidth / 2;
+            targetTimerCenterY = window.innerHeight / 2;
+        }
+    } else if (isMobileTimerView && !shouldFocusTimer) {
+        const rightRect = rightPanel?.getBoundingClientRect();
+        const zenRect = zenButton?.getBoundingClientRect();
+        const scrambleRect = getLayoutRect(scrambleText || scrambleTextWrapper);
+        const timerRect = getLayoutRect(timerDisplay || timerDisplayWrapper);
+        const quickActionsRect = quickActions && !quickActions.hidden
+            ? getLayoutRect(quickActions)
+            : null;
+        const duetRect = combineLayoutRects(timerRect, quickActionsRect);
+        const zenCenterY = zenRect ? zenRect.top + zenRect.height / 2 : 0;
+        const freeBottom = rightRect?.top ?? window.innerHeight;
+        const preservedScrambleCenterY = scrambleRect
+            ? ((3 * zenCenterY) + (freeBottom - 12)) / 4
+            : zenCenterY;
+
+        if (isZen) {
+            if (mobileLandscapeQuery.matches) {
+                targetScrambleCenterY = preservedScrambleCenterY;
+            }
+            if (shouldPositionIdleMobileTimer) {
+                targetTimerCenterX = window.innerWidth / 2;
+                targetTimerCenterY = window.innerHeight / 2;
+            }
+        } else {
+            targetScrambleCenterY = preservedScrambleCenterY;
+            if (shouldPositionIdleMobileTimer) {
+                const scrambleBottom = scrambleRect
+                    ? preservedScrambleCenterY + (scrambleRect.height / 2)
+                    : zenCenterY;
+                targetTimerCenterY = (scrambleBottom + freeBottom) / 2;
+                targetTimerRect = duetRect || timerRect;
+            }
+        }
+    }
+
+    let timerTransform = '';
+
+    if (targetTimerCenterY != null) {
+        if (isMobileTimerView && shortMobileLandscapeQuery.matches && (state === 'idle' || state === 'stopped' || state === 'holding')) {
+            targetTimerCenterY += 30;
+        }
+
+        const targetRect = targetTimerRect || getLayoutRect(timerDisplay || timerDisplayWrapper);
+        if (targetRect) {
+            const timerCenterX = targetRect.left + targetRect.width / 2;
+            const timerCenterY = targetRect.top + targetRect.height / 2;
+            const offsetX = targetTimerCenterX != null && targetRect.width < window.innerWidth - 24
+                ? targetTimerCenterX - timerCenterX
+                : 0;
+            const offsetY = targetTimerCenterY - timerCenterY;
+            timerTransform = `translate(${Math.round(offsetX * 10) / 10}px, ${Math.round(offsetY * 10) / 10}px)`;
+        }
+    }
+
+    return {
+        isMobileTimerView,
+        isSolving,
+        shouldFreezeMobileManualEntryLayout,
+        shouldPositionMobileScramble,
+        state,
+        targetScrambleCenterY,
+        targetTimerCenterY,
+        timerTransform,
+    };
+}
+
+function syncTimerPopupOverlayPosition() {
+    const overlay = getEl('timer-popup-overlay');
+    if (!overlay) return;
+
     const centerPanel = getEl('center-panel');
     const timerDisplayWrapper = getEl('timer-display-wrapper');
-    const timerDisplayStack = getEl('timer-display-stack');
-    const overlay = getEl('timer-popup-overlay');
-    if (!centerPanel || !timerDisplayWrapper || !timerDisplayStack || !overlay) return;
 
-    const shouldDetachOverlay = wantsCameraBackground();
-    const targetParent = shouldDetachOverlay ? centerPanel : timerDisplayWrapper;
+    if (document.body && overlay.parentElement !== document.body) {
+        document.body.appendChild(overlay);
+    }
 
-    if (overlay.parentElement !== targetParent) {
-        if (shouldDetachOverlay) {
-            centerPanel.insertBefore(overlay, getEl('center-panel-timer-slot') || null);
-        } else {
-            timerDisplayWrapper.insertBefore(overlay, timerDisplayStack);
+    if (!centerPanel || !timerDisplayWrapper) {
+        overlay.style.visibility = 'hidden';
+        return;
+    }
+
+    const usesCameraAnchor = wantsCameraBackground();
+    if (usesCameraAnchor) {
+        overlay.style.removeProperty('--timer-popup-overlay-font-size');
+    } else {
+        const timerFontSize = getComputedStyle(timerDisplayWrapper).fontSize;
+        if (timerFontSize) {
+            overlay.style.setProperty('--timer-popup-overlay-font-size', timerFontSize);
         }
+    }
+
+    const anchorRect = usesCameraAnchor
+        ? (getLayoutRect(centerPanel) || centerPanel.getBoundingClientRect())
+        : (getLayoutRect(timerDisplayWrapper) || timerDisplayWrapper.getBoundingClientRect());
+    if (!anchorRect || (!anchorRect.width && !anchorRect.height)) {
+        overlay.style.visibility = 'hidden';
+        return;
+    }
+
+    overlay.style.removeProperty('visibility');
+
+    const targetTransform = usesCameraAnchor
+        ? ''
+        : (resolveTimerLayoutTargets({ timerDisplayWrapper })?.timerTransform || '');
+    const targetTranslate = getTransformTranslate(targetTransform);
+    const anchorLeft = anchorRect.left + (anchorRect.width / 2);
+    const anchorTop = usesCameraAnchor
+        ? anchorRect.top + (anchorRect.height * 0.25)
+        : anchorRect.top;
+
+    if (Number.isFinite(anchorLeft)) {
+        overlay.style.setProperty('--timer-popup-overlay-left', `${Math.round((anchorLeft + targetTranslate.x) * 10) / 10}px`);
+    }
+    if (Number.isFinite(anchorTop)) {
+        overlay.style.setProperty('--timer-popup-overlay-top', `${Math.round((anchorTop + targetTranslate.y) * 10) / 10}px`);
     }
 }
 
@@ -3198,6 +3405,63 @@ function syncManualTimeInputFocusState() {
 
 function sanitizeManualDigits(value) {
     return String(value ?? '').replace(/\D/g, '').slice(0, 7);
+}
+
+function setManualTimeInputCaretToEnd(input = getEl('manual-time-hidden-input')) {
+    if (!input || typeof input.setSelectionRange !== 'function') return;
+    const len = input.value.length;
+    if (input.selectionStart === len && input.selectionEnd === len) return;
+    input.setSelectionRange(len, len);
+}
+
+function setManualTimeDigits(nextDigits) {
+    quickActionsState.manualDigits = sanitizeManualDigits(nextDigits);
+    updateManualTimeEntryUI();
+}
+
+function appendManualTimeDigits(value) {
+    const digits = sanitizeManualDigits(value);
+    if (!digits) {
+        updateManualTimeEntryUI();
+        return false;
+    }
+
+    setManualTimeDigits(`${quickActionsState.manualDigits}${digits}`);
+    return true;
+}
+
+function getManualTimeInputEventText(event) {
+    return event.data ?? event.dataTransfer?.getData?.('text') ?? '';
+}
+
+function preventManualTimeInputEvent(event) {
+    if (!event.cancelable) return false;
+    event.preventDefault();
+    return event.defaultPrevented;
+}
+
+function removeManualTimeDigitsFromEnd(count = 1) {
+    const removeCount = Math.max(1, count);
+    setManualTimeDigits(quickActionsState.manualDigits.slice(0, -removeCount));
+}
+
+function getInsertedManualDigits(previousDigits, nextDigits) {
+    const previous = sanitizeManualDigits(previousDigits);
+    const next = sanitizeManualDigits(nextDigits);
+    let start = 0;
+
+    while (start < previous.length && start < next.length && previous[start] === next[start]) {
+        start += 1;
+    }
+
+    let previousEnd = previous.length - 1;
+    let nextEnd = next.length - 1;
+    while (previousEnd >= start && nextEnd >= start && previous[previousEnd] === next[nextEnd]) {
+        previousEnd -= 1;
+        nextEnd -= 1;
+    }
+
+    return next.slice(start, nextEnd + 1);
 }
 
 function getManualTimeParts(digits) {
@@ -3624,6 +3888,9 @@ function updateManualTimeEntryUI() {
     if (hiddenInput && hiddenInput.value !== quickActionsState.manualDigits) {
         hiddenInput.value = quickActionsState.manualDigits;
     }
+    if (hiddenInput && document.activeElement === hiddenInput) {
+        setManualTimeInputCaretToEnd(hiddenInput);
+    }
     if (formattedEl) formattedEl.innerHTML = renderManualTimeMarkup(quickActionsState.manualDigits);
     if (submitBtn) submitBtn.disabled = !hasValue || submitBlocked;
     document.body.classList.toggle('manual-time-has-hours', parts.hasHours);
@@ -3692,10 +3959,7 @@ function focusManualTimeInput() {
     const hiddenInput = getEl('manual-time-hidden-input');
     if (!hiddenInput) return;
     hiddenInput.focus({ preventScroll: true });
-    if (typeof hiddenInput.setSelectionRange === 'function') {
-        const len = hiddenInput.value.length;
-        hiddenInput.setSelectionRange(len, len);
-    }
+    setManualTimeInputCaretToEnd(hiddenInput);
     syncManualTimeInputFocusState();
 }
 
@@ -3790,12 +4054,18 @@ function syncPersistentManualEntryMode() {
     }
 }
 
-async function commitSolve(elapsed, penalty = null, { isManual = false } = {}) {
+async function commitSolve(elapsed, penalty = null, { isManual = false, phaseSplits = [], phaseCount = 1 } = {}) {
     syncStatsCacheWithFilteredSolves();
     const previousStats = statsCache.getStats();
     _skipSolveAddedRefresh = true;
-    const solve = sessionManager.addSolve(elapsed, currentScramble, isManual, penalty);
+    const solve = sessionManager.addSolve(elapsed, currentScramble, isManual, penalty, {
+        phaseSplits,
+        phaseCount,
+    });
     _skipSolveAddedRefresh = false;
+    if (!Array.isArray(phaseSplits) || phaseSplits.length < 2) {
+        renderPhaseSplitDisplay([]);
+    }
     if (battleManager.isJoined()) {
         try {
             if (battleManager.stageLocalSolve(solve)) {
@@ -3960,6 +4230,8 @@ function scheduleViewportLayoutSync() {
     viewportLayoutFrame = window.requestAnimationFrame(() => {
         viewportLayoutFrame = null;
         syncViewportLayout();
+        syncPhaseSplitDisplayPosition();
+        syncTimerPopupOverlayPosition();
     });
 }
 
@@ -4047,8 +4319,8 @@ function getVisibleLayoutRectById(id) {
 
 function getDesktopScrambleTrailingActionOverhang() {
     const actions = [
-        { id: 'btn-prev-scramble', offset: 24 },
-        { id: 'btn-next-scramble', offset: 64 },
+        { id: 'btn-prev-scramble', offset: 20 },
+        { id: 'btn-next-scramble', offset: 58 },
     ];
 
     return actions.reduce((maxOverhang, { id, offset }) => {
@@ -4065,6 +4337,9 @@ function syncDesktopScrambleBounds() {
     if (mobileViewportQuery.matches) {
         scrambleContainer.style.removeProperty('--desktop-scramble-text-width');
         scrambleContainer.style.removeProperty('--desktop-scramble-text-half-width');
+        scrambleContainer.style.removeProperty('--desktop-scramble-type-right-edge');
+        scrambleContainer.style.removeProperty('--desktop-scramble-prev-left-edge');
+        scrambleContainer.style.removeProperty('--desktop-scramble-type-width');
         return;
     }
 
@@ -4075,12 +4350,29 @@ function syncDesktopScrambleBounds() {
     const isZen = document.body.classList.contains('zen');
     let nextWidth = Math.min(scrambleBarInnerWidth, Math.round(window.innerWidth * 0.8));
     const scrambleBarRect = scrambleBar.getBoundingClientRect();
+    const scrambleContainerRect = scrambleContainer.getBoundingClientRect();
     const centerX = scrambleBarRect.left + (scrambleBarRect.width / 2);
     const controlGap = 16;
     const minimumTopRightButtonCount = 2;
     const topRightButtonSlotPitch = 36;
     const leftLimit = scrambleBarRect.left + paddingLeft;
     const rightLimit = scrambleBarRect.right - paddingRight;
+    const leftPanelRect = getVisibleLayoutRectById('left-panel');
+    const rightPanelRect = getVisibleLayoutRectById('right-panel');
+    const rootStyles = getComputedStyle(document.documentElement);
+    const sidebarWidth = parseFloat(rootStyles.getPropertyValue('--sidebar-width')) || 300;
+    const rightPanelWidth = parseFloat(rootStyles.getPropertyValue('--right-panel-width')) || 300;
+    const panelScale = parseFloat(rootStyles.getPropertyValue('--desktop-panel-scale')) || 1;
+    const leftPanelAnchorRight = leftPanelRect
+        ? leftPanelRect.left + (sidebarWidth * panelScale)
+        : null;
+    const rightPanelAnchorLeft = rightPanelRect
+        ? rightPanelRect.right - (rightPanelWidth * panelScale)
+        : null;
+    const leadingTopControls = [
+        'btn-settings',
+        'btn-phase-panel-width-toggle',
+    ];
     const topControls = [
         'btn-zen',
         'btn-camera-background-toggle',
@@ -4091,6 +4383,13 @@ function syncDesktopScrambleBounds() {
     let leftContentLimit = leftLimit;
     let rightContentLimit = rightLimit;
     const visibleRightControlRects = [];
+    const trailingActionOverhang = getDesktopScrambleTrailingActionOverhang();
+
+    leadingTopControls.forEach((id) => {
+        const controlRect = getVisibleLayoutRectById(id);
+        if (!controlRect) return;
+        leftContentLimit = Math.max(leftContentLimit, controlRect.right + controlGap);
+    });
 
     topControls.forEach((id) => {
         const controlRect = getVisibleLayoutRectById(id);
@@ -4124,19 +4423,15 @@ function syncDesktopScrambleBounds() {
             nextWidth = Math.min(nextWidth, Math.floor(halfWidthLimit * 2));
         }
     } else {
-        const leftRect = getEl('left-panel')?.getBoundingClientRect();
-        const rightRect = getEl('right-panel')?.getBoundingClientRect();
-        const panelMargin = 24;
-
         nextWidth = scrambleBarInnerWidth;
-        if (leftRect && rightRect) {
+        const panelMargin = 24;
+        if (leftPanelAnchorRight != null && rightPanelAnchorLeft != null) {
             nextWidth = Math.min(
-                scrambleBarInnerWidth,
-                Math.max(0, rightRect.left - leftRect.right - (panelMargin * 2)),
+                nextWidth,
+                Math.max(0, rightPanelAnchorLeft - leftPanelAnchorRight - (panelMargin * 2)),
             );
         }
 
-        const trailingActionOverhang = getDesktopScrambleTrailingActionOverhang();
         const halfWidthLimit = Math.max(
             0,
             Math.min(
@@ -4147,9 +4442,44 @@ function syncDesktopScrambleBounds() {
         nextWidth = Math.min(nextWidth, Math.floor(halfWidthLimit * 2));
     }
 
-    const nextWidthPx = Math.round(nextWidth);
+    const nextWidthPx = Math.round(Math.max(0, nextWidth));
+    const centerRelativeX = centerX - scrambleContainerRect.left;
+    const textLeftEdge = centerRelativeX - (nextWidthPx / 2);
+    const textRightEdge = centerRelativeX + (nextWidthPx / 2);
+    const typeButtonRect = getEl('btn-scramble-type-desktop')?.getBoundingClientRect();
+    const typeButtonWidth = Math.ceil(typeButtonRect?.width || 84);
+    const panelControlGap = 0;
+    const typeRightFallback = textLeftEdge - panelControlGap;
+    const prevLeftFallback = textRightEdge + panelControlGap;
+    const editButtonRect = getVisibleLayoutRectById('btn-edit-scramble');
+    const scrambleControlGap = 8;
+    const leadingActionOverhang = typeButtonWidth
+        + (editButtonRect ? editButtonRect.width + scrambleControlGap : 0);
+    const leadingControlsLimit = leftContentLimit > leftLimit
+        ? leftContentLimit + leadingActionOverhang
+        : null;
+    const leadingPanelAnchorRight = Math.max(
+        leftPanelAnchorRight ?? Number.NEGATIVE_INFINITY,
+        leadingControlsLimit ?? Number.NEGATIVE_INFINITY,
+    );
+    const panelTypeRight = Number.isFinite(leadingPanelAnchorRight)
+        ? leadingPanelAnchorRight - scrambleContainerRect.left
+        : typeRightFallback;
+    const panelPrevLeft = rightPanelRect
+        ? rightPanelRect.left - scrambleContainerRect.left
+        : prevLeftFallback;
+    const trailingControlsLimit = rightContentLimit - trailingActionOverhang - scrambleContainerRect.left;
+    const clampedPanelPrevLeft = Number.isFinite(trailingControlsLimit)
+        ? Math.min(panelPrevLeft, trailingControlsLimit)
+        : panelPrevLeft;
+    const typeRightEdge = Math.round(Math.min(panelTypeRight, typeRightFallback));
+    const prevLeftEdge = Math.round(Math.max(clampedPanelPrevLeft, prevLeftFallback));
+
     scrambleContainer.style.setProperty('--desktop-scramble-text-width', `${nextWidthPx}px`);
     scrambleContainer.style.setProperty('--desktop-scramble-text-half-width', `${Math.round(nextWidthPx / 2)}px`);
+    scrambleContainer.style.setProperty('--desktop-scramble-type-right-edge', `${typeRightEdge}px`);
+    scrambleContainer.style.setProperty('--desktop-scramble-prev-left-edge', `${prevLeftEdge}px`);
+    scrambleContainer.style.setProperty('--desktop-scramble-type-width', `${typeButtonWidth}px`);
 }
 
 function syncDesktopInlineScrambleInputHeight(scrambleInput = getEl('scramble-input'), scrambleTextWrapper = getEl('scramble-text-wrapper')) {
@@ -4227,6 +4557,15 @@ function getTransformTranslate(transformValue) {
         return {
             x: values[4] || 0,
             y: values[5] || 0,
+        };
+    }
+
+    const translateMatch = transformValue.match(/^translate(?:3d)?\((.+)\)$/);
+    if (translateMatch) {
+        const values = translateMatch[1].split(',').map((value) => Number.parseFloat(value.trim()));
+        return {
+            x: values[0] || 0,
+            y: values[1] || 0,
         };
     }
 
@@ -4450,110 +4789,44 @@ function syncViewportLayout() {
 
     if (!timerDisplayWrapper) return;
 
-    const state = timer.getState();
-    const isZen = document.body.classList.contains('zen');
-    const isSolving = document.body.classList.contains('solving');
-    const activeCameraTimerHost = [cubeTimerSlot, graphTimerSlot]
-        .find((slot) => slot?.contains(timerDisplayWrapper)) || null;
-    const isCameraTimerHost = document.body.classList.contains('camera-background-active')
-        && Boolean(activeCameraTimerHost);
-    const isMobileTimerView = mobileViewportQuery.matches && document.body.dataset.mobilePanel === 'timer';
-    const centerTimerEnabled = settings.get('centerTimer');
-    const hideUIWhileSolving = settings.get('hideUIWhileSolving');
-    const effectiveCenterTimer = mobileViewportQuery.matches ? centerTimerEnabled : (centerTimerEnabled && hideUIWhileSolving);
-    const shouldApplyMobileTimerPositioning = isMobileTimerView && (centerTimerEnabled || isZen);
-    const shouldFocusTimer = state === 'running' || state === 'ready' || isInspectionState(state);
-    const shouldViewportCenterTimer = shouldFocusTimer && (effectiveCenterTimer || (isMobileTimerView && isZen));
-    const shouldPositionIdleMobileTimer = shouldApplyMobileTimerPositioning && !shouldFocusTimer;
-    const shouldPositionMobileScramble = isMobileTimerView
-        && !isSolving
-        && scrambleContainer
-        && scrambleTextWrapper
-        && zenButton;
-    const shouldFreezeMobileManualEntryLayout = isMobileTimerView
-        && quickActionsState.manualEntryActive
-        && !isPersistentTypingEntryModeEnabled();
+    const timerLayoutTargets = resolveTimerLayoutTargets({
+        timerDisplayWrapper,
+        timerDisplay,
+        quickActions,
+        rightPanel,
+        zenButton,
+        scrambleContainer,
+        scrambleText,
+        scrambleTextWrapper,
+        cubeTimerSlot,
+        graphTimerSlot,
+    });
+    if (!timerLayoutTargets) return;
 
-    let targetTimerCenterY = null;
-    let targetTimerCenterX = null;
-    let targetTimerRect = null;
-    let targetScrambleCenterY = null;
+    const {
+        isMobileTimerView,
+        isSolving,
+        shouldFreezeMobileManualEntryLayout,
+        shouldPositionMobileScramble,
+        state,
+        targetScrambleCenterY,
+        targetTimerCenterY,
+        timerTransform,
+    } = timerLayoutTargets;
 
-    if (shouldFreezeMobileManualEntryLayout) return;
-
-    if (shouldViewportCenterTimer) {
-        if (!isMobileTimerView && isCameraTimerHost) {
-            const hostRect = getLayoutRect(activeCameraTimerHost);
-            if (hostRect) {
-                targetTimerCenterX = hostRect.left + hostRect.width / 2;
-                targetTimerCenterY = hostRect.top + hostRect.height / 2;
-                targetTimerRect = getLayoutRect(timerDisplay || timerDisplayWrapper);
-            } else {
-                targetTimerCenterY = window.innerHeight / 2;
-            }
-        } else {
-            if (isMobileTimerView) targetTimerCenterX = window.innerWidth / 2;
-            targetTimerCenterY = window.innerHeight / 2;
-        }
-    } else if (isMobileTimerView && !shouldFocusTimer) {
-        const rightRect = rightPanel?.getBoundingClientRect();
-        const zenRect = zenButton?.getBoundingClientRect();
-        const scrambleRect = getLayoutRect(scrambleText || scrambleTextWrapper);
-        const timerRect = getLayoutRect(timerDisplay || timerDisplayWrapper);
-        const quickActionsRect = quickActions && !quickActions.hidden
-            ? getLayoutRect(quickActions)
-            : null;
-        const duetRect = combineLayoutRects(timerRect, quickActionsRect);
-        const zenCenterY = zenRect ? zenRect.top + zenRect.height / 2 : 0;
-        const freeBottom = rightRect?.top ?? window.innerHeight;
-        const preservedScrambleCenterY = scrambleRect
-            ? ((3 * zenCenterY) + (freeBottom - 12)) / 4
-            : zenCenterY;
-        if (isZen) {
-            if (mobileLandscapeQuery.matches) {
-                targetScrambleCenterY = preservedScrambleCenterY;
-            }
-            if (shouldPositionIdleMobileTimer) {
-                targetTimerCenterX = window.innerWidth / 2;
-                targetTimerCenterY = window.innerHeight / 2;
-            }
-        } else {
-            targetScrambleCenterY = preservedScrambleCenterY;
-            if (shouldPositionIdleMobileTimer) {
-                const scrambleBottom = scrambleRect
-                    ? preservedScrambleCenterY + (scrambleRect.height / 2)
-                    : zenCenterY;
-                targetTimerCenterY = (scrambleBottom + freeBottom) / 2;
-                targetTimerRect = duetRect || timerRect;
-            }
-        }
+    if (shouldFreezeMobileManualEntryLayout) {
+        syncTimerPopupOverlayPosition();
+        return;
     }
 
-    if (targetTimerCenterY != null) {
-        if (isMobileTimerView && shortMobileLandscapeQuery.matches && (state === 'idle' || state === 'stopped' || state === 'holding')) {
-            targetTimerCenterY += 30;
-        }
-        const targetRect = targetTimerRect || getLayoutRect(timerDisplay || timerDisplayWrapper);
-        const timerCenterX = targetRect.left + targetRect.width / 2;
-        const timerCenterY = targetRect.top + targetRect.height / 2;
-        const offsetX = targetTimerCenterX != null && targetRect.width < window.innerWidth - 24
-            ? targetTimerCenterX - timerCenterX
-            : 0;
-        const offsetY = targetTimerCenterY - timerCenterY;
-        applyCachedTransform(
-            timerDisplayWrapper,
-            'timerTransform',
-            `translate(${Math.round(offsetX * 10) / 10}px, ${Math.round(offsetY * 10) / 10}px)`,
-        );
-    } else {
-        applyCachedTransform(timerDisplayWrapper, 'timerTransform', '');
-    }
+    applyCachedTransform(timerDisplayWrapper, 'timerTransform', timerTransform);
 
     syncDesktopLargeScrambleTextFit();
     syncScrambleSurfaceFrame(scrambleTextWrapper);
 
     if (shouldApplyFrozenMobileScrambleLayout()) {
         applyCachedTransform(scrambleContainer, 'scrambleTransform', mobileScrambleFreezeState.transform);
+        syncTimerPopupOverlayPosition();
         return;
     }
 
@@ -4562,6 +4835,7 @@ function syncViewportLayout() {
         if (isMobileTimerView && !mobileScrambleFreezeState.locked && (state === 'idle' || state === 'stopped')) {
             captureMobileScrambleLayoutSnapshot();
         }
+        syncTimerPopupOverlayPosition();
         return;
     }
 
@@ -4587,6 +4861,7 @@ function syncViewportLayout() {
     if (isMobileTimerView && !mobileScrambleFreezeState.locked && (state === 'idle' || state === 'stopped')) {
         captureMobileScrambleLayoutSnapshot();
     }
+    syncTimerPopupOverlayPosition();
 }
 
 function setActiveMobilePanel(panel) {
@@ -4603,6 +4878,7 @@ function setActiveMobilePanel(panel) {
     }
 
     document.body.dataset.mobilePanel = panel;
+    syncSessionInfoPlacement();
     document.querySelectorAll('.mobile-panel-tab').forEach((btn) => {
         btn.classList.toggle('active', btn.dataset.mobilePanel === panel);
     });
@@ -4619,6 +4895,10 @@ function setActiveMobilePanel(panel) {
     if (mobileViewportQuery.matches && panel === 'timer' && previousPanel && previousPanel !== 'timer') {
         syncTimerTabLayoutWithoutAnimation();
         return;
+    }
+
+    if (mobileViewportQuery.matches && panel === 'stats') {
+        window.requestAnimationFrame(() => renderSolvesTable());
     }
 
     scheduleViewportLayoutSync();
@@ -4639,6 +4919,7 @@ function syncMobilePanelState() {
             closeManualTimeEntry({ restoreQuickActions: false });
         }
         delete document.body.dataset.mobilePanel;
+        syncSessionInfoPlacement();
         document.querySelectorAll('.mobile-panel-tab').forEach((btn) => btn.classList.remove('active'));
         hideMobileScrambleActions();
         closeDailyStreakMobilePopup();
@@ -5384,6 +5665,10 @@ async function init() {
     const shouldLoadInitialScramble = !syncInitialScrambleUI();
     initModal();
     initTimeDistributionModal();
+    initDailyStreakModal({
+        requestHistoryState: pushHistoryState,
+        dismissHistoryState: backToDismiss,
+    });
     setModalStatNavigator(openShortcutStatDetail);
     initShortcutTooltips();
     syncModalStatNavigation();
@@ -5404,6 +5689,7 @@ async function init() {
     timer.on('stopped', onSolveComplete);
     timer.on('started', onTimerStarted);
     timer.on('started', closeDailyStreakMobilePopup);
+    timer.on('phaseSplit', onTimerPhaseSplit);
     timer.on('stateChange', onTimerStateChange);
     timer.on('displayChange', onTimerDisplayChange);
     timer.on('inspectionAlert', onInspectionAlert);
@@ -5502,8 +5788,11 @@ async function init() {
         rebuildStatsCache();
         refreshUI();
     });
-    sessionManager.on('solveMoved', ({ solve } = {}) => {
-        dailyStreakStore.upsertSolve(solve);
+    sessionManager.on('solveMoved', ({ solve, solves } = {}) => {
+        const movedSolves = Array.isArray(solves) ? solves : (solve ? [solve] : []);
+        movedSolves.forEach((movedSolve) => {
+            dailyStreakStore.upsertSolve(movedSolve);
+        });
         if (window._isBulkAction) return;
         refreshSessionList();
         rebuildStatsCache();
@@ -5528,7 +5817,7 @@ async function init() {
             syncInspectionSpeechUnlockPromptVisibility();
         }
         if (key === 'newBestPopupEnabled' && !settings.get('newBestPopupEnabled')) clearNewBestAlert();
-        if (key === 'statsFilter' || key === 'customFilterDuration' || key === 'showDelta' || key === 'deltaReference' || key === 'theme' || key === 'customThemes' || key.startsWith('graphColor') || key.startsWith('graphLine') || key === 'graphTooltipDateEnabled' || key === 'newBestColor' || key === 'summaryStatsPreset' || key === 'summaryStatsCustom' || key === 'summaryStatsList' || key.startsWith('solvesTableStat') || key === 'dailyStreakGoal') {
+        if (key === 'statsFilter' || key === 'customFilterDuration' || key === 'showDelta' || key === 'deltaReference' || key === 'theme' || key === 'customThemes' || key.startsWith('graphColor') || key.startsWith('graphLine') || key === 'graphTooltipDateEnabled' || key === 'newBestColor' || key === 'summaryStatsPreset' || key === 'summaryStatsCustom' || key === 'summaryStatsList' || key === 'mainStatsSource' || key.startsWith('solvesTableStat') || key === TIME_TABLE_VERTICAL_GRID_LINES_SETTING || key === 'multiPhaseCount' || key === 'dailyStreakGoal') {
             if (key === 'statsFilter' || key === 'customFilterDuration') rebuildStatsCache();
             if (key === 'summaryStatsPreset' || key === 'summaryStatsCustom' || key === 'summaryStatsList') {
                 syncModalStatNavigation();
@@ -5540,6 +5829,14 @@ async function init() {
             if (!isSessionContextChange) {
                 refreshUI();
             }
+        }
+        if (key === SOLVES_PANEL_WIDTH_CONSTRAINED_SETTING) {
+            syncSolvesPanelWidthPreferenceFromSettings();
+            renderSolvesTable();
+            scheduleViewportLayoutSync();
+        }
+        if (key === 'multiPhaseCount' && getConfiguredPhaseCount() <= 1) {
+            renderPhaseSplitDisplay([]);
         }
         if (key === 'timeEntryMode') {
             clearPenaltyShortcutAlert();
@@ -5568,6 +5865,9 @@ async function init() {
         }
     });
     settings.on('reset', () => {
+        invalidatePhaseSourceTimeColumnWidthCache();
+        syncSolvesPanelWidthPreferenceFromSettings();
+        renderSolvesTable();
         clearPenaltyShortcutAlert();
         syncPersistentManualEntryMode();
         void reconcileHardwareTimeEntryMode();
@@ -5599,6 +5899,9 @@ async function init() {
     initDailyStreakMobileControl();
     initTimerInfoControls();
     initTableSorting();
+    initPhaseInfoScrollSync();
+    initPhaseInfoBoundedHorizontalScroll();
+    initSolvesPanelWidthToggle();
     initGraphLineToggles();
     initGraphDistributionButton();
     initMobilePanels();
@@ -5610,11 +5913,13 @@ async function init() {
     window.addEventListener('resize', syncMobileSummaryDisplays);
     window.addEventListener('resize', syncDesktopTimerInfoPills);
     window.addEventListener('resize', syncTimerPopupStacking);
+    window.addEventListener('resize', syncSessionInfoPlacement);
     window.addEventListener('resize', () => renderSolvesTable());
     window.addEventListener('orientationchange', scheduleViewportLayoutSync);
     window.addEventListener('orientationchange', syncMobileSummaryDisplays);
     window.addEventListener('orientationchange', syncDesktopTimerInfoPills);
     window.addEventListener('orientationchange', syncTimerPopupStacking);
+    window.addEventListener('orientationchange', syncSessionInfoPlacement);
     window.addEventListener('online', startCubingWarmupIfNeeded);
     scheduleViewportLayoutSync();
     if (shouldLoadInitialScramble) {
@@ -5705,7 +6010,19 @@ function initMobilePanels() {
 }
 
 // ──── Graph Line Toggles ────
-function syncGraphLineLabels() {
+function syncGraphLineLabels(timeLabelOverride = null) {
+    const source = getSelectedMainStatsSource(sessionManager.getFilteredSolves());
+    const timeLabel = timeLabelOverride || getMainStatsSourceLabel(source);
+    const legendTimeLabelEl = document.getElementById('graph-legend-time-label');
+    if (legendTimeLabelEl) legendTimeLabelEl.textContent = timeLabel;
+
+    const timeToggleBtn = document.querySelector('.graph-line-toggle[data-line="time"]');
+    if (timeToggleBtn) {
+        timeToggleBtn.dataset.mobileLabel = timeLabel.toUpperCase();
+        timeToggleBtn.title = `Toggle ${timeLabel} line`;
+        timeToggleBtn.setAttribute('aria-label', `Toggle ${timeLabel} line`);
+    }
+
     const lineDefs = getGraphLineDefinitions();
     lineDefs.forEach(({ id, statType }) => {
         const legendLabelEl = document.getElementById(`graph-legend-${id}-label`);
@@ -5738,11 +6055,7 @@ function initGraphDistributionButton() {
     const button = document.getElementById('btn-graph-distribution');
     if (!button) return;
 
-    button.addEventListener('click', () => {
-        showTimeDistributionModal(getSearchScopedSolves(), {
-            sessionName: sessionManager.getActiveSession()?.name || 'Session',
-        });
-    });
+    button.addEventListener('click', showScopedTimeDistribution);
 }
 
 // ──── Timer Info Click ────
@@ -5835,6 +6148,7 @@ function initTimerQuickActions() {
     });
 
     hiddenInput.addEventListener('focus', () => {
+        setManualTimeInputCaretToEnd(hiddenInput);
         syncManualTimeInputFocusState();
     });
 
@@ -5842,12 +6156,80 @@ function initTimerQuickActions() {
         syncManualTimeInputFocusState();
     });
 
+    document.addEventListener('selectionchange', () => {
+        if (document.activeElement !== hiddenInput) return;
+        setManualTimeInputCaretToEnd(hiddenInput);
+    });
+
+    hiddenInput.addEventListener('beforeinput', (event) => {
+        const inputType = event.inputType || '';
+
+        if (inputType === 'insertLineBreak') {
+            if (!preventManualTimeInputEvent(event)) return;
+            void submitManualTimeEntry({ closeEntry: false });
+            return;
+        }
+
+        if (inputType.startsWith('insert')) {
+            const insertedText = getManualTimeInputEventText(event);
+            if (!insertedText) {
+                setManualTimeInputCaretToEnd(hiddenInput);
+                return;
+            }
+
+            if (!preventManualTimeInputEvent(event)) return;
+            setManualTimeInputCaretToEnd(hiddenInput);
+            appendManualTimeDigits(insertedText);
+            return;
+        }
+
+        if (inputType.startsWith('delete')) {
+            if (!preventManualTimeInputEvent(event)) return;
+            setManualTimeInputCaretToEnd(hiddenInput);
+            removeManualTimeDigitsFromEnd();
+        }
+    });
+
+    hiddenInput.addEventListener('paste', (event) => {
+        if (!preventManualTimeInputEvent(event)) return;
+        setManualTimeInputCaretToEnd(hiddenInput);
+        appendManualTimeDigits(event.clipboardData?.getData('text') || '');
+    });
+
     hiddenInput.addEventListener('input', (event) => {
-        quickActionsState.manualDigits = sanitizeManualDigits(event.target.value);
-        updateManualTimeEntryUI();
+        const previousDigits = quickActionsState.manualDigits;
+        const nativeDigits = sanitizeManualDigits(event.target.value);
+        const inputType = event.inputType || '';
+
+        if (inputType.startsWith('insert')) {
+            const insertedDigits = sanitizeManualDigits(getManualTimeInputEventText(event))
+                || getInsertedManualDigits(previousDigits, nativeDigits);
+            appendManualTimeDigits(insertedDigits);
+            return;
+        }
+
+        if (inputType.startsWith('delete')) {
+            const removedCount = Math.max(1, previousDigits.length - nativeDigits.length);
+            removeManualTimeDigitsFromEnd(removedCount);
+            return;
+        }
+
+        if (nativeDigits.length > previousDigits.length) {
+            appendManualTimeDigits(getInsertedManualDigits(previousDigits, nativeDigits));
+            return;
+        }
+
+        if (nativeDigits.length < previousDigits.length) {
+            removeManualTimeDigitsFromEnd(previousDigits.length - nativeDigits.length);
+            return;
+        }
+
+        setManualTimeDigits(nativeDigits);
     });
 
     hiddenInput.addEventListener('keydown', (event) => {
+        setManualTimeInputCaretToEnd(hiddenInput);
+
         if (event.key === '.' || event.key === ',') {
             event.preventDefault();
             return;
@@ -8054,6 +8436,7 @@ function initKeyboardShortcuts() {
 
     document.addEventListener('keydown', (e) => {
         if (e.defaultPrevented) return;
+        if (isDailyStreakModalOpen()) return;
 
         const slashShortcutPressed = isSlashShortcut(e);
         const isShortcutHelpKey = slashShortcutPressed && (e.ctrlKey || e.metaKey);
@@ -8308,9 +8691,7 @@ function initKeyboardShortcuts() {
                     break;
                 }
                 if (isSolveModalActive) return;
-                showTimeDistributionModal(getSearchScopedSolves(), {
-                    sessionName: sessionManager.getActiveSession()?.name || 'Session',
-                });
+                showScopedTimeDistribution();
                 break;
             case 'KeyS':
                 if (!timerPanelShortcutAllowed) return;
@@ -8586,7 +8967,7 @@ function handleStackmatPacket(packet) {
         return;
     }
 
-    const inspectionEnabled = settings.get('inspectionTime') === '15s';
+    const inspectionEnabled = isInspectionTimeEnabled(settings.get('inspectionTime'));
     const timerState = timer.getState();
     const displayText = formatHardwareTimeDisplay(packet.timeMs);
 
@@ -8659,7 +9040,7 @@ function handleBluetoothTimerEvent(event) {
             timer.startExternalInspection({ elapsedMs: solveTime });
             break;
         case BluetoothTimerState.GAN_RESET:
-            if (settings.get('inspectionTime') === '15s' && (timer.getState() === TimerState.IDLE || timer.getState() === TimerState.STOPPED)) {
+            if (isInspectionTimeEnabled(settings.get('inspectionTime')) && (timer.getState() === TimerState.IDLE || timer.getState() === TimerState.STOPPED)) {
                 timer.startExternalInspection();
             } else if (timer.getState() !== TimerState.RUNNING) {
                 timer.setExternalState(TimerState.IDLE, { displayText: '0.00' });
@@ -8702,9 +9083,18 @@ function handleBluetoothTimerEvent(event) {
 }
 
 // ──── Timer Events ────
-async function onSolveComplete(elapsed, penalty = null) {
+async function onSolveComplete(elapsed, penalty = null, phaseInfo = {}) {
+    const finalPhaseSplits = Array.isArray(phaseInfo?.phaseSplits) ? phaseInfo.phaseSplits : [];
+    if (finalPhaseSplits.length > 1) {
+        renderPhaseSplitDisplay(finalPhaseSplits);
+    }
+
     try {
-        await commitSolve(elapsed, penalty, { isManual: isCurrentScrambleManual() });
+        await commitSolve(elapsed, penalty, {
+            isManual: isCurrentScrambleManual(),
+            phaseSplits: finalPhaseSplits,
+            phaseCount: phaseInfo?.phaseCount || 1,
+        });
     } finally {
         backToDismiss();
     }
@@ -8712,7 +9102,14 @@ async function onSolveComplete(elapsed, penalty = null) {
 
 function onTimerStarted() {
     pushHistoryState();
+    renderPhaseSplitDisplay([], { phaseCount: getConfiguredPhaseCount() });
     // Info hidden via onTimerStateChange
+}
+
+function onTimerPhaseSplit({ phaseCount = 1, splits = [] } = {}) {
+    if (phaseCount < 2) return;
+    renderPhaseSplitDisplay(splits, { phaseCount });
+    playPhaseSplitSound();
 }
 
 function isInspectionState(state) {
@@ -9082,7 +9479,7 @@ function solveMatchesSearchFilters(solve, index, filters = searchFilters) {
     const textLower = text.toLowerCase();
     if (!textLower) return true;
 
-    const timeText = formatSolveTime(solve).toLowerCase();
+    const timeText = formatSolveTimeWithSplits(solve).toLowerCase();
     const commentText = (solve.comment || '').toLowerCase();
     const scrambleText = (solve.scramble || '').toLowerCase();
     return timeText.includes(textLower)
@@ -9130,6 +9527,48 @@ function buildStatsCacheForSolves(solves) {
     const cache = new StatsCache();
     cache.rebuild(solves);
     return cache;
+}
+
+function buildStatsCacheForTimes(solves, times) {
+    const sourceSolves = solves.map((solve, index) => {
+        const time = times[index];
+        return {
+            id: solve?.id,
+            time: Number.isFinite(time) ? time : 0,
+            penalty: time === Infinity ? 'DNF' : null,
+        };
+    });
+    return buildStatsCacheForSolves(sourceSolves);
+}
+
+function getMainStatsSourceContextForSolves(solves, requestedSource = selectedMainStatsSource) {
+    const source = normalizeMainStatsSource(requestedSource, getVisiblePhaseColumnCount(solves));
+    return getMainStatsSourceContext(solves, source);
+}
+
+function getGraphDistributionSourceData(solves) {
+    const activeSolves = sessionManager.getFilteredSolves();
+    const requestedSource = getSelectedMainStatsSource(activeSolves);
+    const sourceContext = getMainStatsSourceContextForSolves(solves, requestedSource);
+    const cache = sourceContext.source === MAIN_STATS_SOURCE_TIME && statsCache.matchesSolves(solves)
+        ? statsCache
+        : buildStatsCacheForTimes(solves, sourceContext.times);
+
+    return { sourceContext, cache };
+}
+
+function getDistributionOptionsForContext(sourceContext) {
+    return {
+        sessionName: sessionManager.getActiveSession()?.name || 'Session',
+        times: sourceContext.times,
+        sourceLabel: sourceContext.label,
+    };
+}
+
+function showScopedTimeDistribution() {
+    const scopedSolves = getSearchScopedSolves();
+    const { sourceContext } = getGraphDistributionSourceData(scopedSolves);
+    showTimeDistributionModal(scopedSolves, getDistributionOptionsForContext(sourceContext));
 }
 
 function reconcileSelectedSolveState(solves = sessionManager.getFilteredSolves()) {
@@ -9200,6 +9639,7 @@ function reconcileSelectedSolveState(solves = sessionManager.getFilteredSolves()
  * Called on session switch, filter change, import, delete, penalty toggle.
  */
 function rebuildStatsCache() {
+    invalidatePhaseSourceTimeColumnWidthCache();
     syncStatsCacheWithFilteredSolves(undefined, { force: true });
 }
 
@@ -9208,16 +9648,17 @@ function refreshUI() {
     reconcileSelectedSolveState(solves);
     const stats = statsCache.getStats();
     const graphAndDistributionSolves = getSearchScopedSolves(solves);
-    const graphStatsCache = graphAndDistributionSolves === solves
-        ? statsCache
-        : buildStatsCacheForSolves(graphAndDistributionSolves);
+    const graphDistributionData = getGraphDistributionSourceData(graphAndDistributionSolves);
 
     renderSummaryStats(stats, solves);
     renderSolvesTable(solves, stats);
-    updateGraphData(graphAndDistributionSolves, graphStatsCache);
+    syncGraphLineLabels(graphDistributionData.sourceContext.label);
+    updateGraphData(graphAndDistributionSolves, graphDistributionData.cache, {
+        timeLabel: graphDistributionData.sourceContext.label,
+    });
     if (isTimeDistributionModalOpen()) {
         refreshTimeDistributionData(graphAndDistributionSolves, {
-            sessionName: sessionManager.getActiveSession()?.name || 'Session',
+            ...getDistributionOptionsForContext(graphDistributionData.sourceContext),
         });
     }
     updateTimerInfo(stats, solves);
@@ -9233,6 +9674,7 @@ function refreshUI() {
             timer.resetDisplay();
         }
     }
+    syncPhaseSplitDisplayFromSolves(solves);
 
     // Update delta display
     updateDailyStreakUI();
@@ -9248,45 +9690,34 @@ function formatDailyStreakMobileProgressText(streakState) {
 }
 
 function closeDailyStreakMobilePopup() {
-    const popupEl = getEl('daily-streak-mobile-popup');
     const buttonEl = getEl('btn-daily-streak-mobile');
 
-    if (popupEl) popupEl.hidden = true;
-    if (buttonEl) buttonEl.setAttribute('aria-expanded', 'false');
-}
-
-function setDailyStreakMobilePopupOpen(isOpen) {
-    const controlEl = getEl('daily-streak-mobile-control');
-    const popupEl = getEl('daily-streak-mobile-popup');
-    const buttonEl = getEl('btn-daily-streak-mobile');
-
-    if (!controlEl || !popupEl || !buttonEl || controlEl.hidden || !isMobileTimerPanelActive()) {
-        closeDailyStreakMobilePopup();
-        return;
-    }
-
-    popupEl.hidden = !isOpen;
-    buttonEl.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    if (buttonEl) buttonEl.removeAttribute('aria-expanded');
 }
 
 function initDailyStreakMobileControl() {
     const controlEl = getEl('daily-streak-mobile-control');
     const buttonEl = getEl('btn-daily-streak-mobile');
-    if (!controlEl || !buttonEl) return;
+    const settingsButtonEl = getEl('btn-open-daily-streak');
+    const openButtons = document.querySelectorAll('[data-daily-streak-open]');
+    if (!openButtons.length) return;
 
-    buttonEl.addEventListener('click', (event) => {
-        event.preventDefault();
-        if (controlEl.hidden) return;
-
-        const popupEl = getEl('daily-streak-mobile-popup');
-        setDailyStreakMobilePopupOpen(popupEl?.hidden ?? true);
+    openButtons.forEach((openButton) => {
+        openButton.addEventListener('click', (event) => {
+            event.preventDefault();
+            closeDailyStreakMobilePopup();
+            showDailyStreakModal();
+        });
     });
 
-    document.addEventListener('pointerdown', (event) => {
-        if (!(event.target instanceof Node)) return;
-        if (controlEl.contains(event.target)) return;
+    settingsButtonEl?.addEventListener('click', () => {
+        closeSettingsPanel({ isSwitching: true });
         closeDailyStreakMobilePopup();
-    }, true);
+        showDailyStreakModal();
+        settingsButtonEl.blur();
+    });
+
+    if (!controlEl || !buttonEl) return;
 
     document.addEventListener('keydown', (event) => {
         if (event.code !== 'Escape') return;
@@ -9351,6 +9782,491 @@ function syncDesktopTimerInfoPills() {
     }
 }
 
+function getConfiguredPhaseCount() {
+    return normalizePhaseCount(settings.get('multiPhaseCount'), DEFAULTS.multiPhaseCount);
+}
+
+function getMaxSolvePhaseCount(solves = sessionManager.getFilteredSolves()) {
+    if (!Array.isArray(solves)) return 0;
+
+    return solves.reduce((max, solve) => {
+        const splitCount = getSolvePhaseSplits(solve).length;
+        return splitCount > 1 ? Math.max(max, splitCount) : max;
+    }, 0);
+}
+
+function getVisiblePhaseColumnCount(solves = sessionManager.getFilteredSolves()) {
+    const configuredPhaseCount = getConfiguredPhaseCount();
+    const configuredColumns = configuredPhaseCount > 1 ? configuredPhaseCount : 0;
+    return Math.max(configuredColumns, getMaxSolvePhaseCount(solves));
+}
+
+function shouldShowPhaseColumns(solves = sessionManager.getFilteredSolves()) {
+    return getVisiblePhaseColumnCount(solves) > 0;
+}
+
+function getSolvePhaseValue(solve, phaseIndex) {
+    const splits = getSolvePhaseSplits(solve);
+    if (splits.length > 0) {
+        return Number.isFinite(splits[phaseIndex]) ? splits[phaseIndex] : null;
+    }
+
+    if (phaseIndex === 0 && Number.isFinite(solve?.time)) {
+        return Math.max(0, Math.round(solve.time));
+    }
+
+    return null;
+}
+
+function getMainStatsSourcePhaseIndex(source) {
+    const match = String(source ?? '').match(/^phase-([1-9]\d*)$/);
+    if (!match) return null;
+
+    const phaseNumber = Number(match[1]);
+    return Number.isInteger(phaseNumber) ? phaseNumber - 1 : null;
+}
+
+function getMainStatsSourceLabel(source) {
+    const phaseIndex = getMainStatsSourcePhaseIndex(source);
+    return phaseIndex == null ? 'time' : `P.${phaseIndex + 1}`;
+}
+
+function formatStatLabelWithSource(label, source) {
+    if (source === MAIN_STATS_SOURCE_TIME) return label;
+    const sourceLabel = getMainStatsSourceLabel(source);
+    const rawLabel = String(label ?? '').trim();
+    if (!rawLabel || rawLabel.startsWith(`${sourceLabel} `)) return rawLabel || sourceLabel;
+    if (rawLabel.startsWith(`Best ${sourceLabel} `)) return rawLabel;
+    if (rawLabel.startsWith('Best ')) {
+        return `Best ${sourceLabel} ${rawLabel.slice(5).trim()}`;
+    }
+    return `${sourceLabel} ${rawLabel}`;
+}
+
+function normalizeMainStatsSource(source, phaseColumnCount = getVisiblePhaseColumnCount()) {
+    if (source === MAIN_STATS_SOURCE_TIME) return MAIN_STATS_SOURCE_TIME;
+
+    const phaseIndex = getMainStatsSourcePhaseIndex(source);
+    if (phaseIndex == null || phaseIndex < 0 || phaseIndex >= phaseColumnCount) {
+        return MAIN_STATS_SOURCE_TIME;
+    }
+
+    return `phase-${phaseIndex + 1}`;
+}
+
+function getSelectedMainStatsSource(solves = sessionManager.getFilteredSolves()) {
+    const storedSource = settings.get('mainStatsSource') || MAIN_STATS_SOURCE_TIME;
+    const normalizedSource = normalizeMainStatsSource(storedSource, getVisiblePhaseColumnCount(solves));
+    if (normalizedSource !== selectedMainStatsSource) {
+        selectedMainStatsSource = normalizedSource;
+        summaryRowsCache = { signature: '', rows: [] };
+        rollingStatSummaryCache.clear();
+    }
+
+    return selectedMainStatsSource;
+}
+
+function setSelectedMainStatsSource(source, solves = sessionManager.getFilteredSolves()) {
+    const nextSource = normalizeMainStatsSource(source, getVisiblePhaseColumnCount(solves));
+    if (nextSource === getSelectedMainStatsSource(solves)) return;
+
+    selectedMainStatsSource = nextSource;
+    summaryRowsCache = { signature: '', rows: [] };
+    rollingStatSummaryCache.clear();
+    settings.set('mainStatsSource', nextSource);
+}
+
+function getMainStatsSourceOptions(phaseColumnCount) {
+    const options = [{ value: MAIN_STATS_SOURCE_TIME, label: 'time' }];
+    for (let index = 0; index < phaseColumnCount; index += 1) {
+        options.push({ value: `phase-${index + 1}`, label: `P.${index + 1}` });
+    }
+    return options;
+}
+
+function getSolveMainStatsValue(solve, source = selectedMainStatsSource) {
+    const phaseIndex = getMainStatsSourcePhaseIndex(source);
+    if (phaseIndex == null) return getEffectiveTime(solve);
+    if (solve?.penalty === 'DNF') return Infinity;
+
+    const phaseValue = getSolvePhaseValue(solve, phaseIndex);
+    return Number.isFinite(phaseValue) ? phaseValue : Infinity;
+}
+
+function getSolveMainStatsDisplayValue(solve, source = selectedMainStatsSource) {
+    const phaseIndex = getMainStatsSourcePhaseIndex(source);
+    if (phaseIndex == null) return getEffectiveTime(solve);
+    if (solve?.penalty === 'DNF') return Infinity;
+
+    const phaseValue = getSolvePhaseValue(solve, phaseIndex);
+    return Number.isFinite(phaseValue) ? phaseValue : null;
+}
+
+function formatSolveForMainStatsSource(solve, source = selectedMainStatsSource) {
+    const phaseIndex = getMainStatsSourcePhaseIndex(source);
+    if (phaseIndex == null) return formatSolveTime(solve);
+    if (solve?.penalty === 'DNF') return formatTime(Infinity);
+    return formatTime(getSolvePhaseValue(solve, phaseIndex));
+}
+
+function getSingleDetailLabelForMainStatsSource(source, isBest = false) {
+    const sourceLabel = getMainStatsSourceLabel(source);
+    if (source === MAIN_STATS_SOURCE_TIME) return isBest ? 'Best single' : 'Single';
+    return isBest ? `Best ${sourceLabel}` : sourceLabel;
+}
+
+function getMainStatsSourceTimes(solves, source = selectedMainStatsSource) {
+    if (source === MAIN_STATS_SOURCE_TIME && statsCache.matchesSolves(solves)) {
+        return statsCache.getTimes();
+    }
+
+    return solves.map((solve) => getSolveMainStatsValue(solve, source));
+}
+
+function getBestFiniteValue(values) {
+    let best = Infinity;
+    for (const value of values) {
+        if (value != null && value !== Infinity && value < best) {
+            best = value;
+        }
+    }
+
+    return best === Infinity ? null : best;
+}
+
+function getMeanFiniteValue(values) {
+    let total = 0;
+    let count = 0;
+    for (const value of values) {
+        if (value == null || value === Infinity) continue;
+        total += value;
+        count += 1;
+    }
+
+    return count > 0 ? total / count : null;
+}
+
+function getMainStatsSourceContext(solves, source = getSelectedMainStatsSource(solves)) {
+    const times = getMainStatsSourceTimes(solves, source);
+    const current = times.length > 0 ? times[times.length - 1] : null;
+    const best = getBestFiniteValue(times);
+    const sessionMean = getMeanFiniteValue(times);
+    const { flags: newBestFlags } = buildRollingBestFlags(times);
+
+    return {
+        source,
+        label: getMainStatsSourceLabel(source),
+        times,
+        current,
+        best,
+        sessionMean,
+        newBestFlags,
+    };
+}
+
+function formatMainStatsSourceDisplayValue(value) {
+    if (value === Infinity) return 'DNF';
+    if (value == null) return '-';
+    return formatTime(value);
+}
+
+function formatSolvesTableTimeValue(solve, source, sourceDisplayValue, isMobile = false) {
+    if (source === MAIN_STATS_SOURCE_TIME) {
+        const totalTime = isMobile
+            ? formatSolveTime(solve)
+            : truncateTimeDisplay(formatSolveTime(solve), 7);
+        return escapeHtml(totalTime);
+    }
+
+    const totalTime = formatSolveTime(solve);
+    const sourceTime = formatMainStatsSourceDisplayValue(sourceDisplayValue);
+    const label = `(${totalTime}) ${sourceTime}`;
+    return `<span class="solve-time-composite" aria-label="${escapeHtml(label)}">`
+        + `<span class="solve-time-total">(${escapeHtml(totalTime)})</span>`
+        + `<span class="solve-time-source">${escapeHtml(sourceTime)}</span>`
+        + `</span>`;
+}
+
+function getPhaseMeanValues(solves, phaseCount = getVisiblePhaseColumnCount(solves)) {
+    return Array.from({ length: phaseCount }, (_, phaseIndex) => {
+        let total = 0;
+        let count = 0;
+
+        solves.forEach((solve) => {
+            const value = getSolvePhaseValue(solve, phaseIndex);
+            if (!Number.isFinite(value)) return;
+            total += value;
+            count += 1;
+        });
+
+        return count > 0 ? total / count : null;
+    });
+}
+
+function syncSessionInfoPlacement() {
+    const sessionInfoEl = document.getElementById('session-info');
+    const statsSidebarEl = document.getElementById('stats-sidebar');
+    const solvesContainerEl = document.getElementById('solves-container');
+    const panelShellEl = document.querySelector('#stats-panel > .panel-shell');
+    if (!sessionInfoEl || !statsSidebarEl || !solvesContainerEl || !panelShellEl) return;
+
+    const shouldUseLandscapePhasePlacement = sessionInfoEl.classList.contains('has-phase-means')
+        && !isSearchActive
+        && mobileLandscapeQuery.matches
+        && document.body.dataset.mobilePanel === 'stats';
+
+    panelShellEl.classList.toggle('has-landscape-phase-session-info', shouldUseLandscapePhasePlacement);
+    sessionInfoEl.classList.toggle('landscape-phase-session-info', shouldUseLandscapePhasePlacement);
+
+    if (shouldUseLandscapePhasePlacement) {
+        if (sessionInfoEl.parentElement !== panelShellEl || sessionInfoEl.nextElementSibling !== solvesContainerEl) {
+            panelShellEl.insertBefore(sessionInfoEl, solvesContainerEl);
+        }
+    } else if (sessionInfoEl.parentElement !== statsSidebarEl) {
+        statsSidebarEl.appendChild(sessionInfoEl);
+    }
+}
+
+function renderPhaseMeanChips(solves) {
+    const sessionInfoEl = document.getElementById('session-info');
+    if (!sessionInfoEl) return;
+
+    const phaseColumnCount = getVisiblePhaseColumnCount(solves);
+    const configuredColumns = getConfiguredSolvesTableStatTokens();
+    const statCount = configuredColumns.length;
+    const solveCountEl = document.getElementById('solve-count');
+    const sessionMeanEl = document.getElementById('session-mean');
+
+    sessionInfoEl.querySelectorAll('[data-phase-mean-chip]').forEach((chip) => chip.remove());
+    sessionInfoEl.classList.toggle('has-phase-means', phaseColumnCount > 0);
+
+    if (phaseColumnCount === 0) {
+        solveCountEl?.style.removeProperty('grid-column');
+        sessionMeanEl?.style.removeProperty('grid-column');
+        syncSessionInfoPlacement();
+        return;
+    }
+
+    const solveInfoSpan = statCount > 0 ? 2 : 1;
+    const meanInfoSpan = Math.max(1, statCount);
+    const meanInfoStart = solveInfoSpan + 1;
+    const phaseStartColumn = 3 + statCount;
+    solveCountEl?.style.setProperty('grid-column', `1 / span ${solveInfoSpan}`);
+    sessionMeanEl?.style.setProperty('grid-column', `${meanInfoStart} / span ${meanInfoSpan}`);
+
+    const means = getPhaseMeanValues(solves, phaseColumnCount);
+    const fragment = document.createDocumentFragment();
+
+    means.forEach((mean, index) => {
+        const chip = document.createElement('span');
+        chip.className = 'phase-mean-chip';
+        chip.dataset.phaseMeanChip = String(index + 1);
+        const isLastPhaseChip = index === phaseColumnCount - 1;
+        chip.style.gridColumn = `${phaseStartColumn + index} / span ${isLastPhaseChip ? 2 : 1}`;
+        if (isLastPhaseChip) {
+            chip.dataset.lastPhaseMeanChip = 'true';
+        }
+        chip.textContent = mean != null ? formatTime(mean) : '-';
+        fragment.appendChild(chip);
+    });
+
+    sessionInfoEl.appendChild(fragment);
+    syncSessionInfoPlacement();
+}
+
+function isDesktopPhaseSplitSurfaceForcedVisible(displayEl) {
+    return Boolean(displayEl)
+        && displayEl.classList.contains('phase-splits-display-desktop')
+        && document.body.classList.contains('camera-background-live')
+        && !mobileViewportQuery.matches;
+}
+
+function getVisiblePhaseSplitDisplays() {
+    return Array.from(document.querySelectorAll('[data-phase-splits-display]'))
+        .filter((displayEl) => (
+            (!displayEl.hidden || isDesktopPhaseSplitSurfaceForcedVisible(displayEl))
+            && displayEl.getClientRects().length > 0
+        ));
+}
+
+function syncPhaseSplitDisplayPosition() {
+    const timerSlot = document.getElementById('center-panel-timer-slot');
+    const timerDisplayWrapper = document.getElementById('timer-display-wrapper');
+    if (!timerSlot || !timerDisplayWrapper) return;
+
+    const visibleDisplays = getVisiblePhaseSplitDisplays();
+    if (visibleDisplays.length === 0) {
+        timerDisplayWrapper.style.setProperty('--phase-splits-height', '0px');
+        timerSlot.style.removeProperty('--phase-splits-desktop-center-y');
+        return;
+    }
+
+    const slotRect = getLayoutRect(timerSlot) || timerSlot.getBoundingClientRect();
+    const timerRect = getLayoutRect(timerDisplayWrapper) || timerDisplayWrapper.getBoundingClientRect();
+    const isMobile = mobileViewportQuery.matches;
+
+    const maxHeight = Math.max(...visibleDisplays.map((displayEl) => (
+        Math.ceil(displayEl.getBoundingClientRect().height || 0)
+    )));
+    timerDisplayWrapper.style.setProperty('--phase-splits-height', `${maxHeight}px`);
+
+    if (isMobile) {
+        timerSlot.style.removeProperty('--phase-splits-desktop-center-y');
+        return;
+    }
+
+    const pillBottoms = ['info-ao5-box', 'info-ao12-box']
+        .map((id) => getLayoutRect(document.getElementById(id)))
+        .filter((rect) => rect && rect.width > 0 && rect.height > 0)
+        .map((rect) => rect.bottom);
+    const anchorBottom = pillBottoms.length > 0
+        ? Math.max(...pillBottoms)
+        : timerRect.bottom;
+    const bottomLimit = Math.max(anchorBottom + 32, window.innerHeight);
+    const centerY = anchorBottom + ((bottomLimit - anchorBottom) / 2);
+    timerSlot.style.setProperty('--phase-splits-desktop-center-y', `${Math.round((centerY - slotRect.top) * 10) / 10}px`);
+}
+
+function syncPhaseSplitDisplayFromSolves(solves = sessionManager.getFilteredSolves()) {
+    const state = timer.getState();
+    if (state !== 'idle' && state !== 'stopped') return;
+
+    const lastSolve = Array.isArray(solves) ? solves[solves.length - 1] : null;
+    const lastSplits = getSolvePhaseSplits(lastSolve);
+    renderPhaseSplitDisplay(lastSplits.length > 1 ? lastSplits : []);
+}
+
+function renderPhaseSplitDisplay(splits = [], { phaseCount = null } = {}) {
+    const normalizedSplits = Array.isArray(splits)
+        ? splits.filter((value) => Number.isFinite(value) && value >= 0)
+        : [];
+    const hasSplits = normalizedSplits.length > 0;
+    const state = timer.getState();
+    const isRunning = state === 'running';
+    const requestedPhaseCount = Number(phaseCount);
+    const progressPhaseCount = Math.max(
+        normalizedSplits.length,
+        Number.isFinite(requestedPhaseCount) ? Math.floor(requestedPhaseCount) : 0,
+    );
+    const shouldRenderProgressDots = isRunning
+        && settings.get('multiPhaseHideSplitsWhileSolving') === true
+        && progressPhaseCount > 1;
+    const hasDisplayContent = hasSplits || shouldRenderProgressDots;
+    const isLiveSplit = isRunning && hasDisplayContent;
+
+    if (phaseSplitDisplayHideTimeout) {
+        clearTimeout(phaseSplitDisplayHideTimeout);
+        phaseSplitDisplayHideTimeout = null;
+    }
+
+    document.querySelectorAll('[data-phase-splits-display]').forEach((displayEl) => {
+        displayEl.classList.toggle('phase-splits-live', isLiveSplit);
+        displayEl.classList.toggle('phase-splits-obscured', shouldRenderProgressDots);
+
+        if (shouldRenderProgressDots) {
+            displayEl.replaceChildren(...Array.from({ length: progressPhaseCount }, (_, index) => {
+                const dotEl = document.createElement('span');
+                dotEl.className = 'phase-split-progress-dot';
+                dotEl.dataset.phaseIndex = String(index + 1);
+                dotEl.setAttribute('aria-hidden', 'true');
+                dotEl.classList.toggle('is-active', index < normalizedSplits.length);
+                return dotEl;
+            }));
+            displayEl.setAttribute('aria-label', `Phase ${normalizedSplits.length} of ${progressPhaseCount}`);
+            displayEl.hidden = false;
+            displayEl.classList.add('is-visible');
+            return;
+        }
+
+        if (hasSplits) {
+            displayEl.replaceChildren(...normalizedSplits.map((split, index) => {
+                const splitEl = document.createElement('span');
+                splitEl.className = 'phase-split-display-item';
+                splitEl.textContent = `${index === 0 ? '=' : '+'}${formatTime(split)}`;
+                splitEl.dataset.phaseIndex = String(index + 1);
+                return splitEl;
+            }));
+            displayEl.removeAttribute('aria-label');
+            displayEl.hidden = false;
+            displayEl.classList.add('is-visible');
+            return;
+        }
+
+        displayEl.removeAttribute('aria-label');
+        displayEl.classList.remove('is-visible');
+    });
+
+    const timerDisplayWrapper = document.getElementById('timer-display-wrapper');
+    const desktopDisplayEl = document.getElementById('phase-splits-display-desktop');
+    const hasForcedDesktopSurface = isDesktopPhaseSplitSurfaceForcedVisible(desktopDisplayEl);
+    if (hasDisplayContent) {
+        timerDisplayWrapper?.classList.add('phase-splits-visible');
+    }
+
+    if (hasDisplayContent || hasForcedDesktopSurface) {
+        syncPhaseSplitDisplayPosition();
+        requestAnimationFrame(syncPhaseSplitDisplayPosition);
+        if (hasDisplayContent) return;
+    }
+
+    phaseSplitDisplayHideTimeout = setTimeout(() => {
+        document.querySelectorAll('[data-phase-splits-display]').forEach((displayEl) => {
+            if (displayEl.classList.contains('is-visible')) return;
+            displayEl.replaceChildren();
+            displayEl.hidden = true;
+            displayEl.classList.remove('phase-splits-live');
+            displayEl.classList.remove('phase-splits-obscured');
+            displayEl.removeAttribute('aria-label');
+        });
+        timerDisplayWrapper?.classList.remove('phase-splits-visible');
+        if (isDesktopPhaseSplitSurfaceForcedVisible(desktopDisplayEl)) {
+            syncPhaseSplitDisplayPosition();
+            requestAnimationFrame(syncPhaseSplitDisplayPosition);
+        } else {
+            timerDisplayWrapper?.style.setProperty('--phase-splits-height', '0px');
+            document.getElementById('center-panel-timer-slot')?.style.removeProperty('--phase-splits-desktop-center-y');
+        }
+        phaseSplitDisplayHideTimeout = null;
+    }, PHASE_SPLIT_DISPLAY_FADE_OUT_MS);
+}
+
+function playPhaseSplitSound() {
+    if (settings.get('multiPhaseSoundEnabled') === false) return;
+
+    const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextCtor) return;
+
+    try {
+        if (!phaseSplitAudioContext) {
+            phaseSplitAudioContext = new AudioContextCtor();
+        }
+
+        const ctx = phaseSplitAudioContext;
+        if (ctx.state === 'suspended') {
+            void ctx.resume();
+        }
+
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(640, now);
+        osc.frequency.exponentialRampToValueAtTime(360, now + 0.075);
+
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.09, now + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.105);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.11);
+    } catch (error) {
+        console.warn('Could not play phase split sound:', error);
+    }
+}
+
 function updateTimerInfo(stats, solves) {
     const infoEl = document.getElementById('timer-info');
 
@@ -9382,7 +10298,6 @@ function updateDailyStreakUI() {
     const mobileControlEl = getEl('daily-streak-mobile-control');
     const mobileButtonEl = getEl('btn-daily-streak-mobile');
     const mobileCountEl = document.querySelector('[data-daily-streak-mobile-count]');
-    const mobileProgressEl = document.querySelector('[data-daily-streak-mobile-progress]');
     if (!cardEls.length && !mobileControlEl) return;
 
     const streakState = dailyStreakStore.getState(settings.get('dailyStreakGoal'));
@@ -9392,6 +10307,7 @@ function updateDailyStreakUI() {
         });
         if (mobileControlEl) mobileControlEl.hidden = true;
         closeDailyStreakMobilePopup();
+        closeDailyStreakModal();
         return;
     }
 
@@ -9415,9 +10331,6 @@ function updateDailyStreakUI() {
     if (mobileCountEl) {
         mobileCountEl.textContent = String(streakState.currentStreak);
     }
-    if (mobileProgressEl) {
-        mobileProgressEl.textContent = formatDailyStreakMobileProgressText(streakState);
-    }
     if (mobileButtonEl) {
         mobileButtonEl.classList.toggle('is-active', streakState.goalMetToday);
         mobileButtonEl.setAttribute(
@@ -9429,6 +10342,8 @@ function updateDailyStreakUI() {
     if (!isMobileTimerPanelActive()) {
         closeDailyStreakMobilePopup();
     }
+
+    refreshDailyStreakModal();
 }
 
 function updateDelta(solves) {
@@ -9544,10 +10459,20 @@ function getSelectedStatSolveIndex(solves) {
 function openStatDetailAtIndex(type, solves, stats, index, options = {}) {
     if (index < 0 || index >= solves.length) return false;
     const targetLayer = options.targetLayer || 'primary';
+    const statSource = options.statSource || MAIN_STATS_SOURCE_TIME;
 
     if (type === 'time') {
-        const isBest = options.isBest ?? (stats.best.time != null && getEffectiveTime(solves[index]) === stats.best.time);
-        showSolveDetail(solves[index], index, isBest, { targetLayer });
+        const isBest = options.isBest ?? (
+            statSource === MAIN_STATS_SOURCE_TIME
+                ? stats.best.time != null && getEffectiveTime(solves[index]) === stats.best.time
+                : false
+        );
+        showSolveDetail(solves[index], index, isBest, {
+            targetLayer,
+            detailLabel: getSingleDetailLabelForMainStatsSource(statSource, isBest),
+            formatSolve: (solve) => formatSolveForMainStatsSource(solve, statSource),
+            statSource,
+        });
         return true;
     }
 
@@ -9558,13 +10483,22 @@ function openStatDetailAtIndex(type, solves, stats, index, options = {}) {
     const value = config.getValue(times, index);
     if (value == null) return false;
 
+    const windowStart = index - config.windowSize + 1;
     const window = solves.slice(index - config.windowSize + 1, index + 1);
-    showAverageDetail(options.label || type, value, window, config.trim, {
+    const detailOptions = { targetLayer };
+    if (statSource !== MAIN_STATS_SOURCE_TIME) {
+        detailOptions.times = times.slice(windowStart, index + 1);
+        detailOptions.formatMobileSolve = (_solve, _index, time) => formatTime(time);
+        detailOptions.showMobilePhaseSplits = true;
+    }
+
+    showAverageDetail(formatStatLabelWithSource(options.label || type, statSource), value, window, config.trim, {
         statType: type,
         sessionId: solves[index].sessionId,
         endIndex: index,
         endSolveId: solves[index].id,
-    }, { targetLayer });
+        statSource,
+    }, detailOptions);
     return true;
 }
 
@@ -9574,19 +10508,21 @@ function openShortcutStatDetail(type) {
     const solves = sessionManager.getFilteredSolvesForSessionId(sessionId);
     if (solves.length === 0) return false;
 
-    const times = solves.map((solve) => getEffectiveTime(solve));
-    let bestTime = Infinity;
-    for (const time of times) {
-        if (time < bestTime) bestTime = time;
-    }
+    const source = selection?.statSource
+        ? normalizeMainStatsSource(selection.statSource, getVisiblePhaseColumnCount(solves))
+        : getSelectedMainStatsSource(solves);
+    const sourceContext = getMainStatsSourceContext(solves, source);
+    const times = sourceContext.times;
     const stats = {
         best: {
-            time: bestTime === Infinity ? null : bestTime,
+            time: sourceContext.best,
         },
     };
     const index = getSelectedStatSolveIndex(solves);
     return openStatDetailAtIndex(type, solves, stats, index, {
         times,
+        isBest: sourceContext.best != null && times[index] === sourceContext.best && times[index] !== Infinity,
+        statSource: source,
         targetLayer: selection?.layer === 'secondary' ? 'secondary' : 'primary',
     });
 }
@@ -9789,15 +10725,37 @@ function findBestRollingStat(times, statType) {
     return { value: summary.value, index: summary.index };
 }
 
+function renderMainStatsSourceLabelCell(source, phaseColumnCount) {
+    if (phaseColumnCount <= 0) {
+        return `<td>${escapeHtml(getMainStatsSourceLabel(source))}</td>`;
+    }
+
+    const optionsHtml = getMainStatsSourceOptions(phaseColumnCount).map(({ value, label }) => (
+        `<option value="${escapeHtml(value)}"${value === source ? ' selected' : ''}>${escapeHtml(label)}</option>`
+    )).join('');
+
+    return `<td class="stats-source-cell">
+        <select class="stats-source-select" data-main-stats-source-select data-no-timer-start aria-label="Main stats source">
+            ${optionsHtml}
+        </select>
+    </td>`;
+}
+
 function renderSummaryStats(stats, solves) {
     const summaryEl = document.getElementById('stats-summary');
     const tbody = document.getElementById('stats-summary-body');
-    const times = statsCache.getTimes();
+    const phaseColumnCount = getVisiblePhaseColumnCount(solves);
+    const source = getSelectedMainStatsSource(solves);
+    const sourceContext = getMainStatsSourceContext(solves, source);
+    const times = sourceContext.times;
     const configuredRows = getConfiguredSummaryStatTokens();
     const cacheSignature = [
         solves.length,
         solves[solves.length - 1]?.id || '',
-        stats.current.time ?? 'none',
+        source,
+        phaseColumnCount,
+        sourceContext.current ?? 'none',
+        sourceContext.best ?? 'none',
         configuredRows.join(','),
     ].join('|');
 
@@ -9806,7 +10764,7 @@ function renderSummaryStats(stats, solves) {
         rows = summaryRowsCache.rows;
     } else {
         rows = [
-            { label: 'time', current: stats.current.time, best: stats.best.time, type: 'time' },
+            { label: sourceContext.label, current: sourceContext.current, best: sourceContext.best, type: 'time' },
         ];
 
         configuredRows.forEach((statType) => {
@@ -9825,23 +10783,36 @@ function renderSummaryStats(stats, solves) {
 
     summaryEl?.classList.toggle('compact-summary-rows', rows.length > 5);
 
-    tbody.innerHTML = rows.map(r => {
+    tbody.innerHTML = rows.map((r, index) => {
         const currentStr = r.current != null ? formatTime(r.current) : '-';
         const bestStr = r.best != null ? formatTime(r.best) : '-';
         const isBest = r.current != null && r.best != null && r.current === r.best && r.current !== Infinity;
+        const labelCell = index === 0
+            ? renderMainStatsSourceLabelCell(source, phaseColumnCount)
+            : `<td>${escapeHtml(r.label)}</td>`;
         return `<tr>
-      <td>${r.label}</td>
-      <td class="${isBest ? 'best-value' : ''}" data-stat-type="${r.type}" data-stat-which="current">${currentStr}</td>
-      <td data-stat-type="${r.type}" data-stat-which="best">${bestStr}</td>
-    </tr>`;
+	      ${labelCell}
+	      <td class="${isBest ? 'best-value' : ''}" data-stat-type="${r.type}" data-stat-which="current">${currentStr}</td>
+	      <td data-stat-type="${r.type}" data-stat-which="best">${bestStr}</td>
+	    </tr>`;
     }).join('');
+
+    const sourceSelect = tbody.querySelector('[data-main-stats-source-select]');
+    if (sourceSelect) {
+        sourceSelect.value = source;
+        sourceSelect.onchange = () => {
+            setSelectedMainStatsSource(sourceSelect.value, solves);
+            sourceSelect.blur();
+        };
+    }
 
     // Session info
     const solveCount = stats.count;
-    const validCount = solves.filter(s => s.penalty !== 'DNF').length;
-    const meanStr = stats.sessionMean != null ? formatTime(stats.sessionMean) : '-';
+    const validCount = times.filter((time) => Number.isFinite(time)).length;
+    const meanStr = sourceContext.sessionMean != null ? formatTime(sourceContext.sessionMean) : '-';
     document.getElementById('solve-count').textContent = `solve: ${validCount}/${solveCount}`;
     document.getElementById('session-mean').textContent = `mean: ${meanStr}`;
+    renderPhaseMeanChips(solves);
 
     // Click handlers for summary stats
     tbody.querySelectorAll('td[data-stat-type]').forEach(td => {
@@ -9854,15 +10825,27 @@ function renderSummaryStats(stats, solves) {
 }
 
 function handleStatClick(type, which, solves, stats) {
+    const source = getSelectedMainStatsSource(solves);
+    const sourceContext = getMainStatsSourceContext(solves, source);
+    const sourceTimes = sourceContext.times;
+
     if (type === 'time') {
         // Show the single solve
         if (which === 'current' && solves.length > 0) {
-            openStatDetailAtIndex(type, solves, stats, solves.length - 1);
+            openStatDetailAtIndex(type, solves, stats, solves.length - 1, {
+                isBest: sourceContext.best != null
+                    && sourceContext.current === sourceContext.best
+                    && sourceContext.current !== Infinity,
+                statSource: source,
+            });
         } else if (which === 'best') {
-            const times = solves.map(s => getEffectiveTime(s));
-            const bestTime = stats.best.time;
-            const idx = times.indexOf(bestTime);
-            if (idx >= 0) showSolveDetail(solves[idx], idx, true);
+            const idx = sourceContext.best == null ? -1 : sourceTimes.indexOf(sourceContext.best);
+            if (idx >= 0) {
+                openStatDetailAtIndex(type, solves, stats, idx, {
+                    isBest: true,
+                    statSource: source,
+                });
+            }
         }
         return;
     }
@@ -9871,11 +10854,18 @@ function handleStatClick(type, which, solves, stats) {
     if (!config) return;
 
     if (which === 'current' && solves.length >= config.windowSize) {
-        openStatDetailAtIndex(type, solves, stats, solves.length - 1);
+        openStatDetailAtIndex(type, solves, stats, solves.length - 1, {
+            times: sourceTimes,
+            statSource: source,
+        });
     } else if (which === 'best') {
-        const bestMatch = findBestRollingStat(statsCache.getTimes(), type);
+        const bestMatch = findBestRollingStat(sourceTimes, type);
         if (bestMatch.index >= 0) {
-            openStatDetailAtIndex(type, solves, stats, bestMatch.index, { label: `Best ${type}` });
+            openStatDetailAtIndex(type, solves, stats, bestMatch.index, {
+                label: `Best ${type}`,
+                times: sourceTimes,
+                statSource: source,
+            });
         }
     }
 }
@@ -9887,6 +10877,9 @@ function getSolvesTableHeaderState(columnKey) {
     let label = columnKey;
     if (columnKey === 'search') {
         label = '<span class="icon-mask icon-mask-search" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle;"></span>';
+    } else if (columnKey.startsWith('phase-')) {
+        const phaseNumber = Number(columnKey.slice(6));
+        label = Number.isInteger(phaseNumber) && phaseNumber > 0 ? `P.${phaseNumber}` : columnKey;
     }
 
     let sortIndicator = '';
@@ -9897,9 +10890,13 @@ function getSolvesTableHeaderState(columnKey) {
     return { label, sortIndicator };
 }
 
-function ensureValidSolvesTableSort(configuredColumns) {
+function ensureValidSolvesTableSort(configuredColumns, solves = sessionManager.getFilteredSolves()) {
     if (!currentSortCol) return;
     if (currentSortCol === 'time') return;
+    if (/^phase-[1-9]\d*$/.test(currentSortCol)) {
+        const phaseIndex = Number(currentSortCol.slice(6));
+        if (phaseIndex >= 1 && phaseIndex <= getVisiblePhaseColumnCount(solves)) return;
+    }
 
     const allowed = new Set(configuredColumns.map((column) => column.type));
     if (allowed.has(currentSortCol)) return;
@@ -9908,26 +10905,618 @@ function ensureValidSolvesTableSort(configuredColumns) {
     currentSortDir = null;
 }
 
-function syncSolvesTableHeader(configuredColumns) {
+function getBaseSolvesTablePixelWidths(configuredColumns, isMobile, availableWidth) {
+    const statCount = configuredColumns.length;
+    const safeWidth = Math.max(220, Number(availableWidth) || (isMobile ? 360 : 300));
+    const longestStatLabelLength = configuredColumns.reduce((max, column) => Math.max(max, column.label.length), 0);
+
+    if (statCount === 0) {
+        const index = safeWidth * (isMobile ? 0.14 : 0.18);
+        return {
+            index,
+            time: safeWidth - index,
+            stat: 0,
+        };
+    }
+
+    if (isMobile && statCount === 2) {
+        return {
+            index: safeWidth * 0.18,
+            time: safeWidth * 0.22,
+            stat: safeWidth * 0.30,
+        };
+    }
+
+    const indexWeight = isMobile ? 1 : 2;
+    const statWeight = longestStatLabelLength >= 7
+        ? (isMobile ? 3.45 : 3.25)
+        : longestStatLabelLength >= 6
+            ? (isMobile ? 3.2 : 3.1)
+            : 3;
+    const timeWeight = longestStatLabelLength >= 7
+        ? (isMobile ? 2.55 : 2.75)
+        : longestStatLabelLength >= 6
+            ? (isMobile ? 2.8 : 2.9)
+            : 3;
+    const totalWeight = indexWeight + timeWeight + (statCount * statWeight);
+
+    return {
+        index: (indexWeight / totalWeight) * safeWidth,
+        time: (timeWeight / totalWeight) * safeWidth,
+        stat: (statWeight / totalWeight) * safeWidth,
+    };
+}
+
+function getHorizontalScrollMax(el) {
+    if (!el) return 0;
+    return Math.max(0, el.scrollWidth - el.clientWidth);
+}
+
+function clampHorizontalScrollLeft(el) {
+    if (!el) return 0;
+
+    const maxScrollLeft = getHorizontalScrollMax(el);
+    const nextScrollLeft = Math.min(maxScrollLeft, Math.max(0, el.scrollLeft));
+    if (Math.abs(el.scrollLeft - nextScrollLeft) > 0.5) {
+        el.scrollLeft = nextScrollLeft;
+    }
+    return nextScrollLeft;
+}
+
+function syncPhaseInfoHorizontalScroll(sourceEl = null) {
+    const sessionInfoEl = document.getElementById('session-info');
+    const solvesContainerEl = document.getElementById('solves-container');
+    if (!sessionInfoEl || !solvesContainerEl || _phaseInfoScrollSyncing) return;
+
+    const source = sourceEl === sessionInfoEl ? sessionInfoEl : solvesContainerEl;
+    const target = source === sessionInfoEl ? solvesContainerEl : sessionInfoEl;
+    const sourceMax = Math.max(0, source.scrollWidth - source.clientWidth);
+    const targetMax = Math.max(0, target.scrollWidth - target.clientWidth);
+    const sourceScrollLeft = clampHorizontalScrollLeft(source);
+    const nextScrollLeft = sourceMax > 0
+        ? Math.min(targetMax, Math.max(0, (sourceScrollLeft / sourceMax) * targetMax))
+        : 0;
+
+    _phaseInfoScrollSyncing = true;
+    target.scrollLeft = nextScrollLeft;
+    window.requestAnimationFrame(() => {
+        _phaseInfoScrollSyncing = false;
+    });
+}
+
+function initPhaseInfoScrollSync() {
+    const sessionInfoEl = document.getElementById('session-info');
+    const solvesContainerEl = document.getElementById('solves-container');
+    if (!sessionInfoEl || !solvesContainerEl) return;
+
+    sessionInfoEl.addEventListener('scroll', () => syncPhaseInfoHorizontalScroll(sessionInfoEl), { passive: true });
+    solvesContainerEl.addEventListener('scroll', () => syncPhaseInfoHorizontalScroll(solvesContainerEl), { passive: true });
+}
+
+function normalizeWheelScrollDelta(delta, event, pageSize) {
+    if (event.deltaMode === 1) return delta * 16;
+    if (event.deltaMode === 2) return delta * Math.max(1, pageSize);
+    return delta;
+}
+
+function getBoundedHorizontalWheelDelta(event, scrollerEl) {
+    const deltaX = normalizeWheelScrollDelta(event.deltaX, event, scrollerEl.clientWidth);
+    const deltaY = normalizeWheelScrollDelta(event.deltaY, event, scrollerEl.clientWidth);
+
+    if (Math.abs(deltaX) > Math.abs(deltaY)) return deltaX;
+    if (event.shiftKey && Math.abs(deltaY) > 0) return deltaY;
+    return 0;
+}
+
+function bindBoundedHorizontalScroll(scrollerEl, { suppressSolvesTableClick = false } = {}) {
+    if (!scrollerEl) return;
+    let touchState = null;
+
+    scrollerEl.addEventListener('touchstart', (event) => {
+        if (event.touches.length !== 1 || getHorizontalScrollMax(scrollerEl) <= 0) {
+            touchState = null;
+            return;
+        }
+
+        const touch = event.touches[0];
+        touchState = {
+            x: touch.clientX,
+            y: touch.clientY,
+            scrollLeft: clampHorizontalScrollLeft(scrollerEl),
+            active: false,
+        };
+    }, { passive: true });
+
+    scrollerEl.addEventListener('touchmove', (event) => {
+        if (!touchState || event.touches.length !== 1) return;
+
+        const maxScrollLeft = getHorizontalScrollMax(scrollerEl);
+        if (maxScrollLeft <= 0) return;
+
+        const touch = event.touches[0];
+        const deltaX = touchState.x - touch.clientX;
+        const deltaY = touchState.y - touch.clientY;
+
+        if (!touchState.active) {
+            const horizontalIntent = Math.abs(deltaX) > 6 && Math.abs(deltaX) > Math.abs(deltaY) * 1.1;
+            if (!horizontalIntent) return;
+            touchState.active = true;
+            if (suppressSolvesTableClick) {
+                _suppressNextSolvesTableClick = true;
+            }
+        }
+
+        scrollerEl.scrollLeft = Math.min(maxScrollLeft, Math.max(0, touchState.scrollLeft + deltaX));
+        syncPhaseInfoHorizontalScroll(scrollerEl);
+        event.preventDefault();
+    }, { passive: false });
+
+    const clearTouchState = () => {
+        const wasActive = Boolean(touchState?.active);
+        touchState = null;
+        if (wasActive) {
+            window.setTimeout(() => {
+                _suppressNextSolvesTableClick = false;
+            }, 0);
+        }
+    };
+
+    scrollerEl.addEventListener('touchend', clearTouchState, { passive: true });
+    scrollerEl.addEventListener('touchcancel', clearTouchState, { passive: true });
+
+    scrollerEl.addEventListener('wheel', (event) => {
+        const deltaX = getBoundedHorizontalWheelDelta(event, scrollerEl);
+        if (deltaX === 0) return;
+
+        const maxScrollLeft = getHorizontalScrollMax(scrollerEl);
+        if (maxScrollLeft <= 0) return;
+
+        const scrollLeft = clampHorizontalScrollLeft(scrollerEl);
+        scrollerEl.scrollLeft = Math.min(maxScrollLeft, Math.max(0, scrollLeft + deltaX));
+        syncPhaseInfoHorizontalScroll(scrollerEl);
+        event.preventDefault();
+    }, { passive: false });
+}
+
+function initPhaseInfoBoundedHorizontalScroll() {
+    bindBoundedHorizontalScroll(document.getElementById('solves-container'), {
+        suppressSolvesTableClick: true,
+    });
+    bindBoundedHorizontalScroll(document.getElementById('session-info'));
+}
+
+function getElementHorizontalPaddingPx(el) {
+    if (!el) return 0;
+
+    const styles = getComputedStyle(el);
+    return (parseFloat(styles.paddingLeft) || 0) + (parseFloat(styles.paddingRight) || 0);
+}
+
+function getElementContentWidthPx(el) {
+    if (!el) return 0;
+    return Math.max(0, el.clientWidth - getElementHorizontalPaddingPx(el));
+}
+
+function getRootCssLengthPx(propertyName, fallback = 0) {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(propertyName);
+    const parsed = parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function getSolvesTableTextMeasureContext() {
+    if (solvesTableTextMeasureContext) return solvesTableTextMeasureContext;
+
+    const canvas = document.createElement('canvas');
+    solvesTableTextMeasureContext = canvas.getContext('2d');
+    return solvesTableTextMeasureContext;
+}
+
+function getSolvesTableTextFont(table) {
+    const styles = getComputedStyle(table || document.documentElement);
+    if (styles.font) return styles.font;
+
+    const fontSize = styles.fontSize || '14px';
+    const fontFamily = styles.fontFamily || "'JetBrains Mono', monospace";
+    const fontWeight = styles.fontWeight || '400';
+    return `${fontWeight} ${fontSize} ${fontFamily}`;
+}
+
+function measureSolvesTableTextWidthPx(table, text, cache = null) {
+    const value = String(text ?? '');
+    const cached = cache?.get(value);
+    if (cached != null) return cached;
+
+    const context = getSolvesTableTextMeasureContext();
+    let width = 0;
+    if (context) {
+        context.font = getSolvesTableTextFont(table);
+        width = context.measureText(value).width;
+    }
+    if (!Number.isFinite(width) || width <= 0) {
+        const fontSize = parseFloat(getComputedStyle(table || document.documentElement).fontSize) || 14;
+        width = value.length * fontSize * 0.62;
+    }
+
+    cache?.set(value, width);
+    return width;
+}
+
+function invalidatePhaseSourceTimeColumnWidthCache() {
+    phaseSourceTimeColumnWidthRevision += 1;
+    phaseSourceTimeColumnWidthCache.clear();
+}
+
+function getPhaseSourceTimeColumnSolveSignature(solve) {
+    if (!solve) return '';
+
+    const phaseSplits = Array.isArray(solve.phaseSplits)
+        ? solve.phaseSplits.join(',')
+        : '';
+    return [
+        solve.id ?? '',
+        solve.timestamp ?? '',
+        solve.time ?? '',
+        solve.penalty ?? '',
+        solve.phaseCount ?? '',
+        phaseSplits,
+    ].join(':');
+}
+
+function getPhaseSourceTimeColumnWidthCacheKey(source, { font, fontSize, cellPaddingWidth, gapWidth }) {
+    return [
+        phaseSourceTimeColumnWidthRevision,
+        sessionManager.getActiveSessionId() || '',
+        source,
+        font,
+        Number(fontSize).toFixed(3),
+        Number(cellPaddingWidth).toFixed(3),
+        Number(gapWidth).toFixed(3),
+    ].join('|');
+}
+
+function getPhaseSourceTimeColumnMinWidthForContent(maxContentWidth, cellPaddingWidth) {
+    return maxContentWidth > 0
+        ? Math.ceil(maxContentWidth + cellPaddingWidth + SOLVES_TABLE_TIME_COLUMN_WIDTH_BUFFER_PX)
+        : 0;
+}
+
+function measurePhaseSourceTimeColumnContentWidthPx(solve, source, table, widthCache, gapWidth) {
+    const totalTime = `(${formatSolveTime(solve)})`;
+    const sourceValue = getSolveMainStatsDisplayValue(solve, source);
+    const sourceTime = formatMainStatsSourceDisplayValue(sourceValue);
+    return measureSolvesTableTextWidthPx(table, totalTime, widthCache)
+        + gapWidth
+        + measureSolvesTableTextWidthPx(table, sourceTime, widthCache);
+}
+
+function createPhaseSourceTimeColumnWidthCacheRecord(solves, maxContentWidth, cellPaddingWidth) {
+    return {
+        length: solves.length,
+        firstSignature: getPhaseSourceTimeColumnSolveSignature(solves[0]),
+        lastSignature: getPhaseSourceTimeColumnSolveSignature(solves[solves.length - 1]),
+        maxContentWidth,
+        minWidth: getPhaseSourceTimeColumnMinWidthForContent(maxContentWidth, cellPaddingWidth),
+    };
+}
+
+function getPhaseSourceTimeColumnMinWidthPx(solves, source, table) {
+    if (getMainStatsSourcePhaseIndex(source) == null || !Array.isArray(solves) || solves.length === 0) {
+        return 0;
+    }
+
+    const widthCache = new Map();
+    const tableStyles = getComputedStyle(table || document.documentElement);
+    const fontSize = parseFloat(tableStyles.fontSize) || 14;
+    const cellPaddingWidth = getRootCssLengthPx('--space-sm', 8) * 2;
+    const gapWidth = SOLVES_TABLE_COMPOSITE_TIME_GAP_EM * fontSize;
+    const cacheKey = getPhaseSourceTimeColumnWidthCacheKey(source, {
+        font: getSolvesTableTextFont(table),
+        fontSize,
+        cellPaddingWidth,
+        gapWidth,
+    });
+    const cachedRecord = phaseSourceTimeColumnWidthCache.get(cacheKey);
+    const firstSignature = getPhaseSourceTimeColumnSolveSignature(solves[0]);
+    const lastSignature = getPhaseSourceTimeColumnSolveSignature(solves[solves.length - 1]);
+
+    if (
+        cachedRecord?.length === solves.length
+        && cachedRecord.firstSignature === firstSignature
+        && cachedRecord.lastSignature === lastSignature
+    ) {
+        return cachedRecord.minWidth;
+    }
+
+    if (
+        cachedRecord?.length + 1 === solves.length
+        && cachedRecord.firstSignature === firstSignature
+        && cachedRecord.lastSignature === getPhaseSourceTimeColumnSolveSignature(solves[solves.length - 2])
+    ) {
+        const maxContentWidth = Math.max(
+            cachedRecord.maxContentWidth,
+            measurePhaseSourceTimeColumnContentWidthPx(solves[solves.length - 1], source, table, widthCache, gapWidth),
+        );
+        const nextRecord = createPhaseSourceTimeColumnWidthCacheRecord(solves, maxContentWidth, cellPaddingWidth);
+        phaseSourceTimeColumnWidthCache.set(cacheKey, nextRecord);
+        return nextRecord.minWidth;
+    }
+
+    let maxContentWidth = 0;
+
+    solves.forEach((solve) => {
+        const contentWidth = measurePhaseSourceTimeColumnContentWidthPx(solve, source, table, widthCache, gapWidth);
+        maxContentWidth = Math.max(maxContentWidth, contentWidth);
+    });
+
+    const nextRecord = createPhaseSourceTimeColumnWidthCacheRecord(solves, maxContentWidth, cellPaddingWidth);
+    phaseSourceTimeColumnWidthCache.set(cacheKey, nextRecord);
+    return nextRecord.minWidth;
+}
+
+function createSolvesTableGridTemplate(widths, { useFixedTracks = false } = {}) {
+    return widths
+        .filter(({ value }) => Number.isFinite(value) && value > 0)
+        .map(({ value, unit }) => {
+            const trackSize = `${Number(value).toFixed(3)}${unit}`;
+            return useFixedTracks ? trackSize : `minmax(0, ${trackSize})`;
+        })
+        .join(' ');
+}
+
+function createPhaseSessionGridTemplate(widths) {
+    const contentTemplate = createSolvesTableGridTemplate(widths, { useFixedTracks: true });
+    return `${contentTemplate} var(--solves-table-scrollbar-gutter-width, 0px)`;
+}
+
+function createPhaseSessionInfoGridTemplate(widths, edgeAdjustmentPx = PHASE_SESSION_INFO_EDGE_ADJUSTMENT_PX) {
+    const adjustedWidths = widths.map((width) => ({ ...width }));
+    const edgeAdjustment = Math.max(0, Number(edgeAdjustmentPx) || 0);
+
+    if (edgeAdjustment > 0 && adjustedWidths.length > 0) {
+        adjustedWidths[0].value = Math.max(0, adjustedWidths[0].value - edgeAdjustment);
+        adjustedWidths[adjustedWidths.length - 1].value = Math.max(
+            0,
+            adjustedWidths[adjustedWidths.length - 1].value - edgeAdjustment,
+        );
+    }
+
+    return createPhaseSessionGridTemplate(adjustedWidths);
+}
+
+function getSolvesTableWidthTotal(widths) {
+    return widths.reduce((total, width) => total + (Number(width) || 0), 0);
+}
+
+function scaleSolvesTableWidths(widths, targetTotal) {
+    const currentTotal = getSolvesTableWidthTotal(widths);
+    if (currentTotal <= 0 || !Number.isFinite(targetTotal) || targetTotal <= 0) return widths;
+
+    const scale = targetTotal / currentTotal;
+    return widths.map((width) => Math.max(0, width * scale));
+}
+
+function scaleSolvesTableWidthsAboveMinimum(widths, targetTotal, minWidths = []) {
+    const currentTotal = getSolvesTableWidthTotal(widths);
+    const safeTargetTotal = Math.max(0, Number(targetTotal) || 0);
+    if (currentTotal <= 0 || safeTargetTotal <= 0 || safeTargetTotal >= currentTotal - 0.5) return widths;
+
+    const normalizedMinWidths = widths.map((width, index) => (
+        Math.min(Math.max(0, Number(minWidths[index]) || 0), Math.max(0, width))
+    ));
+    const minTotal = getSolvesTableWidthTotal(normalizedMinWidths);
+    if (safeTargetTotal <= minTotal + 0.5) return normalizedMinWidths;
+
+    const shrinkableTotal = currentTotal - minTotal;
+    if (shrinkableTotal <= 0) return normalizedMinWidths;
+
+    const scale = (safeTargetTotal - minTotal) / shrinkableTotal;
+    return widths.map((width, index) => (
+        normalizedMinWidths[index] + ((Math.max(0, width) - normalizedMinWidths[index]) * scale)
+    ));
+}
+
+function fitMobilePhaseLeadingWidths(widths, phaseColumnsWidth, availableWidth, { minWidths = [] } = {}) {
+    const currentTotal = getSolvesTableWidthTotal(widths);
+    const safeAvailableWidth = Math.max(0, Number(availableWidth) || 0);
+    const safePhaseColumnsWidth = Math.max(0, Number(phaseColumnsWidth) || 0);
+
+    if (
+        currentTotal <= MOBILE_PHASE_LEADING_COLUMNS_MAX_WIDTH_PX
+        || safeAvailableWidth <= 0
+        || safePhaseColumnsWidth <= 0
+    ) {
+        return widths;
+    }
+
+    // Keep phase columns visible first, then allow the leading columns to grow again.
+    const targetTotal = Math.min(
+        currentTotal,
+        Math.max(
+            MOBILE_PHASE_LEADING_COLUMNS_MAX_WIDTH_PX,
+            safeAvailableWidth - safePhaseColumnsWidth,
+        ),
+    );
+
+    if (targetTotal >= currentTotal - 0.5) return widths;
+    return minWidths.length > 0
+        ? scaleSolvesTableWidthsAboveMinimum(widths, targetTotal, minWidths)
+        : scaleSolvesTableWidths(widths, targetTotal);
+}
+
+function getSolvesTableScrollbarGutterWidth(table) {
+    const tableBodyEl = table?.tBodies?.[0];
+    return Math.max(
+        0,
+        (tableBodyEl?.offsetWidth || 0) - (tableBodyEl?.clientWidth || 0),
+    );
+}
+
+function syncSolvesPanelWidthPreferenceFromSettings() {
+    isSolvesPanelWidthConstrained = settings.get(SOLVES_PANEL_WIDTH_CONSTRAINED_SETTING) === true;
+}
+
+function shouldShowSolvesTableVerticalGridLines(phaseColumnCount = getVisiblePhaseColumnCount()) {
+    const mode = settings.get(TIME_TABLE_VERTICAL_GRID_LINES_SETTING);
+    return mode === TIME_TABLE_VERTICAL_GRID_LINES_ON
+        || (mode === TIME_TABLE_VERTICAL_GRID_LINES_MULTI_PHASE_ONLY && phaseColumnCount > 0);
+}
+
+function syncSolvesPanelWidthToggle(canToggle = false) {
+    const btn = document.getElementById('btn-phase-panel-width-toggle');
+    if (!btn) return;
+
+    btn.hidden = !canToggle;
+    btn.classList.toggle('is-visible', canToggle);
+    btn.classList.toggle('is-constrained', isSolvesPanelWidthConstrained);
+    btn.setAttribute('aria-pressed', isSolvesPanelWidthConstrained ? 'true' : 'false');
+
+    const title = isSolvesPanelWidthConstrained
+        ? 'Allow phase table to grow'
+        : 'Constrain phase table width';
+    btn.title = title;
+    btn.setAttribute('aria-label', title);
+
+    const icon = btn.querySelector('.icon-mask');
+    icon?.classList.toggle('icon-mask-compress', !isSolvesPanelWidthConstrained);
+    icon?.classList.toggle('icon-mask-expand', isSolvesPanelWidthConstrained);
+}
+
+function initSolvesPanelWidthToggle() {
+    const btn = document.getElementById('btn-phase-panel-width-toggle');
+    if (!btn) return;
+
+    syncSolvesPanelWidthPreferenceFromSettings();
+    btn.onclick = () => {
+        settings.set(SOLVES_PANEL_WIDTH_CONSTRAINED_SETTING, !isSolvesPanelWidthConstrained);
+        btn.blur();
+    };
+    syncSolvesPanelWidthToggle(false);
+}
+
+function syncSolvesTableHeader(configuredColumns, solves = sessionManager.getFilteredSolves()) {
     const table = document.getElementById('solves-table');
     const headerRow = table?.querySelector('thead tr');
     if (!table || !headerRow) return;
 
+    table.style.minWidth = '';
     const statCount = configuredColumns.length;
+    const phaseColumnCount = getVisiblePhaseColumnCount(solves);
     const isMobile = window.innerWidth <= 1100 || mobileViewportQuery.matches;
+    const selectedSource = getSelectedMainStatsSource(solves);
+    const isPhaseSourceSelected = selectedSource !== MAIN_STATS_SOURCE_TIME;
     const longestStatLabelLength = configuredColumns.reduce((max, column) => Math.max(max, column.label.length), 0);
+    const solvesContainerEl = table.closest('#solves-container');
     let indexWidth;
     let timeWidth;
     let statWidth = 0;
+    let phaseWidth = 0;
+    let tableTotalWidth = null;
+    let tableOuterWidth = null;
+    let panelTotalWidth = null;
+    let gridTemplate = '';
+    let sessionGridTemplate = '';
+    let normalDesktopPanelWidth = null;
+    let phasePanelCanConstrain = false;
     let headerFontSize = isMobile ? '0.62rem' : 'var(--text-xs)';
 
-    if (statCount === 0) {
+    if (phaseColumnCount > 0) {
+        const rootStyles = getComputedStyle(document.documentElement);
+        const desktopSidebarWidth = parseFloat(rootStyles.getPropertyValue('--sidebar-width')) || 300;
+        normalDesktopPanelWidth = desktopSidebarWidth;
+        const tableContainerContentWidth = getElementContentWidthPx(solvesContainerEl) || table.clientWidth;
+        const scrollbarGutterWidth = getSolvesTableScrollbarGutterWidth(table);
+        const normalDesktopContentWidth = Math.max(
+            220,
+            normalDesktopPanelWidth - getElementHorizontalPaddingPx(solvesContainerEl),
+        );
+        const baseAvailableWidth = isMobile
+            ? tableContainerContentWidth
+            : normalDesktopContentWidth;
+        const widths = getBaseSolvesTablePixelWidths(
+            configuredColumns,
+            isMobile,
+            baseAvailableWidth,
+        );
+        const phaseWidths = isMobile ? MOBILE_SOLVES_TABLE_WIDTHS : DESKTOP_SOLVES_TABLE_WIDTHS;
+        const initialIndexWidth = Math.max(0, widths.index - PHASE_LEADING_COLUMN_ADJUSTMENT_PX);
+        const initialTimeWidth = Math.max(0, widths.time - PHASE_LEADING_COLUMN_ADJUSTMENT_PX);
+        const baseStatWidth = Math.max(MIN_SOLVES_TABLE_COLUMN_WIDTH_PX, widths.stat);
+        const phaseSourceTimeColumnMinWidth = isPhaseSourceSelected
+            ? Math.max(
+                isMobile ? MOBILE_PHASE_SOURCE_TIME_COLUMN_MIN_WIDTH_PX : PHASE_SOURCE_TIME_COLUMN_MIN_WIDTH_PX,
+                getPhaseSourceTimeColumnMinWidthPx(solves, selectedSource, table),
+            )
+            : 0;
+        let leadingColumnWidths = [
+            initialIndexWidth,
+            initialTimeWidth,
+            ...Array.from({ length: statCount }, () => (
+                Math.max(0, baseStatWidth - PHASE_LEADING_COLUMN_ADJUSTMENT_PX)
+            )),
+        ];
+        if (isPhaseSourceSelected) {
+            leadingColumnWidths[1] = Math.max(
+                leadingColumnWidths[1],
+                phaseSourceTimeColumnMinWidth,
+            );
+        }
+        phaseWidth = Math.max(MIN_SOLVES_TABLE_COLUMN_WIDTH_PX, phaseWidths.phase);
+        if (isMobile) {
+            leadingColumnWidths = fitMobilePhaseLeadingWidths(
+                leadingColumnWidths,
+                (phaseColumnCount * phaseWidth) + scrollbarGutterWidth,
+                tableContainerContentWidth,
+                {
+                    minWidths: isPhaseSourceSelected
+                        ? [0, phaseSourceTimeColumnMinWidth]
+                        : [],
+                },
+            );
+        }
+        if (isPhaseSourceSelected) {
+            leadingColumnWidths[1] = Math.max(
+                leadingColumnWidths[1],
+                phaseSourceTimeColumnMinWidth,
+            );
+        }
+        [indexWidth, timeWidth] = leadingColumnWidths;
+        const statColumnWidths = leadingColumnWidths.slice(2);
+        statWidth = statColumnWidths[0] ?? 0;
+        phaseWidth = Math.max(MIN_SOLVES_TABLE_COLUMN_WIDTH_PX, phaseWidths.phase);
+        headerFontSize = isMobile && phaseColumnCount >= 6 ? '0.56rem' : headerFontSize;
+        tableTotalWidth = getSolvesTableWidthTotal(leadingColumnWidths)
+            + (phaseColumnCount * phaseWidth);
+        tableOuterWidth = tableTotalWidth + scrollbarGutterWidth;
+        panelTotalWidth = tableOuterWidth + getElementHorizontalPaddingPx(solvesContainerEl) + 2;
+        phasePanelCanConstrain = !isMobile && panelTotalWidth > normalDesktopPanelWidth + 0.5;
+        const gridWidths = [
+            { value: indexWidth, unit: 'px' },
+            { value: timeWidth, unit: 'px' },
+            ...statColumnWidths.map((width) => ({ value: width, unit: 'px' })),
+            ...Array.from({ length: phaseColumnCount }, () => ({ value: phaseWidth, unit: 'px' })),
+        ];
+        gridTemplate = createPhaseSessionGridTemplate(gridWidths);
+        sessionGridTemplate = createPhaseSessionInfoGridTemplate(gridWidths);
+    } else if (statCount === 0) {
         indexWidth = isMobile ? 14 : 18;
         timeWidth = 100 - indexWidth;
+        const gridWidths = [
+            { value: indexWidth, unit: '%' },
+            { value: timeWidth, unit: '%' },
+        ];
+        gridTemplate = createSolvesTableGridTemplate(gridWidths);
+        sessionGridTemplate = gridTemplate;
     } else if (isMobile && statCount === 2) {
         indexWidth = 18;
         timeWidth = 22;
         statWidth = 30;
+        const gridWidths = [
+            { value: indexWidth, unit: '%' },
+            { value: timeWidth, unit: '%' },
+            ...Array.from({ length: statCount }, () => ({ value: statWidth, unit: '%' })),
+        ];
+        gridTemplate = createSolvesTableGridTemplate(gridWidths);
+        sessionGridTemplate = gridTemplate;
         if (longestStatLabelLength >= 7) {
             headerFontSize = '0.54rem';
         } else if (longestStatLabelLength >= 6) {
@@ -9949,6 +11538,13 @@ function syncSolvesTableHeader(configuredColumns) {
         indexWidth = (indexWeight / totalWeight) * 100;
         timeWidth = (timeWeight / totalWeight) * 100;
         statWidth = (statWeight / totalWeight) * 100;
+        const gridWidths = [
+            { value: indexWidth, unit: '%' },
+            { value: timeWidth, unit: '%' },
+            ...Array.from({ length: statCount }, () => ({ value: statWidth, unit: '%' })),
+        ];
+        gridTemplate = createSolvesTableGridTemplate(gridWidths);
+        sessionGridTemplate = gridTemplate;
         if (longestStatLabelLength >= 7) {
             headerFontSize = isMobile ? '0.54rem' : '0.68rem';
         } else if (longestStatLabelLength >= 6) {
@@ -9956,10 +11552,76 @@ function syncSolvesTableHeader(configuredColumns) {
         }
     }
 
-    table.style.setProperty('--solves-table-index-width', `${indexWidth.toFixed(3)}%`);
-    table.style.setProperty('--solves-table-time-width', `${timeWidth.toFixed(3)}%`);
-    table.style.setProperty('--solves-table-stat-width', `${statWidth.toFixed(3)}%`);
+    const widthUnit = phaseColumnCount > 0 ? 'px' : '%';
+    table.classList.toggle('has-phase-columns', phaseColumnCount > 0);
+    table.classList.toggle('show-vertical-grid-lines', shouldShowSolvesTableVerticalGridLines(phaseColumnCount));
+    table.style.setProperty('--solves-table-index-width', `${Number(indexWidth).toFixed(3)}${widthUnit}`);
+    table.style.setProperty('--solves-table-time-width', `${Number(timeWidth).toFixed(3)}${widthUnit}`);
+    table.style.setProperty('--solves-table-stat-width', `${Number(statWidth).toFixed(3)}${widthUnit}`);
+    table.style.setProperty('--solves-table-phase-width', `${Number(phaseWidth).toFixed(3)}px`);
     table.style.setProperty('--solves-table-header-font-size', headerFontSize);
+    table.style.setProperty('--solves-table-grid-columns', gridTemplate);
+
+    const sessionInfoEl = document.getElementById('session-info');
+    const leftPanelEl = document.getElementById('left-panel');
+    const isPanelConstrained = phasePanelCanConstrain && isSolvesPanelWidthConstrained;
+    leftPanelEl?.classList.toggle('solves-panel-constrained', isPanelConstrained);
+    syncSolvesPanelWidthToggle(phasePanelCanConstrain);
+    sessionInfoEl?.style.setProperty('--solves-table-grid-columns', gridTemplate);
+    sessionInfoEl?.style.setProperty('--solves-table-session-grid-columns', sessionGridTemplate || gridTemplate);
+    if (phaseColumnCount > 0 && tableTotalWidth != null) {
+        table.style.setProperty('--solves-table-total-width', `${Number(tableTotalWidth).toFixed(3)}px`);
+        table.style.setProperty('--solves-table-outer-width', `${Number(tableOuterWidth || tableTotalWidth).toFixed(3)}px`);
+        sessionInfoEl?.style.setProperty('--solves-table-total-width', `${Number(tableTotalWidth).toFixed(3)}px`);
+        sessionInfoEl?.style.setProperty('--solves-table-outer-width', `${Number(tableOuterWidth || tableTotalWidth).toFixed(3)}px`);
+        const scrollbarGutterWidth = getSolvesTableScrollbarGutterWidth(table);
+        sessionInfoEl?.style.setProperty('--solves-table-scrollbar-gutter-width', `${Number(scrollbarGutterWidth).toFixed(3)}px`);
+        table.style.setProperty('--solves-table-scrollbar-gutter-width', `${Number(scrollbarGutterWidth).toFixed(3)}px`);
+        if (isPanelConstrained) {
+            leftPanelEl?.style.removeProperty('--solves-panel-width');
+        } else {
+            leftPanelEl?.style.setProperty('--solves-panel-width', `${Number(panelTotalWidth || tableOuterWidth || tableTotalWidth).toFixed(3)}px`);
+        }
+
+        window.requestAnimationFrame(() => {
+            const nextScrollbarGutterWidth = getSolvesTableScrollbarGutterWidth(table);
+            const nextOuterWidth = tableTotalWidth + nextScrollbarGutterWidth;
+            const nextIsMobile = window.innerWidth <= 1100 || mobileViewportQuery.matches;
+            const nextPanelTotalWidth = nextOuterWidth + getElementHorizontalPaddingPx(solvesContainerEl) + 2;
+            const nextCanConstrain = phaseColumnCount > 0
+                && !nextIsMobile
+                && nextPanelTotalWidth > (normalDesktopPanelWidth || nextPanelTotalWidth) + 0.5;
+            const nextIsPanelConstrained = nextCanConstrain && isSolvesPanelWidthConstrained;
+            table.style.setProperty('--solves-table-outer-width', `${Number(nextOuterWidth).toFixed(3)}px`);
+            table.style.setProperty('--solves-table-scrollbar-gutter-width', `${Number(nextScrollbarGutterWidth).toFixed(3)}px`);
+            sessionInfoEl?.style.setProperty('--solves-table-outer-width', `${Number(nextOuterWidth).toFixed(3)}px`);
+            sessionInfoEl?.style.setProperty('--solves-table-scrollbar-gutter-width', `${Number(nextScrollbarGutterWidth).toFixed(3)}px`);
+            leftPanelEl?.classList.toggle('solves-panel-constrained', nextIsPanelConstrained);
+            syncSolvesPanelWidthToggle(nextCanConstrain);
+            if (nextIsPanelConstrained) {
+                leftPanelEl?.style.removeProperty('--solves-panel-width');
+            } else {
+                leftPanelEl?.style.setProperty(
+                    '--solves-panel-width',
+                    `${Number(nextOuterWidth + getElementHorizontalPaddingPx(solvesContainerEl) + 2).toFixed(3)}px`,
+                );
+            }
+            syncPhaseInfoHorizontalScroll(document.getElementById('solves-container'));
+            scheduleViewportLayoutSync();
+        });
+    } else {
+        table.style.removeProperty('--solves-table-total-width');
+        table.style.removeProperty('--solves-table-outer-width');
+        table.style.setProperty(
+            '--solves-table-scrollbar-gutter-width',
+            `${Number(getSolvesTableScrollbarGutterWidth(table)).toFixed(3)}px`,
+        );
+        sessionInfoEl?.style.removeProperty('--solves-table-total-width');
+        sessionInfoEl?.style.removeProperty('--solves-table-outer-width');
+        sessionInfoEl?.style.removeProperty('--solves-table-session-grid-columns');
+        sessionInfoEl?.style.removeProperty('--solves-table-scrollbar-gutter-width');
+        leftPanelEl?.style.removeProperty('--solves-panel-width');
+    }
 
     const renderHeaderCell = (columnKey, extraAttributes = '') => {
         const { label, sortIndicator } = getSolvesTableHeaderState(columnKey);
@@ -9976,7 +11638,25 @@ function syncSolvesTableHeader(configuredColumns) {
         renderHeaderCell('search'),
         renderHeaderCell('time'),
         ...configuredColumns.map((column) => renderHeaderCell(column.type, 'data-stat-column="true"')),
+        ...Array.from({ length: phaseColumnCount }, (_, index) => {
+            const isLastPhaseColumn = index === phaseColumnCount - 1;
+            return renderHeaderCell(
+                `phase-${index + 1}`,
+                `data-phase-column="true"${isLastPhaseColumn ? ' data-last-phase-column="true"' : ''}`,
+            );
+        }),
     ].join('');
+
+    window.requestAnimationFrame(() => {
+        if (phaseColumnCount === 0) {
+            table.style.setProperty(
+                '--solves-table-scrollbar-gutter-width',
+                `${Number(getSolvesTableScrollbarGutterWidth(table)).toFixed(3)}px`,
+            );
+        }
+        syncSessionInfoPlacement();
+        syncPhaseInfoHorizontalScroll(document.getElementById('solves-container'));
+    });
 }
 
 function getVisibleSolveViewportInfo(indices, tbody) {
@@ -10100,15 +11780,33 @@ function renderSolvesTable(solves, stats) {
         : getVisibleSolveViewportInfo(_tableSortedIndices, tbody);
     const previousIndexFilterKey = shouldResetViewportToTop ? '' : _lastTableIndexFilterKey;
     const configuredColumns = getConfiguredSolvesTableStatTokens();
-    const visibleColumnCount = 2 + configuredColumns.length;
-    ensureValidSolvesTableSort(configuredColumns);
-    syncSolvesTableHeader(configuredColumns);
+    const phaseColumnCount = getVisiblePhaseColumnCount(solves);
+    const source = getSelectedMainStatsSource(solves);
+    const sourceContext = getMainStatsSourceContext(solves, source);
+    const sourceTimes = sourceContext.times;
+    const visibleColumnCount = 2 + configuredColumns.length + phaseColumnCount;
+    ensureValidSolvesTableSort(configuredColumns, solves);
+    syncSolvesTableHeader(configuredColumns, solves);
 
     const rollingStatValues = new Map();
     const rollingStatBestFlags = new Map();
     configuredColumns.forEach(({ type }) => {
-        rollingStatValues.set(type, statsCache.getRollingStatValues(type));
-        rollingStatBestFlags.set(type, statsCache.getRollingStatNewBestFlags(type));
+        if (source === MAIN_STATS_SOURCE_TIME && statsCache.matchesSolves(solves)) {
+            rollingStatValues.set(type, statsCache.getRollingStatValues(type));
+            rollingStatBestFlags.set(type, statsCache.getRollingStatNewBestFlags(type));
+            return;
+        }
+
+        const config = getRollingStatConfig(type);
+        if (!config) {
+            rollingStatValues.set(type, []);
+            rollingStatBestFlags.set(type, []);
+            return;
+        }
+
+        const values = buildRollingStatValues(sourceTimes, config);
+        rollingStatValues.set(type, values);
+        rollingStatBestFlags.set(type, buildRollingBestFlags(values).flags);
     });
 
     // Build sorted index order
@@ -10123,8 +11821,14 @@ function renderSolvesTable(solves, stats) {
         indices.sort((a, b) => {
             let valA, valB;
             if (currentSortCol === 'time') {
-                valA = getEffectiveTime(solves[a]);
-                valB = getEffectiveTime(solves[b]);
+                valA = sourceTimes[a] ?? Infinity;
+                valB = sourceTimes[b] ?? Infinity;
+            } else if (currentSortCol?.startsWith('phase-')) {
+                const phaseIndex = Number(currentSortCol.slice(6)) - 1;
+                valA = getSolvePhaseValue(solves[a], phaseIndex);
+                valB = getSolvePhaseValue(solves[b], phaseIndex);
+                valA = valA != null ? valA : Infinity;
+                valB = valB != null ? valB : Infinity;
             } else {
                 const sortValues = rollingStatValues.get(currentSortCol) || statsCache.getRollingStatValues(currentSortCol);
                 valA = sortValues[a];
@@ -10186,16 +11890,18 @@ function renderSolvesTable(solves, stats) {
 
         let html = '';
         if (topPad > 0) {
-            html += `<tr style="height:${topPad}px"><td colspan="${visibleColumnCount}"></td></tr>`;
+            html += `<tr class="solves-table-spacer" style="height:${topPad}px"><td colspan="${visibleColumnCount}"></td></tr>`;
         }
 
         const isMobile = window.innerWidth <= 1100 || mobileViewportQuery.matches;
         for (let row = startRow; row < endRow; row++) {
             const i = _tableSortedIndices[row];
             const solve = solves[i];
-            const timeStr = isMobile ? formatSolveTime(solve) : truncateTimeDisplay(formatSolveTime(solve), 7);
+            const sourceDisplayValue = getSolveMainStatsDisplayValue(solve, source);
+            const timeStr = formatSolvesTableTimeValue(solve, source, sourceDisplayValue, isMobile);
 
-            const isBestTime = statsCache.isNewBestAt(i);
+            const isBestTime = !!sourceContext.newBestFlags[i];
+            const isSourceDnf = sourceDisplayValue === Infinity;
             const statCells = configuredColumns.map(({ type }) => {
                 const value = rollingStatValues.get(type)?.[i] ?? null;
                 const isBestStat = !!rollingStatBestFlags.get(type)?.[i];
@@ -10203,6 +11909,14 @@ function renderSolvesTable(solves, stats) {
                     ? (isMobile ? formatTime(value) : truncateTimeDisplay(formatTime(value), 7))
                     : '';
                 return `<td class="rolling-stat-cell ${isBestStat ? 'new-best-cell' : ''}" data-stat-type="${type}">${display}</td>`;
+            }).join('');
+            const phaseCells = Array.from({ length: phaseColumnCount }, (_, phaseIndex) => {
+                const value = getSolvePhaseValue(solve, phaseIndex);
+                const display = value != null
+                    ? (isMobile ? formatTime(value) : truncateTimeDisplay(formatTime(value), 7))
+                    : '-';
+                const lastPhaseAttr = phaseIndex === phaseColumnCount - 1 ? ' data-last-phase-column="true"' : '';
+                return `<td class="phase-split-cell" data-phase-index="${phaseIndex + 1}"${lastPhaseAttr}>${display}</td>`;
             }).join('');
 
             let indicator = '';
@@ -10215,15 +11929,16 @@ function renderSolvesTable(solves, stats) {
           <input type="checkbox" class="solve-index-checkbox" ${selectedClass ? 'checked' : ''} aria-hidden="true" tabindex="-1">
           <span class="solve-index-number">${i + 1}${indicator ? `<span class="solve-index-indicator">${indicator}</span>` : ''}</span>
       </span></td>
-      <td class="solve-time-cell ${solve.penalty === 'DNF' ? 'dnf-time' : ''} ${isBestTime ? 'new-best-cell' : ''}">
+	      <td class="solve-time-cell ${isSourceDnf ? 'dnf-time' : ''} ${isBestTime ? 'new-best-cell' : ''}">
         ${timeStr}
       </td>
       ${statCells}
+      ${phaseCells}
     </tr>`;
         }
 
         if (bottomPad > 0) {
-            html += `<tr style="height:${bottomPad}px"><td colspan="${visibleColumnCount}"></td></tr>`;
+            html += `<tr class="solves-table-spacer" style="height:${bottomPad}px"><td colspan="${visibleColumnCount}"></td></tr>`;
         }
 
         tbody.innerHTML = html;
@@ -10257,6 +11972,11 @@ function renderSolvesTable(solves, stats) {
 
     // Click delegation on tbody for all cell types
     tbody.onclick = (e) => {
+        if (_suppressNextSolvesTableClick) {
+            _suppressNextSolvesTableClick = false;
+            return;
+        }
+
         const td = e.target.closest('td');
         if (!td) return;
         const tr = td.closest('tr');
@@ -10310,9 +12030,24 @@ function renderSolvesTable(solves, stats) {
         }
 
         if (td.classList.contains('solve-time-cell')) {
-            openStatDetailAtIndex('time', solves, stats, idx);
+            openStatDetailAtIndex('time', solves, stats, idx, {
+                isBest: !!sourceContext.newBestFlags[idx],
+                statSource: source,
+            });
         } else if (td.dataset.statType) {
-            openStatDetailAtIndex(td.dataset.statType, solves, stats, idx);
+            openStatDetailAtIndex(td.dataset.statType, solves, stats, idx, {
+                times: sourceTimes,
+                statSource: source,
+            });
+        } else if (td.classList.contains('phase-split-cell')) {
+            const phaseIndex = Number(td.dataset.phaseIndex) - 1;
+            if (!Number.isInteger(phaseIndex) || phaseIndex < 0) return;
+            const statSource = `phase-${phaseIndex + 1}`;
+            showSolveDetail(solves[idx], idx, false, {
+                detailLabel: getMainStatsSourceLabel(statSource),
+                formatSolve: (solve) => formatTime(getSolvePhaseValue(solve, phaseIndex)),
+                statSource,
+            });
         }
     };
 }
@@ -11051,6 +12786,7 @@ function syncSearchMenuVisibility({ focusInput = false } = {}) {
         searchMenuEl.style.display = 'none';
     }
 
+    syncSessionInfoPlacement();
     syncSolvesTableHeader(getConfiguredSolvesTableStatTokens());
 }
 
@@ -11738,12 +13474,11 @@ function initSettingsPanel() {
         }
     });
 
-    // WCA inspection toggle
-    const inspectionTimeToggle = document.getElementById('setting-inspection-time');
-    inspectionTimeToggle.checked = settings.get('inspectionTime') === '15s';
-    inspectionTimeToggle.onchange = () => {
-        settings.set('inspectionTime', inspectionTimeToggle.checked ? '15s' : 'off');
-        inspectionTimeToggle.blur();
+    const inspectionTimeSelect = document.getElementById('setting-inspection-time');
+    inspectionTimeSelect.value = settings.get('inspectionTime');
+    inspectionTimeSelect.onchange = () => {
+        settings.set('inspectionTime', inspectionTimeSelect.value);
+        inspectionTimeSelect.blur();
     };
 
     const inspectionAlertsSelect = document.getElementById('setting-inspection-alerts');
@@ -11769,6 +13504,34 @@ function initSettingsPanel() {
             pendingHardwareModeReconnect = false;
             updateTimeEntryVisibility();
             timeEntryModeSelect.blur();
+        };
+    }
+
+    const multiPhaseCountSelect = document.getElementById('setting-multi-phase-count');
+    if (multiPhaseCountSelect) {
+        multiPhaseCountSelect.value = String(getConfiguredPhaseCount());
+        multiPhaseCountSelect.onchange = () => {
+            settings.set('multiPhaseCount', multiPhaseCountSelect.value);
+            renderPhaseSplitDisplay([]);
+            multiPhaseCountSelect.blur();
+        };
+    }
+
+    const multiPhaseSoundToggle = document.getElementById('setting-multi-phase-sound');
+    if (multiPhaseSoundToggle) {
+        multiPhaseSoundToggle.checked = settings.get('multiPhaseSoundEnabled') !== false;
+        multiPhaseSoundToggle.onchange = () => {
+            settings.set('multiPhaseSoundEnabled', multiPhaseSoundToggle.checked);
+            multiPhaseSoundToggle.blur();
+        };
+    }
+
+    const multiPhaseHideSplitsToggle = document.getElementById('setting-multi-phase-hide-splits');
+    if (multiPhaseHideSplitsToggle) {
+        multiPhaseHideSplitsToggle.checked = settings.get('multiPhaseHideSplitsWhileSolving') === true;
+        multiPhaseHideSplitsToggle.onchange = () => {
+            settings.set('multiPhaseHideSplitsWhileSolving', multiPhaseHideSplitsToggle.checked);
+            multiPhaseHideSplitsToggle.blur();
         };
     }
 
@@ -13488,6 +15251,19 @@ function initSettingsPanel() {
         syncSettingsRowSeparators();
     };
 
+    const updateMultiPhaseDetailVisibility = () => {
+        const showDetailSettings = getConfiguredPhaseCount() > 1;
+        [
+            document.getElementById('setting-multi-phase-hide-splits')?.closest('.setting-row'),
+            document.getElementById('setting-multi-phase-sound')?.closest('.setting-row'),
+        ].forEach((row) => {
+            if (!row) return;
+            row.hidden = !showDetailSettings;
+            row.style.display = showDetailSettings ? '' : 'none';
+        });
+        syncSettingsRowSeparators();
+    };
+
     const updateTimeEntryVisibility = () => {
         if (!timeEntryRow) return;
         timeEntryRow.style.display = '';
@@ -13508,6 +15284,9 @@ function initSettingsPanel() {
     const scopedSettingTargets = [
         { key: 'timerUpdate', controlId: 'setting-timer-update' },
         { key: 'timeEntryMode', controlId: 'setting-time-entry-mode', read: () => normalizeTimeEntryMode(settings.get('timeEntryMode')) },
+        { key: 'multiPhaseCount', controlId: 'setting-multi-phase-count', read: () => getConfiguredPhaseCount() },
+        { key: 'multiPhaseHideSplitsWhileSolving', controlId: 'setting-multi-phase-hide-splits' },
+        { key: 'multiPhaseSoundEnabled', controlId: 'setting-multi-phase-sound' },
         { key: 'theme', controlId: 'setting-theme' },
         { key: 'animationMode', controlId: 'setting-animations' },
         { key: 'pillSize', controlId: 'setting-pill-size' },
@@ -13515,7 +15294,7 @@ function initSettingsPanel() {
         { key: 'showDelta', controlId: 'setting-show-delta' },
         { key: 'deltaReference', controlId: 'setting-delta-reference', read: () => String(settings.get('deltaReference') || '') },
         { key: 'newBestPopupEnabled', controlId: 'setting-new-best-popup' },
-        { key: 'inspectionTime', controlId: 'setting-inspection-time', read: () => settings.get('inspectionTime') === '15s' },
+        { key: 'inspectionTime', controlId: 'setting-inspection-time' },
         { key: 'inspectionAlerts', controlId: 'setting-inspection-alerts' },
         { key: 'hideUIWhileSolving', controlId: 'setting-hide-ui' },
         { key: 'centerTimer', controlId: 'setting-center-timer' },
@@ -13526,6 +15305,7 @@ function initSettingsPanel() {
         { key: 'summaryStatsCustom', controlId: 'setting-summary-stats-custom' },
         { key: 'solvesTableStat1', controlId: 'setting-solves-table-stat1', read: () => String(settings.get('solvesTableStat1') || DEFAULTS.solvesTableStat1) },
         { key: 'solvesTableStat2', controlId: 'setting-solves-table-stat2', read: () => String(settings.get('solvesTableStat2') || DEFAULTS.solvesTableStat2) },
+        { key: TIME_TABLE_VERTICAL_GRID_LINES_SETTING, controlId: 'setting-time-table-vertical-grid-lines' },
         { key: 'graphTooltipDateEnabled', controlId: 'setting-graph-tooltip-date' },
         { key: 'graphLine1Stat', controlId: 'setting-graph-line1-stat', read: () => String(settings.get('graphLine1Stat') || DEFAULTS.graphLine1Stat) },
         { key: 'graphLine2Stat', controlId: 'setting-graph-line2-stat', read: () => String(settings.get('graphLine2Stat') || DEFAULTS.graphLine2Stat) },
@@ -13533,7 +15313,11 @@ function initSettingsPanel() {
     ];
     const getScopeKeysForTarget = (target) => getLinkedSessionScopeKeys(target.key);
     const scopedSettingTargetKeys = new Set(scopedSettingTargets.flatMap((target) => getScopeKeysForTarget(target)));
-    const missingScopedControlKeys = SESSION_SCOPABLE_SETTING_KEYS.filter((key) => !scopedSettingTargetKeys.has(key));
+    const nonPanelScopedSettingKeys = new Set(['mainStatsSource']);
+    const missingScopedControlKeys = SESSION_SCOPABLE_SETTING_KEYS.filter((key) => (
+        !scopedSettingTargetKeys.has(key)
+        && !nonPanelScopedSettingKeys.has(key)
+    ));
     if (missingScopedControlKeys.length > 0) {
         console.warn('Session-scopable settings without scope UI controls:', missingScopedControlKeys);
     }
@@ -13563,6 +15347,7 @@ function initSettingsPanel() {
         });
         updateCenterTimerState();
         updateTimeEntryVisibility();
+        updateMultiPhaseDetailVisibility();
         syncScopeModeHardwareButtons();
         syncSummarySettingsUI();
         syncSettingsRowSeparators();
@@ -13660,6 +15445,10 @@ function initSettingsPanel() {
         syncSettingScopeControls();
         syncScopedControlValues();
     });
+    settings.on('reset', () => {
+        syncSettingScopeControls();
+        syncScopedControlValues();
+    });
 
     if (hideUIToggle) {
         hideUIToggle.checked = settings.get('hideUIWhileSolving');
@@ -13675,6 +15464,7 @@ function initSettingsPanel() {
     updateCenterTimerState();
     updateSwipeDownGestureVisibility();
     updateBackgroundSpacebarVisibility();
+    updateMultiPhaseDetailVisibility();
     updateTimeEntryVisibility();
     syncScopeModeHardwareButtons();
     syncCameraBackgroundSettingControls();
@@ -13683,6 +15473,7 @@ function initSettingsPanel() {
         updateCenterTimerState();
         updateSwipeDownGestureVisibility();
         updateBackgroundSpacebarVisibility();
+        updateMultiPhaseDetailVisibility();
         updateTimeEntryVisibility();
         syncScopeModeHardwareButtons();
         void syncCameraBackgroundMode();
@@ -13865,6 +15656,17 @@ function initSettingsPanel() {
         input: document.getElementById(row.inputId),
         feedback: document.getElementById(row.feedbackId),
     })).filter((row) => row.input && row.feedback);
+
+    const timeTableVerticalGridLinesSelect = document.getElementById('setting-time-table-vertical-grid-lines');
+    if (timeTableVerticalGridLinesSelect) {
+        timeTableVerticalGridLinesSelect.value = String(
+            settings.get(TIME_TABLE_VERTICAL_GRID_LINES_SETTING) || TIME_TABLE_VERTICAL_GRID_LINES_MULTI_PHASE_ONLY,
+        );
+        timeTableVerticalGridLinesSelect.onchange = () => {
+            settings.set(TIME_TABLE_VERTICAL_GRID_LINES_SETTING, timeTableVerticalGridLinesSelect.value);
+            timeTableVerticalGridLinesSelect.blur();
+        };
+    }
 
     if (solvesTableSettingRows.length) {
         const readSolvesTableSettingState = () => {

@@ -1,9 +1,10 @@
-import * as db from './db.js?v=2026052202';
+import * as db from './db.js?v=2026060601';
 import {
+    SETTING_SCOPE_GLOBAL,
     SETTING_SCOPE_SESSION,
     SUMMARY_STATS_SCOPE_SETTING_KEYS,
     normalizeSettingScopes,
-} from './setting-scopes.js?v=2026052202';
+} from './setting-scopes.js?v=2026060601';
 
 const STORAGE_PREFIX = 'cubetimer_';
 const STORAGE_VERSION = 1;
@@ -30,6 +31,9 @@ const AUTO_EXPORT_EVERY_100_SOLVES_NEVER = 'n';
 const AUTO_EXPORT_EVERY_100_SOLVES_REMIND = 'a';
 const AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE = 'ggl';
 const AUTO_EXPORT_EVERY_100_SOLVES_FILE = 'f';
+const INSPECTION_TIME_OFF = 'off';
+const INSPECTION_TIME_COUNT_UP = 'ap';
+const INSPECTION_TIME_COUNT_DOWN = 'a';
 const LEGACY_AUTO_EXPORT_EVERY_100_SOLVES_KEY = 'googleDriveBackupReminderEvery100Solves';
 const LEGACY_AUTO_EXPORT_CHECKPOINT_SOLVE_COUNT_KEY = 'googleDriveBackupCheckpointSolveCount';
 const LEGACY_AUTO_EXPORT_LAST_REMINDER_SOLVE_COUNT_KEY = 'googleDriveBackupLastReminderSolveCount';
@@ -38,6 +42,11 @@ const AUTO_EXPORT_EVERY_100_SOLVES_VALUES = new Set([
     AUTO_EXPORT_EVERY_100_SOLVES_REMIND,
     AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE,
     AUTO_EXPORT_EVERY_100_SOLVES_FILE,
+]);
+const INSPECTION_TIME_VALUES = new Set([
+    INSPECTION_TIME_OFF,
+    INSPECTION_TIME_COUNT_UP,
+    INSPECTION_TIME_COUNT_DOWN,
 ]);
 
 export function registerBeforeDataExportHook(callback) {
@@ -193,6 +202,34 @@ function _normalizeAutoExportEvery100Solves(
         : invalidValue;
 }
 
+function _normalizeInspectionTime(value) {
+    if (value === true) return INSPECTION_TIME_COUNT_UP;
+    if (value === false || value == null) return INSPECTION_TIME_OFF;
+
+    const normalized = typeof value === 'string'
+        ? value.trim().toLowerCase()
+        : String(value).trim().toLowerCase();
+
+    if (normalized === '15s' || normalized === 'count-up' || normalized === 'counting-up') {
+        return INSPECTION_TIME_COUNT_UP;
+    }
+    if (normalized === 'count-down' || normalized === 'counting-down') {
+        return INSPECTION_TIME_COUNT_DOWN;
+    }
+    return INSPECTION_TIME_VALUES.has(normalized)
+        ? normalized
+        : INSPECTION_TIME_OFF;
+}
+
+function _isInspectionTimeEnabled(value) {
+    return _normalizeInspectionTime(value) !== INSPECTION_TIME_OFF;
+}
+
+function _mapInspectionTimeToCsTimerUseIns(value) {
+    const inspectionTime = _normalizeInspectionTime(value);
+    return inspectionTime === INSPECTION_TIME_OFF ? 'n' : inspectionTime;
+}
+
 function _sanitizeAutoExportEvery100SolvesSetting(settingsData) {
     const source = settingsData && typeof settingsData === 'object' ? settingsData : {};
     const sanitized = { ...source };
@@ -208,6 +245,7 @@ function _sanitizeAutoExportEvery100SolvesSetting(settingsData) {
 
 function _sanitizeAutoExportSequenceSettings(settingsData, { minimumSolveSequence = 0 } = {}) {
     const sanitized = _sanitizeAutoExportEvery100SolvesSetting(settingsData);
+    sanitized.inspectionTime = _normalizeInspectionTime(sanitized.inspectionTime);
     const legacyCheckpointSolveSequence = _normalizeNonNegativeInteger(
         sanitized[LEGACY_AUTO_EXPORT_CHECKPOINT_SOLVE_COUNT_KEY],
         0,
@@ -293,6 +331,10 @@ function _stampAutoExportSequenceSettings(settingsData, solveSequence = 0) {
 function _sanitizeSessionSettingsForTransport(sessionSettings) {
     const source = sessionSettings && typeof sessionSettings === 'object' ? sessionSettings : {};
     const sanitized = { ...source };
+
+    if (_hasOwn(sanitized, 'inspectionTime')) {
+        sanitized.inspectionTime = _normalizeInspectionTime(sanitized.inspectionTime);
+    }
 
     LOCAL_ONLY_SESSION_SETTING_KEYS.forEach((key) => {
         delete sanitized[key];
@@ -1804,6 +1846,7 @@ const CSTIMER_IMPORT_SETTING_DEFAULTS = Object.freeze({
     inspectionAlerts: 'voice',
     timerUpdate: '0.1s',
     timeEntryMode: 'timer',
+    multiPhaseCount: 1,
     autoExportEvery100Solves: AUTO_EXPORT_EVERY_100_SOLVES_REMIND,
     hideUIWhileSolving: true,
     pillSize: 'medium',
@@ -1812,6 +1855,7 @@ const CSTIMER_IMPORT_SETTING_DEFAULTS = Object.freeze({
     backgroundImageUrl: '',
     summaryStatsPreset: 'basic',
     summaryStatsCustom: 'mo3 ao5 ao12 ao100',
+    mainStatsSource: 'time',
     solvesTableStat1: 'ao5',
     solvesTableStat2: 'ao12',
 });
@@ -1826,10 +1870,12 @@ const CSTIMER_EXPORT_SETTING_DEFAULTS = Object.freeze({
     inspectionAlerts: 'off',
     timerUpdate: '0.01s',
     timeEntryMode: 'timer',
+    multiPhaseCount: 1,
     autoExportEvery100Solves: AUTO_EXPORT_EVERY_100_SOLVES_NEVER,
     dailyStreakGoal: 0,
     summaryStatsPreset: 'basic',
     summaryStatsCustom: 'mo3 ao5 ao12 ao100',
+    mainStatsSource: 'time',
     solvesTableStat1: 'ao5',
     solvesTableStat2: 'ao12',
     hideUIWhileSolving: true,
@@ -1847,8 +1893,10 @@ const CSTIMER_SESSION_SETTING_DEFAULTS = Object.freeze({
     inspectionAlerts: 'voice',
     timerUpdate: '0.1s',
     timeEntryMode: 'timer',
+    multiPhaseCount: 1,
     summaryStatsPreset: 'basic',
     summaryStatsCustom: 'mo3 ao5 ao12 ao100',
+    mainStatsSource: 'time',
     solvesTableStat1: 'ao5',
     solvesTableStat2: 'ao12',
     hideUIWhileSolving: true,
@@ -1871,6 +1919,7 @@ const CSTIMER_NATIVE_SETTING_KEYS = Object.freeze([
     'solvesTableStat1',
     'solvesTableStat2',
 ]);
+const CSTIMER_NATIVE_SETTING_KEY_SET = new Set(CSTIMER_NATIVE_SETTING_KEYS);
 const CSTIMER_NATIVE_SETTING_PROPERTY_KEYS = Object.freeze({
     inspectionTime: Object.freeze(['useIns']),
     inspectionAlerts: Object.freeze(['voiceIns']),
@@ -1905,6 +1954,8 @@ const CSTIMER_NATIVE_PROPERTY_DEFAULTS = Object.freeze({
     statal: 'mo3 ao5 ao12 ao100',
     statalu: 'mo3 ao5 ao12 ao100',
 });
+const MAIN_STATS_SOURCE_TIME = 'time';
+const MAX_PHASE_COUNT = 10;
 const SUMMARY_STATS_PRESET_STRINGS = Object.freeze({
     extended: 'mo3 ao5 ao12 ao25 ao50 ao100',
     full: 'mo3 ao5 ao12 ao25 ao50 ao100 ao200 ao500 ao1000 ao2000 ao5000 ao10000',
@@ -1944,6 +1995,116 @@ function _hasOwn(obj, key) {
 function _parsePositiveInteger(value) {
     const parsed = Number(value);
     return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function _normalizePhaseCount(value, fallback = 1) {
+    const parsed = Math.floor(Number(value));
+    const fallbackValue = Math.floor(Number(fallback));
+    const safeFallback = Number.isFinite(fallbackValue)
+        ? Math.min(MAX_PHASE_COUNT, Math.max(1, fallbackValue))
+        : 1;
+
+    if (!Number.isFinite(parsed)) return safeFallback;
+    return Math.min(MAX_PHASE_COUNT, Math.max(1, parsed));
+}
+
+function _normalizeMainStatsSource(value) {
+    if (value === MAIN_STATS_SOURCE_TIME) return MAIN_STATS_SOURCE_TIME;
+
+    const phaseMatch = String(value ?? '').trim().toLowerCase().match(/^phase-([1-9]\d*)$/);
+    if (phaseMatch) {
+        return `phase-${Number(phaseMatch[1])}`;
+    }
+
+    const csTimerPhaseMatch = String(value ?? '').trim().toLowerCase().match(/^p([1-9]\d*)$/);
+    if (csTimerPhaseMatch) {
+        return `phase-${Number(csTimerPhaseMatch[1])}`;
+    }
+
+    return MAIN_STATS_SOURCE_TIME;
+}
+
+function _mapCsTimerStatsSourceToInternal(value) {
+    return _normalizeMainStatsSource(value);
+}
+
+function _mapInternalMainStatsSourceToCsTimer(value) {
+    const source = _normalizeMainStatsSource(value);
+    const phaseMatch = source.match(/^phase-([1-9]\d*)$/);
+    return phaseMatch ? `p${Number(phaseMatch[1])}` : '';
+}
+
+function _normalizePhaseValueList(values, limit = MAX_PHASE_COUNT) {
+    return (Array.isArray(values) ? values : [])
+        .map((value) => Math.round(Number(value)))
+        .filter((value) => Number.isFinite(value) && value >= 0)
+        .slice(0, limit);
+}
+
+function _looksLikeCsTimerPhaseMarkers(markers, rawTime) {
+    if (!Array.isArray(markers) || markers.length === 0) return false;
+
+    let previous = Math.round(Number(rawTime));
+    if (!Number.isFinite(previous) || previous < 0) return false;
+
+    return markers.every((marker) => {
+        const isValid = Number.isFinite(marker) && marker >= 0 && marker <= previous;
+        previous = marker;
+        return isValid;
+    });
+}
+
+function _convertCsTimerPhaseDataToInternal(rawPhaseValues, rawTime, {
+    declaredPhaseCount = null,
+} = {}) {
+    const rawValues = _normalizePhaseValueList(rawPhaseValues);
+    if (rawValues.length === 0) {
+        return { phaseSplits: [], phaseCount: 1 };
+    }
+
+    const normalizedDeclaredPhaseCount = declaredPhaseCount == null
+        ? null
+        : _normalizePhaseCount(declaredPhaseCount, rawValues.length + 1);
+    const inferredPhaseCount = _normalizePhaseCount(rawValues.length + 1, rawValues.length + 1);
+    const phaseCount = Math.max(normalizedDeclaredPhaseCount || 0, inferredPhaseCount);
+
+    const markerCount = Math.min(rawValues.length, Math.max(0, phaseCount - 1), MAX_PHASE_COUNT - 1);
+    const markers = rawValues.slice(0, markerCount);
+    if (_looksLikeCsTimerPhaseMarkers(markers, rawTime)) {
+        const phaseSplits = [];
+        let previous = Math.round(Number(rawTime));
+        markers.forEach((marker) => {
+            phaseSplits.push(Math.max(0, previous - marker));
+            previous = marker;
+        });
+        phaseSplits.push(Math.max(0, previous));
+
+        // csTimer stores phase markers from the final phase backwards. Convert
+        // them back to the left-to-right phase order shown in csTimer's UI.
+        phaseSplits.reverse();
+
+        return {
+            phaseSplits: phaseSplits.slice(0, MAX_PHASE_COUNT),
+            phaseCount: _normalizePhaseCount(phaseSplits.length, phaseCount),
+        };
+    }
+
+    return {
+        phaseSplits: rawValues.slice(0, MAX_PHASE_COUNT),
+        phaseCount: _normalizePhaseCount(rawValues.length, phaseCount),
+    };
+}
+
+function _buildCsTimerPhaseMarkersFromInternal(phaseSplits) {
+    const normalizedSplits = _normalizePhaseValueList(phaseSplits);
+    if (normalizedSplits.length < 2) return [];
+
+    const csTimerOrderedSplits = normalizedSplits.slice().reverse();
+    let remaining = csTimerOrderedSplits.reduce((sum, value) => sum + value, 0);
+    return csTimerOrderedSplits.slice(0, -1).map((split) => {
+        remaining = Math.max(0, remaining - split);
+        return Math.round(remaining);
+    });
 }
 
 function _normalizeTokenListString(value) {
@@ -2129,8 +2290,12 @@ function _filterSessionScopeMap(scopeMap, predicate) {
     const filtered = {};
 
     Object.entries(source).forEach(([key, scope]) => {
-        if (scope !== SETTING_SCOPE_SESSION || !predicate(key)) return;
-        filtered[key] = SETTING_SCOPE_SESSION;
+        if (!predicate(key)) return;
+        if (scope === SETTING_SCOPE_SESSION) {
+            filtered[key] = SETTING_SCOPE_SESSION;
+        } else if (scope === SETTING_SCOPE_GLOBAL) {
+            filtered[key] = SETTING_SCOPE_GLOBAL;
+        }
     });
 
     return filtered;
@@ -2200,9 +2365,11 @@ function _buildCsTimerCompatibleProperties(settingsData, { includeBackgroundImag
 
     const stat1 = _mapRollingStatTokenToCsTimer(settingsData?.solvesTableStat1);
     const stat2 = _mapRollingStatTokenToCsTimer(settingsData?.solvesTableStat2);
+    const phaseCount = _normalizePhaseCount(settingsData?.multiPhaseCount, 1);
+    const statsSource = _mapInternalMainStatsSourceToCsTimer(settingsData?.mainStatsSource);
 
     return {
-        useIns: settingsData?.inspectionTime === '15s' ? 'ap' : 'n',
+        useIns: _mapInspectionTimeToCsTimerUseIns(settingsData?.inspectionTime),
         voiceIns: settingsData?.inspectionAlerts === 'voice' || settingsData?.inspectionAlerts === 'both' ? '1' : 'n',
         timeU,
         input: settingsData?.timeEntryMode === 'typing'
@@ -2228,6 +2395,8 @@ function _buildCsTimerCompatibleProperties(settingsData, { includeBackgroundImag
         ...(stat1?.type ? { stat1t: stat1.type } : {}),
         ...(stat2 ? { stat2l: stat2.length } : {}),
         ...(stat2?.type ? { stat2t: stat2.type } : {}),
+        ...(phaseCount > 1 ? { phases: phaseCount } : {}),
+        ...(statsSource ? { statsrc: statsSource } : {}),
         ..._buildCsTimerSummaryProperties(settingsData),
     };
 }
@@ -2397,7 +2566,12 @@ function _mergeImportedCsTimerSessionSettings(optProperties, metadataSessionSett
     const metadataSettings = metadataSessionSettings && typeof metadataSessionSettings === 'object'
         ? _sanitizeSessionSettingsForTransport(metadataSessionSettings)
         : {};
-    const mergedSettings = _stripCsTimerNativeSettings(metadataSettings);
+    const mergedSettings = {
+        ..._stripCsTimerNativeSettings(metadataSettings),
+        ...Object.fromEntries(
+            Object.entries(nativeSettings).filter(([key]) => !CSTIMER_NATIVE_SETTING_KEY_SET.has(key)),
+        ),
+    };
 
     CSTIMER_NATIVE_SETTING_KEYS.forEach((key) => {
         const treatMissingAsDefaults = sessionScopedSettingKeySet.has(key);
@@ -2434,7 +2608,11 @@ function _deriveSettingsFromCsTimerProperties(properties) {
     };
 
     if (_hasOwn(properties, 'useIns')) {
-        settingsData.inspectionTime = properties?.useIns === 'n' ? 'off' : '15s';
+        settingsData.inspectionTime = properties?.useIns === 'n'
+            ? INSPECTION_TIME_OFF
+            : (_isInspectionTimeEnabled(properties?.useIns)
+                ? _normalizeInspectionTime(properties.useIns)
+                : INSPECTION_TIME_COUNT_UP);
     }
 
     if (_hasOwn(properties, 'voiceIns')) {
@@ -2455,6 +2633,14 @@ function _deriveSettingsFromCsTimerProperties(properties) {
         else if (properties?.input === 's' || properties?.input === 'm') settingsData.timeEntryMode = 'stackmat';
         else if (properties?.input === 'b') settingsData.timeEntryMode = 'bluetooth';
         else settingsData.timeEntryMode = 'timer';
+    }
+
+    if (_hasOwn(properties, 'phases')) {
+        settingsData.multiPhaseCount = _normalizePhaseCount(properties?.phases, 1);
+    }
+
+    if (_hasOwn(properties, 'statsrc')) {
+        settingsData.mainStatsSource = _mapCsTimerStatsSourceToInternal(properties?.statsrc);
     }
 
     if (_hasOwn(properties, 'atexpa')) {
@@ -2484,11 +2670,11 @@ function _deriveSettingsFromCsTimerProperties(properties) {
     return settingsData;
 }
 
-function _isMeaningfulCsTimerSessionSlot(slot, meta, rawSolves, { isActiveSlot = false, hasGlobalScrambleType = false } = {}) {
+function _isMeaningfulCsTimerSessionSlot(slot, meta, rawSolves, { isActiveSlot = false, hasGlobalSessionProperties = false } = {}) {
     if (Array.isArray(rawSolves) && rawSolves.length > 0) return true;
 
     if (!meta || typeof meta !== 'object') {
-        return isActiveSlot && hasGlobalScrambleType;
+        return isActiveSlot && hasGlobalSessionProperties;
     }
 
     if (_hasOwn(meta, 'name') && String(meta.name) !== String(slot)) return true;
@@ -2496,7 +2682,7 @@ function _isMeaningfulCsTimerSessionSlot(slot, meta, rawSolves, { isActiveSlot =
     const opt = meta.opt && typeof meta.opt === 'object' ? meta.opt : null;
     if (opt && Object.keys(opt).length > 0) return true;
 
-    return isActiveSlot && hasGlobalScrambleType;
+    return isActiveSlot && hasGlobalSessionProperties;
 }
 
 /**
@@ -2551,6 +2737,10 @@ export async function importCsTimer(csData, { mode = IMPORT_MODE_REWRITE, onProg
 
     const hasGlobalScrambleType = _hasOwn(properties, 'scrType');
     const globalActiveScrambleType = _mapCsTimerScrambleTypeToInternal(properties.scrType);
+    const hasGlobalPhaseCount = _hasOwn(properties, 'phases');
+    const globalStatsSource = _hasOwn(properties, 'statsrc')
+        ? _mapCsTimerStatsSourceToInternal(properties.statsrc)
+        : null;
     const metadata = _parseUkraTimerCsTimerMeta(properties[UKRA_TIMER_CSTIMER_META_KEY]);
     const hasMetadataSettings = metadata && typeof metadata.settings === 'object';
     const metadataSettings = hasMetadataSettings
@@ -2571,13 +2761,19 @@ export async function importCsTimer(csData, { mode = IMPORT_MODE_REWRITE, onProg
         const rawSolves = Array.isArray(csData[`session${slot}`]) ? csData[`session${slot}`] : [];
         if (!_isMeaningfulCsTimerSessionSlot(slot, meta, rawSolves, {
             isActiveSlot: slot === activeSessionSlot,
-            hasGlobalScrambleType,
+            hasGlobalSessionProperties: hasGlobalScrambleType || hasGlobalPhaseCount || globalStatsSource != null,
         })) {
             continue;
         }
         const sessionId = `${_genId()}${slot}`;
         const name = meta.name != null ? String(meta.name) : `Session ${slot}`;
         const mappedScrambleType = _mapCsTimerScrambleTypeToInternal(opt.scrType);
+        const nativeOpt = {
+            ...(slot === activeSessionSlot && !_hasOwn(opt, 'phases') && hasGlobalPhaseCount
+                ? { phases: properties.phases }
+                : {}),
+            ...opt,
+        };
         const hasNativeScrambleType = _hasOwn(opt, 'scrType') || (slot === activeSessionSlot && hasGlobalScrambleType);
         const scrambleType = slot === activeSessionSlot && !_hasOwn(opt, 'scrType')
             ? globalActiveScrambleType
@@ -2589,13 +2785,14 @@ export async function importCsTimer(csData, { mode = IMPORT_MODE_REWRITE, onProg
             rank,
             id: sessionId,
             name,
-            opt,
+            opt: nativeOpt,
             metadataSessionId: typeof meta?.[UKRA_TIMER_CSTIMER_SESSION_META_ID_KEY] === 'string'
                 ? meta[UKRA_TIMER_CSTIMER_SESSION_META_ID_KEY]
                 : '',
             hasNativeScrambleType,
+            hasNativePhaseCount: _hasOwn(nativeOpt, 'phases'),
             scrambleType,
-            settings: _deriveSettingsFromCsTimerProperties(opt),
+            settings: _deriveSettingsFromCsTimerProperties(nativeOpt),
             solves: rawSolves,
         });
     }
@@ -2621,14 +2818,23 @@ export async function importCsTimer(csData, { mode = IMPORT_MODE_REWRITE, onProg
             session.scrambleType = metadataScrambleType;
         }
 
+        const metadataSessionSettings = _filterSessionSettingsByAllowedKeys(
+            matchedMetadataSession?.settings,
+            importedSessionScopedSettingKeySet,
+        );
+
         session.settings = _mergeImportedCsTimerSessionSettings(
             session.opt,
-            _filterSessionSettingsByAllowedKeys(
-                matchedMetadataSession?.settings,
-                importedSessionScopedSettingKeySet,
-            ),
+            metadataSessionSettings,
             compatibleScopedSettingKeySet,
         );
+
+        if (!_hasOwn(metadataSessionSettings, 'mainStatsSource')
+            && session.slot === activeSessionSlot
+            && globalStatsSource != null
+        ) {
+            session.settings.mainStatsSource = globalStatsSource;
+        }
     });
 
     const defaultScopedSessionSettings = _buildCsTimerScopedSessionSettings(compatibleScopedSettingScopes);
@@ -2676,10 +2882,13 @@ export async function importCsTimer(csData, { mode = IMPORT_MODE_REWRITE, onProg
             const [penaltyAndTime, scramble, comment, timestampSec] = entry;
             if (!Array.isArray(penaltyAndTime) || penaltyAndTime.length < 2) continue;
 
-            const [penaltyFlag, rawTime] = penaltyAndTime;
+            const [penaltyFlag, rawTime, ...rawPhaseSplits] = penaltyAndTime;
             let penalty = null;
             if (penaltyFlag === 2000) penalty = '+2';
             else if (penaltyFlag === -1) penalty = 'DNF';
+            const phaseInfo = _convertCsTimerPhaseDataToInternal(rawPhaseSplits, rawTime, {
+                declaredPhaseCount: session.hasNativePhaseCount ? session.settings?.multiPhaseCount : null,
+            });
 
             const timestamp = Number(timestampSec) * 1000;
             if (Number.isFinite(timestamp) && timestamp >= 0 && !hasTimestamp) {
@@ -2696,6 +2905,9 @@ export async function importCsTimer(csData, { mode = IMPORT_MODE_REWRITE, onProg
                 penalty,
                 timestamp: Number.isFinite(timestamp) && timestamp >= 0 ? timestamp : Date.now(),
                 comment: (comment && typeof comment === 'string') ? comment : '',
+                ...(phaseInfo.phaseSplits.length > 1
+                    ? { phaseSplits: phaseInfo.phaseSplits, phaseCount: phaseInfo.phaseCount }
+                    : {}),
             });
             parseCompleted += 1;
 
@@ -2886,6 +3098,7 @@ export async function exportCsTimer() {
             ...session,
             settings: sanitizedSessionSettings,
         });
+        const sessionPhaseCount = _normalizePhaseCount(effectiveSessionSettings.multiPhaseCount, 1);
 
         const sessionSolves = solves
             .filter(s => s.sessionId === session.id)
@@ -2895,6 +3108,7 @@ export async function exportCsTimer() {
             // Map penalty: null → 0, '+2' → 2000, 'DNF' → -1
             let penaltyFlag = 0;
             let time = solve.time;
+            const phaseMarkers = _buildCsTimerPhaseMarkersFromInternal(solve.phaseSplits);
             if (solve.penalty === '+2') {
                 penaltyFlag = 2000;
             } else if (solve.penalty === 'DNF') {
@@ -2902,7 +3116,7 @@ export async function exportCsTimer() {
             }
 
             return [
-                [penaltyFlag, time],
+                [penaltyFlag, time, ...phaseMarkers],
                 solve.scramble || '',
                 solve.comment || '',
                 Math.floor(solve.timestamp / 1000), // ms → seconds
@@ -2918,6 +3132,7 @@ export async function exportCsTimer() {
                         const csScrambleType = _mapInternalScrambleTypeToCsTimer(session.scrambleType || '333');
                         return csScrambleType ? { scrType: csScrambleType } : {};
                     })()),
+                ...(sessionPhaseCount > 1 ? { phases: sessionPhaseCount } : {}),
                 ..._buildCsTimerSessionScopedOptProperties(settingScopes, effectiveSessionSettings),
             },
             rank: num,

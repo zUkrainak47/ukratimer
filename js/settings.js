@@ -1,6 +1,6 @@
-import { load, registerBeforeDataExportHook, save } from './storage.js?v=2026052202';
-import { normalizeTimeEntryMode, TIME_ENTRY_MODE_TIMER, TIME_ENTRY_MODE_TYPING } from './time-entry.js?v=2026052202';
-import { EventEmitter } from './utils.js?v=2026052202';
+import { load, registerBeforeDataExportHook, save } from './storage.js?v=2026060601';
+import { normalizeTimeEntryMode, TIME_ENTRY_MODE_TIMER, TIME_ENTRY_MODE_TYPING } from './time-entry.js?v=2026060601';
+import { EventEmitter, normalizePhaseCount } from './utils.js?v=2026060601';
 import {
     SETTING_SCOPE_GLOBAL,
     SETTING_SCOPE_SESSION,
@@ -8,8 +8,9 @@ import {
     canScopeSetting as canScopeSessionSetting,
     getLinkedSessionScopeKeys,
     getSessionScopedSettingKeys,
+    isDefaultSessionScopedSetting,
     normalizeSettingScopes,
-} from './setting-scopes.js?v=2026052202';
+} from './setting-scopes.js?v=2026060601';
 
 export {
     SETTING_SCOPE_GLOBAL,
@@ -25,6 +26,12 @@ export const AUTO_EXPORT_EVERY_100_SOLVES_NEVER = 'n';
 export const AUTO_EXPORT_EVERY_100_SOLVES_REMIND = 'a';
 export const AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE = 'ggl';
 export const AUTO_EXPORT_EVERY_100_SOLVES_FILE = 'f';
+export const INSPECTION_TIME_OFF = 'off';
+export const INSPECTION_TIME_COUNT_UP = 'ap';
+export const INSPECTION_TIME_COUNT_DOWN = 'a';
+export const TIME_TABLE_VERTICAL_GRID_LINES_OFF = 'off';
+export const TIME_TABLE_VERTICAL_GRID_LINES_MULTI_PHASE_ONLY = 'multi-phase-only';
+export const TIME_TABLE_VERTICAL_GRID_LINES_ON = 'on';
 const THEME_BASE_IDS = Object.freeze([THEME_DEFAULT_ID, THEME_OLED_ID]);
 const AUTO_EXPORT_EVERY_100_SOLVES_VALUES = new Set([
     AUTO_EXPORT_EVERY_100_SOLVES_NEVER,
@@ -32,6 +39,17 @@ const AUTO_EXPORT_EVERY_100_SOLVES_VALUES = new Set([
     AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE,
     AUTO_EXPORT_EVERY_100_SOLVES_FILE,
 ]);
+const INSPECTION_TIME_VALUES = new Set([
+    INSPECTION_TIME_OFF,
+    INSPECTION_TIME_COUNT_UP,
+    INSPECTION_TIME_COUNT_DOWN,
+]);
+const TIME_TABLE_VERTICAL_GRID_LINE_VALUES = new Set([
+    TIME_TABLE_VERTICAL_GRID_LINES_OFF,
+    TIME_TABLE_VERTICAL_GRID_LINES_MULTI_PHASE_ONLY,
+    TIME_TABLE_VERTICAL_GRID_LINES_ON,
+]);
+const MAIN_STATS_SOURCE_TIME = 'time';
 
 const THEME_ID_SET = new Set([THEME_DEFAULT_ID, THEME_OLED_ID, ...THEME_CUSTOM_IDS]);
 
@@ -450,11 +468,51 @@ export function normalizeAutoExportEvery100Solves(
         : invalidValue;
 }
 
+export function normalizeInspectionTime(value) {
+    if (value === true) return INSPECTION_TIME_COUNT_UP;
+    if (value === false || value == null) return INSPECTION_TIME_OFF;
+
+    const normalized = typeof value === 'string'
+        ? value.trim().toLowerCase()
+        : String(value).trim().toLowerCase();
+
+    if (normalized === '15s' || normalized === 'count-up' || normalized === 'counting-up') {
+        return INSPECTION_TIME_COUNT_UP;
+    }
+    if (normalized === 'count-down' || normalized === 'counting-down') {
+        return INSPECTION_TIME_COUNT_DOWN;
+    }
+    return INSPECTION_TIME_VALUES.has(normalized)
+        ? normalized
+        : INSPECTION_TIME_OFF;
+}
+
+export function isInspectionTimeEnabled(value) {
+    return normalizeInspectionTime(value) !== INSPECTION_TIME_OFF;
+}
+
+export function isInspectionTimeCountingDown(value) {
+    return normalizeInspectionTime(value) === INSPECTION_TIME_COUNT_DOWN;
+}
+
+function normalizeTimeTableVerticalGridLines(value) {
+    const normalized = typeof value === 'string'
+        ? value.trim().toLowerCase()
+        : String(value ?? '').trim().toLowerCase();
+
+    return TIME_TABLE_VERTICAL_GRID_LINE_VALUES.has(normalized)
+        ? normalized
+        : DEFAULTS.timeTableVerticalGridLines;
+}
+
 const DEFAULTS = {
-    inspectionTime: 'off',  // 'off', '15s'
+    inspectionTime: INSPECTION_TIME_OFF,  // 'off', 'ap' counting up, 'a' counting down
     inspectionAlerts: 'off', // 'off', 'voice', 'screen', 'both'
     timerUpdate: '0.01s',   // 'none', 'inspection', '1s', '0.1s', '0.01s'
     timeEntryMode: TIME_ENTRY_MODE_TIMER, // 'timer', 'typing', 'stackmat', 'bluetooth'
+    multiPhaseCount: 1,
+    multiPhaseHideSplitsWhileSolving: false,
+    multiPhaseSoundEnabled: true,
     stackmatInputDeviceId: '',
     holdDuration: 300,       // ms
     animationMode: 'auto',   // 'auto', 'on', 'off'
@@ -477,11 +535,14 @@ const DEFAULTS = {
     summaryStatsPreset: 'basic', // 'basic', 'extended', 'full', 'custom'
     summaryStatsCustom: 'mo3 ao5 ao12 ao100',
     summaryStatsList: ['mo3', 'ao5', 'ao12', 'ao100'],
+    mainStatsSource: MAIN_STATS_SOURCE_TIME,
     solvesTableStat1: 'ao5',
     solvesTableStat2: 'ao12',
+    timeTableVerticalGridLines: TIME_TABLE_VERTICAL_GRID_LINES_MULTI_PHASE_ONLY,
     zenMode: false,
     cubeCollapsed: false,
     graphCollapsed: false,
+    solvesPanelWidthConstrained: false,
     cameraRightPanelSecondary: 'graph',
     battleRightPanelSecondary: 'graph',
     graphView: { visibleCount: 0, yZoom: 1, xPan: 1, yPan: 0 },
@@ -826,8 +887,44 @@ function cloneSettingValue(value) {
 function normalizeSessionSettingValue(key, value) {
     if (!SESSION_SCOPABLE_SETTING_KEY_SET.has(key)) return undefined;
 
+    if (key === 'inspectionTime') {
+        return normalizeInspectionTime(value);
+    }
+
     if (key === 'timeEntryMode') {
         return normalizeTimeEntryMode(value);
+    }
+
+    if (key === 'multiPhaseCount') {
+        return normalizePhaseCount(value, DEFAULTS.multiPhaseCount);
+    }
+
+    if (key === 'multiPhaseSoundEnabled') {
+        return value !== false;
+    }
+
+    if (key === 'multiPhaseHideSplitsWhileSolving') {
+        return value === true;
+    }
+
+    if (key === 'timeTableVerticalGridLines') {
+        return normalizeTimeTableVerticalGridLines(value);
+    }
+
+    if (key === 'mainStatsSource') {
+        if (value === MAIN_STATS_SOURCE_TIME) return MAIN_STATS_SOURCE_TIME;
+
+        const phaseMatch = String(value ?? '').trim().toLowerCase().match(/^phase-([1-9]\d*)$/);
+        if (phaseMatch) {
+            return `phase-${Number(phaseMatch[1])}`;
+        }
+
+        const csTimerPhaseMatch = String(value ?? '').trim().toLowerCase().match(/^p([1-9]\d*)$/);
+        if (csTimerPhaseMatch) {
+            return `phase-${Number(csTimerPhaseMatch[1])}`;
+        }
+
+        return MAIN_STATS_SOURCE_TIME;
     }
 
     if (key === 'animationMode') {
@@ -898,6 +995,21 @@ class Settings extends EventEmitter {
                 : loaded.googleDriveBackupReminderEvery100Solves,
             { defaultValue: DEFAULTS.autoExportEvery100Solves },
         );
+        this._settings.inspectionTime = normalizeInspectionTime(this._settings.inspectionTime);
+        this._settings.multiPhaseCount = normalizePhaseCount(
+            this._settings.multiPhaseCount,
+            DEFAULTS.multiPhaseCount,
+        );
+        this._settings.mainStatsSource = normalizeSessionSettingValue(
+            'mainStatsSource',
+            this._settings.mainStatsSource,
+        );
+        this._settings.timeTableVerticalGridLines = normalizeTimeTableVerticalGridLines(
+            this._settings.timeTableVerticalGridLines,
+        );
+        this._settings.multiPhaseSoundEnabled = this._settings.multiPhaseSoundEnabled !== false;
+        this._settings.multiPhaseHideSplitsWhileSolving = this._settings.multiPhaseHideSplitsWhileSolving === true;
+        this._settings.solvesPanelWidthConstrained = this._settings.solvesPanelWidthConstrained === true;
         const nextAutoExportCheckpointSolveSequence = normalizeNonNegativeInteger(
             hasOwn(loaded, 'autoExportCheckpointSolveSequence')
                 ? loaded.autoExportCheckpointSolveSequence
@@ -1062,7 +1174,11 @@ class Settings extends EventEmitter {
             const nextActiveSessionSettings = { ...this._activeSessionSettings };
             const nextStoredActiveSessionSettings = { ...this._storedActiveSessionSettings };
             linkedKeys.forEach((linkedKey) => {
-                delete nextScopes[linkedKey];
+                if (isDefaultSessionScopedSetting(linkedKey)) {
+                    nextScopes[linkedKey] = SETTING_SCOPE_GLOBAL;
+                } else {
+                    delete nextScopes[linkedKey];
+                }
                 const promotedValue = normalizeSessionSettingValue(linkedKey, previousEffectiveValues[linkedKey]);
                 if (promotedValue !== undefined) {
                     this._settings[linkedKey] = promotedValue;
@@ -1359,6 +1475,66 @@ class Settings extends EventEmitter {
             this._settings.timeEntryMode = nextTimeEntryMode;
             this._saveAndApply();
             this.emit('change', 'timeEntryMode', nextTimeEntryMode);
+            return;
+        }
+
+        if (key === 'inspectionTime') {
+            const nextInspectionTime = normalizeInspectionTime(value);
+            if (this._settings.inspectionTime === nextInspectionTime) return;
+
+            this._settings.inspectionTime = nextInspectionTime;
+            this._saveAndApply();
+            this.emit('change', 'inspectionTime', nextInspectionTime);
+            return;
+        }
+
+        if (key === 'multiPhaseCount') {
+            const nextPhaseCount = normalizePhaseCount(value, DEFAULTS.multiPhaseCount);
+            if (this._settings.multiPhaseCount === nextPhaseCount) return;
+
+            this._settings.multiPhaseCount = nextPhaseCount;
+            this._saveAndApply();
+            this.emit('change', 'multiPhaseCount', nextPhaseCount);
+            return;
+        }
+
+        if (key === 'multiPhaseSoundEnabled') {
+            const nextEnabled = value !== false;
+            if (this._settings.multiPhaseSoundEnabled === nextEnabled) return;
+
+            this._settings.multiPhaseSoundEnabled = nextEnabled;
+            this._saveAndApply();
+            this.emit('change', 'multiPhaseSoundEnabled', nextEnabled);
+            return;
+        }
+
+        if (key === 'multiPhaseHideSplitsWhileSolving') {
+            const nextEnabled = value === true;
+            if (this._settings.multiPhaseHideSplitsWhileSolving === nextEnabled) return;
+
+            this._settings.multiPhaseHideSplitsWhileSolving = nextEnabled;
+            this._saveAndApply();
+            this.emit('change', 'multiPhaseHideSplitsWhileSolving', nextEnabled);
+            return;
+        }
+
+        if (key === 'timeTableVerticalGridLines') {
+            const nextMode = normalizeTimeTableVerticalGridLines(value);
+            if (this._settings.timeTableVerticalGridLines === nextMode) return;
+
+            this._settings.timeTableVerticalGridLines = nextMode;
+            this._saveAndApply();
+            this.emit('change', 'timeTableVerticalGridLines', nextMode);
+            return;
+        }
+
+        if (key === 'mainStatsSource') {
+            const nextSource = normalizeSessionSettingValue('mainStatsSource', value);
+            if (this._settings.mainStatsSource === nextSource) return;
+
+            this._settings.mainStatsSource = nextSource;
+            this._saveAndApply();
+            this.emit('change', 'mainStatsSource', nextSource);
             return;
         }
 

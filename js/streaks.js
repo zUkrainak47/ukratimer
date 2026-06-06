@@ -1,6 +1,6 @@
-import * as db from './db.js?v=2026052202';
+import * as db from './db.js?v=2026060601';
 
-function toDayKey(timestamp) {
+export function toDayKey(timestamp) {
     const date = new Date(timestamp);
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -8,7 +8,12 @@ function toDayKey(timestamp) {
     return `${year}-${month}-${day}`;
 }
 
-function shiftDayKey(dayKey, amount) {
+export function dayKeyToTimestamp(dayKey) {
+    const [year, month, day] = String(dayKey).split('-').map(Number);
+    return new Date(year, (month || 1) - 1, day || 1).getTime();
+}
+
+export function shiftDayKey(dayKey, amount) {
     const [year, month, day] = String(dayKey).split('-').map(Number);
     const date = new Date(year, (month || 1) - 1, day || 1);
     date.setDate(date.getDate() + amount);
@@ -23,7 +28,36 @@ export function normalizeDailyStreakGoal(value, fallback = 0) {
     return normalized;
 }
 
-export function computeDailyStreakState(solves, goal, now = Date.now()) {
+function getSolveDayKey(solve) {
+    return solve && Number.isFinite(solve.timestamp) ? toDayKey(solve.timestamp) : '';
+}
+
+function cloneSolve(solve) {
+    if (!solve || typeof solve !== 'object') return solve;
+
+    return {
+        ...solve,
+        ...(Array.isArray(solve.phaseSplits) ? { phaseSplits: [...solve.phaseSplits] } : {}),
+    };
+}
+
+function incrementDayCount(dayCounts, dayKey) {
+    if (!dayKey) return;
+    dayCounts.set(dayKey, (dayCounts.get(dayKey) || 0) + 1);
+}
+
+function decrementDayCount(dayCounts, dayKey) {
+    if (!dayKey) return;
+
+    const nextCount = (dayCounts.get(dayKey) || 0) - 1;
+    if (nextCount > 0) {
+        dayCounts.set(dayKey, nextCount);
+    } else {
+        dayCounts.delete(dayKey);
+    }
+}
+
+function computeDailyStreakStateFromDayCounts(dayCounts, goal, now = Date.now()) {
     const normalizedGoal = normalizeDailyStreakGoal(goal);
     const todayKey = toDayKey(now);
 
@@ -44,23 +78,15 @@ export function computeDailyStreakState(solves, goal, now = Date.now()) {
         };
     }
 
-    const solvesByDay = new Map();
-
-    (Array.isArray(solves) ? solves : []).forEach((solve) => {
-        if (!solve || !Number.isFinite(solve.timestamp)) return;
-        const dayKey = toDayKey(solve.timestamp);
-        solvesByDay.set(dayKey, (solvesByDay.get(dayKey) || 0) + 1);
-    });
-
-    const todayCount = solvesByDay.get(todayKey) || 0;
+    const todayCount = dayCounts.get(todayKey) || 0;
     const yesterdayKey = shiftDayKey(todayKey, -1);
     const goalMetToday = todayCount >= normalizedGoal;
-    const yesterdayMetGoal = (solvesByDay.get(yesterdayKey) || 0) >= normalizedGoal;
+    const yesterdayMetGoal = (dayCounts.get(yesterdayKey) || 0) >= normalizedGoal;
     const anchorKey = goalMetToday ? todayKey : yesterdayKey;
 
     let currentStreak = 0;
     let cursorKey = anchorKey;
-    while ((solvesByDay.get(cursorKey) || 0) >= normalizedGoal) {
+    while ((dayCounts.get(cursorKey) || 0) >= normalizedGoal) {
         currentStreak += 1;
         cursorKey = shiftDayKey(cursorKey, -1);
     }
@@ -84,9 +110,21 @@ export function computeDailyStreakState(solves, goal, now = Date.now()) {
     };
 }
 
+export function computeDailyStreakState(solves, goal, now = Date.now()) {
+    const dayCounts = new Map();
+
+    (Array.isArray(solves) ? solves : []).forEach((solve) => {
+        incrementDayCount(dayCounts, getSolveDayKey(solve));
+    });
+
+    return computeDailyStreakStateFromDayCounts(dayCounts, goal, now);
+}
+
 export class DailyStreakStore {
     constructor() {
         this._solves = new Map();
+        this._solveDayKeys = new Map();
+        this._dayCounts = new Map();
     }
 
     async init() {
@@ -97,28 +135,47 @@ export class DailyStreakStore {
 
     replaceAll(solves) {
         this._solves.clear();
+        this._solveDayKeys.clear();
+        this._dayCounts.clear();
 
         (Array.isArray(solves) ? solves : []).forEach((solve) => {
-            if (!solve?.id) return;
-            this._solves.set(solve.id, solve);
+            this.upsertSolve(solve);
         });
     }
 
     upsertSolve(solve) {
         if (!solve?.id) return;
-        this._solves.set(solve.id, solve);
+
+        const previousDayKey = this._solveDayKeys.get(solve.id);
+        decrementDayCount(this._dayCounts, previousDayKey);
+
+        const storedSolve = cloneSolve(solve);
+        this._solves.set(storedSolve.id, storedSolve);
+        const nextDayKey = getSolveDayKey(storedSolve);
+        if (nextDayKey) {
+            this._solveDayKeys.set(storedSolve.id, nextDayKey);
+            incrementDayCount(this._dayCounts, nextDayKey);
+        } else {
+            this._solveDayKeys.delete(storedSolve.id);
+        }
     }
 
     deleteSolve(solveIdOrIds) {
         const solveIds = Array.isArray(solveIdOrIds) ? solveIdOrIds : [solveIdOrIds];
         solveIds.forEach((solveId) => {
             if (!solveId) return;
+            decrementDayCount(this._dayCounts, this._solveDayKeys.get(solveId));
+            this._solveDayKeys.delete(solveId);
             this._solves.delete(solveId);
         });
     }
 
+    getSolves() {
+        return Array.from(this._solves.values(), cloneSolve);
+    }
+
     getState(goal, now = Date.now()) {
-        return computeDailyStreakState(Array.from(this._solves.values()), goal, now);
+        return computeDailyStreakStateFromDayCounts(this._dayCounts, goal, now);
     }
 }
 
