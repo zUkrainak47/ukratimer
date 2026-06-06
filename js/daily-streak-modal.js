@@ -1,6 +1,6 @@
-import { settings } from './settings.js?v=2026060601';
-import { SCRAMBLE_TYPE_OPTIONS } from './scramble.js?v=2026060601';
-import { sessionManager } from './session.js?v=2026060601';
+import { settings } from './settings.js?v=2026060602';
+import { SCRAMBLE_TYPE_OPTIONS } from './scramble.js?v=2026060602';
+import { sessionManager } from './session.js?v=2026060602';
 import {
     computeDailyStreakState,
     dailyStreakStore,
@@ -8,8 +8,8 @@ import {
     normalizeDailyStreakGoal,
     shiftDayKey,
     toDayKey,
-} from './streaks.js?v=2026060601';
-import { formatReadableDate, formatTime, getEffectiveTime } from './utils.js?v=2026060601';
+} from './streaks.js?v=2026060602';
+import { formatReadableDate, formatTime, getEffectiveTime } from './utils.js?v=2026060602';
 
 const WEEK_COUNT = 53;
 const DAYS_PER_WEEK = 7;
