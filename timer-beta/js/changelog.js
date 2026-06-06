@@ -17,13 +17,14 @@ function freezeChangelogEntry(entry) {
 
 export const CHANGELOG_ENTRIES = Object.freeze([
     {
-        id: '2026-06-06-multi-phase',
+        id: '2026-06-06-multi-phase_',
         date: '2026-06-06',
         title: 'Daily Activity Calendar & Multiphase',
         items: [
             'Added a Daily Activity heatmap. Accessible at Settings > Tools or by clicking your Daily Streak.',
             'You can now time each phase of your solve separately at Settings > Timer > Multiphase.',
-            'Added an option for Inspection to count down.'
+            'Added an option for Inspection to count down.',
+            'Added Double click prevention at Settings > Timer. On by default.'
         ]
     },
 

@@ -16,6 +16,7 @@ const State = {
 
 const GHOST_CLICK_GUARD_MS = 450;
 const GHOST_CLICK_GUARD_RADIUS_PX = 42;
+const DOUBLE_CLICK_PREVENTION_MS = 200;
 const BACKGROUND_POINTER_EXCLUDE_SELECTOR = [
     '#timer-info',
     '#inspection-voice-unlock-wrap',
@@ -52,6 +53,7 @@ class Timer extends EventEmitter {
         this._ghostClickGuardExpiresAt = 0;
         this._ghostClickGuardOrigin = null;
         this._ghostClickGuardTimeout = null;
+        this._lastAcceptedTimerInteractionAt = 0;
         this._typingInspectionTimeout = null;
         this._cachedViewport = { width: 0, height: 0 };
         this._startGuard = null;
@@ -139,9 +141,16 @@ class Timer extends EventEmitter {
             // allow any key to dismiss active inspection, and allow Escape to cancel primed inspection.
             if (this._inspectionEnabled()) {
                 if (this._isInspectionTickingState(this.state)) {
-                    // Any key dismisses typing inspection.
-                    // Numeric keys should pass through so the first typed digit is kept.
+                    // Numeric keys should pass through so the first typed digit is kept,
+                    // even if it lands immediately after starting inspection.
                     const isDigitKey = /^\d$/.test(e.key);
+                    if (!isDigitKey && this._shouldIgnoreTimerInteraction(this._getEventTimestamp(e))) {
+                        e.preventDefault();
+                        e.stopImmediatePropagation();
+                        return;
+                    }
+
+                    // Any key dismisses typing inspection.
                     if (!isDigitKey) {
                         e.preventDefault();
                         e.stopImmediatePropagation();
@@ -163,7 +172,7 @@ class Timer extends EventEmitter {
                     e.preventDefault();
                     if (this._spaceDown) return;
                     this._spaceDown = true;
-                    this._handleStartPress();
+                    this._handleStartPress(e);
                     return;
                 }
             }
@@ -193,7 +202,10 @@ class Timer extends EventEmitter {
         if ((e.ctrlKey || e.metaKey) && !isStackmatKey && !isEscape) return;
 
         if (isDnfKey && this.state === State.RUNNING) {
-            this._stopTimer('DNF', this._getEventTimestamp(e));
+            const stopTimestamp = this._getEventTimestamp(e);
+            if (!this._shouldIgnoreTimerInteraction(stopTimestamp)) {
+                this._stopTimer('DNF', stopTimestamp);
+            }
             e.preventDefault();
             e.stopImmediatePropagation();
             return;
@@ -220,7 +232,10 @@ class Timer extends EventEmitter {
             e.stopImmediatePropagation();
             if (e.code === 'Space') this._spaceDown = true;
             if (e.repeat) return;
-            this._stopTimer(null, this._getEventTimestamp(e));
+            const stopTimestamp = this._getEventTimestamp(e);
+            if (!this._shouldIgnoreTimerInteraction(stopTimestamp)) {
+                this._stopTimer(null, stopTimestamp);
+            }
             return;
         }
 
@@ -228,7 +243,7 @@ class Timer extends EventEmitter {
             e.preventDefault();
             if (this._spaceDown) return;
             this._spaceDown = true;
-            this._handleStartPress();
+            this._handleStartPress(e);
             return;
         }
 
@@ -238,7 +253,7 @@ class Timer extends EventEmitter {
         const wasStackmatReady = this._isStackmatActive();
         this._setStackmatFlag(e.code, true);
         if (!wasStackmatReady && this._isStackmatActive()) {
-            this._handleStartPress();
+            this._handleStartPress(e);
         }
     }
 
@@ -334,7 +349,7 @@ class Timer extends EventEmitter {
 
         e.preventDefault();
         this._claimActivePointer(e);
-        this._handleStartPress();
+        this._handleStartPress(e);
     }
 
     _onDocumentPointerDown(e) {
@@ -357,7 +372,7 @@ class Timer extends EventEmitter {
 
             e.preventDefault();
             this._claimActivePointer(e);
-            this._handleStartPress();
+            this._handleStartPress(e);
             return;
         }
 
@@ -371,7 +386,7 @@ class Timer extends EventEmitter {
 
             e.preventDefault();
             this._claimActivePointer(e);
-            this._handleStartPress();
+            this._handleStartPress(e);
             return;
         }
 
@@ -387,7 +402,7 @@ class Timer extends EventEmitter {
 
         e.preventDefault();
         this._claimActivePointer(e);
-        this._handleStartPress();
+        this._handleStartPress(e);
     }
 
     _onCapturedClick(e) {
@@ -441,7 +456,12 @@ class Timer extends EventEmitter {
         }
     }
 
-    _handleStartPress() {
+    _handleStartPress(pressEvent = null) {
+        const pressTimestamp = this._getEventTimestamp(pressEvent);
+        const isTimerInteractionStartState = this.state === State.IDLE
+            || this.state === State.STOPPED
+            || this.state === State.INSPECTING;
+        if (isTimerInteractionStartState && this._shouldIgnoreTimerInteraction(pressTimestamp)) return;
         if (this._shouldBlockStart()) return;
 
         if (this.state === State.IDLE || this.state === State.STOPPED) {
@@ -467,6 +487,12 @@ class Timer extends EventEmitter {
         }
 
         if (this.state === State.READY) {
+            if (this._shouldIgnoreTimerInteraction(this._getEventTimestamp(releaseEvent))) {
+                this._cancelHold();
+                this._setState(State.IDLE);
+                this._setColor(State.IDLE);
+                return;
+            }
             this._startTimer(releaseEvent);
             return;
         }
@@ -484,6 +510,12 @@ class Timer extends EventEmitter {
         }
 
         if (this.state === State.INSPECTION_READY) {
+            if (this._shouldIgnoreTimerInteraction(this._getEventTimestamp(releaseEvent))) {
+                this._cancelHold();
+                this._setState(State.INSPECTING);
+                this._setColor(State.INSPECTING);
+                return;
+            }
             this._startTimer(releaseEvent);
         }
     }
@@ -529,6 +561,7 @@ class Timer extends EventEmitter {
 
         this._setState(State.INSPECTING);
         this._setColor(State.INSPECTING);
+        this._recordTimerInteraction(this._inspectionStartTime);
 
         if (this._shouldShowInspectionCount()) {
             this._updateDisplay(this._formatInspectionDisplay(0));
@@ -616,6 +649,7 @@ class Timer extends EventEmitter {
             && eventTs <= now
             && eventTs >= now - 500;
         this.startTime = hasUsableStartTimestamp ? eventTs : now;
+        this._recordTimerInteraction(this.startTime);
         this.elapsed = 0;
         this._phaseCount = normalizePhaseCount(settings.get('multiPhaseCount'), 1);
         this._phaseSplitTimes = [];
@@ -666,7 +700,6 @@ class Timer extends EventEmitter {
     }
 
     _stopTimer(penaltyOverride = null, stopTimestamp = null) {
-        this._cancelRaf();
         const now = performance.now();
         // Some mobile hardware-keyboard events (notably on WebKit/iPadOS) can
         // report a timestamp from the wrong clock origin or as 0. If the stop
@@ -676,6 +709,8 @@ class Timer extends EventEmitter {
             && stopTimestamp >= this.startTime
             && stopTimestamp <= now;
         const resolvedStopTime = hasUsableStopTimestamp ? stopTimestamp : now;
+
+        this._cancelRaf();
         this.elapsed = resolvedStopTime - this.startTime;
         const phaseCount = normalizePhaseCount(this._phaseCount, 1);
         const usesPhases = phaseCount > 1;
@@ -685,6 +720,7 @@ class Timer extends EventEmitter {
             const splitTime = Math.max(0, resolvedStopTime - phaseStart);
             this._phaseSplitTimes.push(splitTime);
             this._phaseLastTimestamp = resolvedStopTime;
+            this._recordTimerInteraction(resolvedStopTime);
             this.emit('phaseSplit', {
                 index: this._phaseSplitTimes.length,
                 phaseCount,
@@ -710,6 +746,7 @@ class Timer extends EventEmitter {
         this._setState(State.STOPPED);
         this._setColor(State.STOPPED);
         this._updateDisplay(this._formatStoppedDisplay(this.elapsed, finalPenalty));
+        this._recordTimerInteraction(resolvedStopTime);
 
         this._pendingPenalty = null;
         this._inspectionSnapshot = null;
@@ -871,6 +908,30 @@ class Timer extends EventEmitter {
         return !this._isWithinInteractionArea(target);
     }
 
+    _doubleClickPreventionEnabled() {
+        return settings.get('doubleClickPreventionEnabled') !== false;
+    }
+
+    _normalizeInteractionTimestamp(timestamp) {
+        const now = performance.now();
+        if (!Number.isFinite(timestamp) || timestamp <= 0 || timestamp > now + 1000 || timestamp < now - 5000) {
+            return now;
+        }
+        return timestamp;
+    }
+
+    _shouldIgnoreTimerInteraction(timestamp = null) {
+        if (!this._doubleClickPreventionEnabled()) return false;
+        if (!this._lastAcceptedTimerInteractionAt) return false;
+
+        const resolvedTimestamp = this._normalizeInteractionTimestamp(timestamp);
+        return resolvedTimestamp - this._lastAcceptedTimerInteractionAt < DOUBLE_CLICK_PREVENTION_MS;
+    }
+
+    _recordTimerInteraction(timestamp = null) {
+        this._lastAcceptedTimerInteractionAt = this._normalizeInteractionTimestamp(timestamp);
+    }
+
     _armGhostClickGuard(e) {
         this._clearGhostClickGuard();
         this._ghostClickGuardExpiresAt = performance.now() + GHOST_CLICK_GUARD_MS;
@@ -891,7 +952,9 @@ class Timer extends EventEmitter {
         e.stopPropagation();
         this._releaseActivePointer(this._activePointerId);
         this._armGhostClickGuard(e);
-        this._stopTimer(null, this._getEventTimestamp(e));
+        const stopTimestamp = this._getEventTimestamp(e);
+        if (this._shouldIgnoreTimerInteraction(stopTimestamp)) return;
+        this._stopTimer(null, stopTimestamp);
     }
 
     _clearGhostClickGuard() {

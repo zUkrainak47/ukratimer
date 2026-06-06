@@ -549,6 +549,7 @@ const DEFAULTS = {
     showDelta: false,
     deltaReference: '',
     newBestPopupEnabled: true,
+    doubleClickPreventionEnabled: true,
     newBestColor: DEFAULT_THEME_COLORS.newBestPopup,
     graphColorTime: DEFAULT_THEME_COLORS.graphColorTime,
     graphLine1Stat: 'ao5',
@@ -907,6 +908,10 @@ function normalizeSessionSettingValue(key, value) {
         return value === true;
     }
 
+    if (key === 'doubleClickPreventionEnabled') {
+        return value !== false;
+    }
+
     if (key === 'timeTableVerticalGridLines') {
         return normalizeTimeTableVerticalGridLines(value);
     }
@@ -1009,6 +1014,7 @@ class Settings extends EventEmitter {
         );
         this._settings.multiPhaseSoundEnabled = this._settings.multiPhaseSoundEnabled !== false;
         this._settings.multiPhaseHideSplitsWhileSolving = this._settings.multiPhaseHideSplitsWhileSolving === true;
+        this._settings.doubleClickPreventionEnabled = this._settings.doubleClickPreventionEnabled !== false;
         this._settings.solvesPanelWidthConstrained = this._settings.solvesPanelWidthConstrained === true;
         const nextAutoExportCheckpointSolveSequence = normalizeNonNegativeInteger(
             hasOwn(loaded, 'autoExportCheckpointSolveSequence')
@@ -1515,6 +1521,16 @@ class Settings extends EventEmitter {
             this._settings.multiPhaseHideSplitsWhileSolving = nextEnabled;
             this._saveAndApply();
             this.emit('change', 'multiPhaseHideSplitsWhileSolving', nextEnabled);
+            return;
+        }
+
+        if (key === 'doubleClickPreventionEnabled') {
+            const nextEnabled = value !== false;
+            if (this._settings.doubleClickPreventionEnabled === nextEnabled) return;
+
+            this._settings.doubleClickPreventionEnabled = nextEnabled;
+            this._saveAndApply();
+            this.emit('change', 'doubleClickPreventionEnabled', nextEnabled);
             return;
         }
 

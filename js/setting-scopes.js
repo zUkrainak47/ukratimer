@@ -26,6 +26,7 @@ export const SESSION_SCOPABLE_SETTING_KEYS = Object.freeze([
     'showDelta',
     'deltaReference',
     'newBestPopupEnabled',
+    'doubleClickPreventionEnabled',
     'graphTooltipDateEnabled',
     'graphLine1Stat',
     'graphLine2Stat',

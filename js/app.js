@@ -15299,6 +15299,7 @@ function initSettingsPanel() {
         { key: 'showDelta', controlId: 'setting-show-delta' },
         { key: 'deltaReference', controlId: 'setting-delta-reference', read: () => String(settings.get('deltaReference') || '') },
         { key: 'newBestPopupEnabled', controlId: 'setting-new-best-popup' },
+        { key: 'doubleClickPreventionEnabled', controlId: 'setting-double-click-prevention' },
         { key: 'inspectionTime', controlId: 'setting-inspection-time' },
         { key: 'inspectionAlerts', controlId: 'setting-inspection-alerts' },
         { key: 'hideUIWhileSolving', controlId: 'setting-hide-ui' },
@@ -15809,6 +15810,10 @@ function initSettingsPanel() {
     const newBestPopupToggle = document.getElementById('setting-new-best-popup');
     newBestPopupToggle.checked = settings.get('newBestPopupEnabled');
     newBestPopupToggle.onchange = () => settings.set('newBestPopupEnabled', newBestPopupToggle.checked);
+
+    const doubleClickPreventionToggle = document.getElementById('setting-double-click-prevention');
+    doubleClickPreventionToggle.checked = settings.get('doubleClickPreventionEnabled') !== false;
+    doubleClickPreventionToggle.onchange = () => settings.set('doubleClickPreventionEnabled', doubleClickPreventionToggle.checked);
 
     const graphTooltipDateToggle = document.getElementById('setting-graph-tooltip-date');
     if (graphTooltipDateToggle) {
