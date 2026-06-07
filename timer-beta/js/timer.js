@@ -49,6 +49,8 @@ class Timer extends EventEmitter {
         this._rightDown = false;
         this._leftAltDown = false;
         this._rightAltDown = false;
+        this._leftShiftDown = false;
+        this._rightShiftDown = false;
         this._activePointerId = null;
         this._ghostClickGuardExpiresAt = 0;
         this._ghostClickGuardOrigin = null;
@@ -1040,13 +1042,20 @@ class Timer extends EventEmitter {
         this._rightDown = false;
         this._leftAltDown = false;
         this._rightAltDown = false;
+        this._leftShiftDown = false;
+        this._rightShiftDown = false;
 
         if (!cancelPendingStart || !hadKeyboardStartInput) return;
         this.cancelPendingStart();
     }
 
     _hasAnyStackmatKeyDown() {
-        return this._leftDown || this._rightDown || this._leftAltDown || this._rightAltDown;
+        return this._leftDown
+            || this._rightDown
+            || this._leftAltDown
+            || this._rightAltDown
+            || this._leftShiftDown
+            || this._rightShiftDown;
     }
 
     _isStackmatKey(e) {
@@ -1055,13 +1064,16 @@ class Timer extends EventEmitter {
             || e.code === 'MetaLeft'
             || e.code === 'MetaRight'
             || e.code === 'AltLeft'
-            || e.code === 'AltRight';
+            || e.code === 'AltRight'
+            || e.code === 'ShiftLeft'
+            || e.code === 'ShiftRight';
     }
 
     _isStackmatActive() {
         const isBothCtrlCmd = this._leftDown && this._rightDown;
         const isBothAltOpt = this._leftAltDown && this._rightAltDown;
-        return isBothCtrlCmd || isBothAltOpt;
+        const isBothShift = this._leftShiftDown && this._rightShiftDown;
+        return isBothCtrlCmd || isBothAltOpt || isBothShift;
     }
 
     _setStackmatFlag(code, isDown) {
@@ -1069,6 +1081,8 @@ class Timer extends EventEmitter {
         if (code === 'ControlRight' || code === 'MetaRight') this._rightDown = isDown;
         if (code === 'AltLeft') this._leftAltDown = isDown;
         if (code === 'AltRight') this._rightAltDown = isDown;
+        if (code === 'ShiftLeft') this._leftShiftDown = isDown;
+        if (code === 'ShiftRight') this._rightShiftDown = isDown;
     }
 
     _setState(state) {
