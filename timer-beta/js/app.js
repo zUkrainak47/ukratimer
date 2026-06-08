@@ -1353,6 +1353,7 @@ const quickActionsState = {
     manualEntryActive: false,
     manualEntryHistoryManaged: false,
     manualDigits: '',
+    manualEnterGuardUntil: 0,
     restoreVisibleAfterManual: false,
     restorePinnedAfterManual: false,
     swipePointerId: null,
@@ -4159,6 +4160,21 @@ async function submitManualTimeEntry({ closeEntry = false } = {}) {
     }
 }
 
+function handleManualTimeEntryEnter() {
+    const now = performance.now();
+    if (now < quickActionsState.manualEnterGuardUntil) return;
+    quickActionsState.manualEnterGuardUntil = now + 200;
+
+    if (quickActionsState.manualDigits) {
+        void submitManualTimeEntry({ closeEntry: false });
+        return;
+    }
+
+    if (!isPersistentTypingEntryModeEnabled()) return;
+
+    void loadNextScramble({ preserveManualTimeFocus: true });
+}
+
 function applyCachedTransform(el, stateKey, transform) {
     const normalizedTransform = transform || '';
     if (!el || viewportLayoutState[stateKey] === normalizedTransform) return;
@@ -6189,7 +6205,7 @@ function initTimerQuickActions() {
 
         if (inputType === 'insertLineBreak') {
             if (!preventManualTimeInputEvent(event)) return;
-            void submitManualTimeEntry({ closeEntry: false });
+            handleManualTimeEntryEnter();
             return;
         }
 
@@ -6260,7 +6276,7 @@ function initTimerQuickActions() {
 
         if (event.key === 'Enter') {
             event.preventDefault();
-            submitManualTimeEntry({ closeEntry: false });
+            handleManualTimeEntryEnter();
             return;
         }
 
@@ -7250,6 +7266,43 @@ function updateScrambleUI(scrambleStr) {
     scheduleViewportLayoutSync();
 }
 
+async function loadNextScramble({ preserveManualTimeFocus = false } = {}) {
+    const refocusManualInput = () => {
+        if (preserveManualTimeFocus && isManualTimeEntryActive() && isPersistentTypingEntryModeEnabled()) {
+            focusManualTimeInput();
+        }
+    };
+    const textEl = getEl('scramble-text');
+
+    if (!textEl || textEl.classList.contains('loading') || battleManager.isJoined() || isBattleEnvironmentActive) {
+        refocusManualInput();
+        return false;
+    }
+
+    closeScrambleTypeMenus();
+
+    const loadingTimer = window.setTimeout(() => {
+        clearStructuredScrambleLayout(textEl);
+        textEl.textContent = 'Generating...';
+        textEl.classList.add('loading');
+    }, 120);
+
+    try {
+        const nextScramble = await getNextScramble();
+        updateScrambleUI(nextScramble);
+        return true;
+    } catch (error) {
+        console.error('Failed to load next scramble:', error);
+        clearStructuredScrambleLayout(textEl);
+        textEl.textContent = 'Scrambler unavailable';
+        textEl.classList.remove('loading');
+        return false;
+    } finally {
+        window.clearTimeout(loadingTimer);
+        refocusManualInput();
+    }
+}
+
 function copyCurrentScrambleToClipboard() {
     const textEl = getEl('scramble-text');
     if (!textEl || textEl.classList.contains('loading')) return;
@@ -7547,26 +7600,8 @@ function initScrambleControls() {
         if (s) updateScrambleUI(s);
     });
 
-    nextBtn.addEventListener('click', async () => {
-        if (textEl.classList.contains('loading')) return;
-        closeScrambleTypeMenus();
-        let loadingTimer = window.setTimeout(() => {
-            clearStructuredScrambleLayout(textEl);
-            textEl.textContent = 'Generating...';
-            textEl.classList.add('loading');
-        }, 120);
-
-        try {
-            const s = await getNextScramble();
-            updateScrambleUI(s);
-        } catch (error) {
-            console.error('Failed to load next scramble:', error);
-            clearStructuredScrambleLayout(textEl);
-            textEl.textContent = 'Scrambler unavailable';
-            textEl.classList.remove('loading');
-        } finally {
-            window.clearTimeout(loadingTimer);
-        }
+    nextBtn.addEventListener('click', () => {
+        void loadNextScramble();
     });
 
     document.addEventListener('pointerdown', (event) => {
