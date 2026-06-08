@@ -130,6 +130,7 @@ function createDaySummary(dayKey) {
         bestTime: null,
         meanTime: null,
         totalTime: 0,
+        resultTimeTotal: 0,
         firstTimestamp: null,
         lastTimestamp: null,
     };
@@ -253,10 +254,15 @@ function buildDaySummaries(solves, goal) {
             ? solve.timestamp
             : Math.max(summary.lastTimestamp, solve.timestamp);
 
+        const solvingTime = Math.round(Number(solve.time));
+        if (Number.isFinite(solvingTime) && solvingTime >= 0) {
+            summary.totalTime += solvingTime;
+        }
+
         const effectiveTime = getEffectiveTime(solve);
         if (Number.isFinite(effectiveTime)) {
             summary.validCount += 1;
-            summary.totalTime += effectiveTime;
+            summary.resultTimeTotal += effectiveTime;
             summary.bestTime = summary.bestTime == null
                 ? effectiveTime
                 : Math.min(summary.bestTime, effectiveTime);
@@ -264,7 +270,7 @@ function buildDaySummaries(solves, goal) {
     });
 
     daySummaries.forEach((summary) => {
-        summary.meanTime = summary.validCount > 0 ? summary.totalTime / summary.validCount : null;
+        summary.meanTime = summary.validCount > 0 ? summary.resultTimeTotal / summary.validCount : null;
         summary.goalMet = goal > 0 && summary.count >= goal;
     });
 

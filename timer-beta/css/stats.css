@@ -254,6 +254,28 @@
     letter-spacing: 0.5px;
 }
 
+#session-info.session-info-action #solve-count,
+#session-info.session-info-action #session-mean {
+    cursor: pointer;
+    user-select: none;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+#session-info.session-info-action.session-info-shared-hover #solve-count,
+#session-info.session-info-action.session-info-shared-hover #session-mean,
+#session-info.session-info-action #solve-count:hover,
+#session-info.session-info-action #session-mean:hover {
+    background: var(--surface-hover);
+    border-color: var(--text-tertiary);
+    color: var(--text-primary);
+}
+
+#session-info.session-info-action #solve-count:focus-visible,
+#session-info.session-info-action #session-mean:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
 #session-info.has-phase-means {
     display: grid;
     grid-template-columns: var(--solves-table-session-grid-columns, var(--solves-table-grid-columns));
@@ -304,6 +326,216 @@
 
 #session-info.has-phase-means .phase-mean-chip[data-last-phase-mean-chip="true"] {
     padding-right: calc(8px + var(--solves-table-scrollbar-gutter-width, 0px));
+}
+
+.session-stats-modal-box {
+    width: min(680px, calc(100vw - 32px));
+    max-height: min(82vh, 760px);
+}
+
+.session-stats-modal-header {
+    gap: 12px;
+}
+
+.session-stats-title-group {
+    min-width: 0;
+}
+
+.session-stats-source {
+    margin-top: 2px;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    font-weight: 600;
+}
+
+.session-stats-metric-toggle {
+    display: inline-flex;
+    gap: 4px;
+    margin-left: auto;
+}
+
+.session-stats-modal-header .modal-close {
+    flex: 0 0 auto;
+    margin-left: 0;
+}
+
+.session-stats-metric-toggle .btn-action {
+    min-width: 36px;
+    font-family: var(--font-mono);
+    font-weight: 700;
+}
+
+.session-stats-metric-toggle .btn-action.active-toggle {
+    background: rgba(56, 139, 253, 0.14);
+    border-color: rgba(56, 139, 253, 0.32);
+    color: #79c0ff;
+}
+
+.session-stats-modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.session-stats-summary-row {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--text-muted);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: var(--text-base);
+    font-weight: 700;
+    line-height: 1.35;
+    cursor: pointer;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.session-stats-summary-row:hover,
+.session-stats-summary-row:focus-visible {
+    background: var(--surface-hover);
+    border-color: var(--text-tertiary);
+    color: var(--text-primary);
+    outline: none;
+}
+
+.session-stats-total-time {
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: var(--text-lg);
+    font-weight: 800;
+    text-align: center;
+}
+
+.session-stats-extremes {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    font-family: var(--font-mono);
+    font-size: var(--text-base);
+}
+
+.session-stats-extreme {
+    min-width: 0;
+    padding: 4px 8px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.session-stats-extreme:hover:not(:disabled),
+.session-stats-extreme:focus-visible:not(:disabled) {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+    outline: none;
+}
+
+.session-stats-extreme:disabled {
+    color: var(--text-muted);
+    cursor: default;
+}
+
+.session-stats-extreme-divider {
+    color: var(--text-primary);
+    font-weight: 800;
+}
+
+.session-stats-table-shell {
+    overflow-x: auto;
+    border: 1px solid var(--text-muted);
+    border-radius: var(--radius-md);
+}
+
+.session-stats-table {
+    width: 100%;
+    min-width: 520px;
+    border-collapse: collapse;
+    font-family: var(--font-mono);
+    font-size: var(--text-base);
+}
+
+.session-stats-table th,
+.session-stats-table td {
+    border-right: 1px solid var(--text-muted);
+    border-bottom: 1px solid var(--text-muted);
+    padding: 0;
+}
+
+.session-stats-table th:last-child,
+.session-stats-table td:last-child {
+    border-right: 0;
+}
+
+.session-stats-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.session-stats-table th {
+    padding: 10px 12px;
+    color: var(--text-primary);
+    font-size: var(--text-lg);
+    font-weight: 800;
+    text-align: center;
+}
+
+.session-stats-table td:first-child {
+    width: 32%;
+    padding: 12px;
+    color: var(--text-primary);
+    font-weight: 800;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.session-stats-table tbody td:not(:first-child) {
+    text-align: center;
+}
+
+.session-stats-value {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 12px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    font-weight: 700;
+    text-align: center;
+    cursor: pointer;
+    overflow-wrap: anywhere;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.session-stats-value:hover:not(:disabled),
+.session-stats-value:focus-visible:not(:disabled) {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+    outline: none;
+}
+
+.session-stats-value:disabled {
+    color: var(--text-muted);
+    cursor: default;
+}
+
+.session-stats-empty {
+    padding: 18px;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    text-align: center;
 }
 
 /* Solves table */
@@ -1239,6 +1471,71 @@
     #session-info.has-phase-means span:last-child {
         border-top-right-radius: 12px;
         border-bottom-right-radius: 12px;
+    }
+
+    .session-stats-modal-box {
+        width: 100vw;
+        max-width: none;
+        max-height: 92dvh;
+    }
+
+    .session-stats-modal-header {
+        gap: 8px;
+    }
+
+    .session-stats-metric-toggle {
+        gap: 3px;
+    }
+
+    .session-stats-metric-toggle .btn-action {
+        min-width: 32px;
+        padding-inline: 7px;
+    }
+
+    .session-stats-summary-row {
+        gap: 2px;
+        padding: 9px 10px;
+        font-size: var(--text-sm);
+    }
+
+    .session-stats-total-time {
+        font-size: var(--text-base);
+    }
+
+    .session-stats-extremes {
+        gap: 6px;
+        font-size: var(--text-sm);
+    }
+
+    .session-stats-table-shell {
+        overflow-x: hidden;
+    }
+
+    .session-stats-table {
+        min-width: 0;
+        table-layout: fixed;
+        font-size: var(--session-stats-table-font-size, var(--text-xs));
+    }
+
+    .session-stats-table th {
+        padding: 7px 4px;
+        font-size: var(--session-stats-table-font-size, var(--text-xs));
+        white-space: nowrap;
+    }
+
+    .session-stats-table td:first-child {
+        width: 28%;
+        padding: 8px 5px;
+        white-space: nowrap;
+        overflow-wrap: normal;
+    }
+
+    .session-stats-value {
+        min-height: 40px;
+        padding: 7px 4px;
+        line-height: 1.25;
+        white-space: nowrap;
+        overflow-wrap: normal;
     }
 
     #stats-filter-bar {

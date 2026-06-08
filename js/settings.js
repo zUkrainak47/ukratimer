@@ -536,6 +536,7 @@ const DEFAULTS = {
     summaryStatsCustom: 'mo3 ao5 ao12 ao100',
     summaryStatsList: ['mo3', 'ao5', 'ao12', 'ao100'],
     mainStatsSource: MAIN_STATS_SOURCE_TIME,
+    sessionStatsMetricMode: 'sigma',
     solvesTableStat1: 'ao5',
     solvesTableStat2: 'ao12',
     timeTableVerticalGridLines: TIME_TABLE_VERTICAL_GRID_LINES_MULTI_PHASE_ONLY,

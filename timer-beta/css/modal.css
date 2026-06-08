@@ -1548,6 +1548,7 @@
 
 #modal-mobile-summary,
 #modal-mobile-share-actions,
+#modal-mobile-text-actions,
 #modal-mobile-list-panel {
     display: none;
 }
@@ -1602,6 +1603,23 @@
 }
 
 .modal-mobile-share-actions .btn-action[hidden] {
+    display: none !important;
+}
+
+.modal-mobile-text-actions {
+    display: grid;
+    gap: var(--space-sm);
+}
+
+.modal-mobile-text-actions .btn-action {
+    width: 100%;
+    min-height: 52px;
+    border-radius: var(--radius-xl);
+    font-size: var(--text-base);
+    font-weight: 700;
+}
+
+.modal-mobile-text-actions .btn-action[hidden] {
     display: none !important;
 }
 
@@ -1921,6 +1939,21 @@
 
     .modal-overlay.mobile-detail-active #modal-textarea {
         display: none;
+    }
+
+    .modal-overlay.mobile-text-detail-active .modal-body {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-md);
+        overflow: hidden;
+    }
+
+    .modal-overlay.mobile-text-detail-active #modal-textarea {
+        display: none;
+    }
+
+    .modal-overlay.mobile-text-detail-active #modal-mobile-text-actions {
+        display: grid;
     }
 
     .modal-overlay.mobile-detail-active #modal-mobile-summary,

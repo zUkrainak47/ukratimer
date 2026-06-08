@@ -2,9 +2,9 @@ import { timer, State as TimerState } from './timer.js?v=2026060701';
 import { SCRAMBLE_TYPE_OPTIONS, generateScrambleBatchForType, generateScrambleForType, getScramble, getCurrentScramble, getCurrentScrambleType, getPrevScramble, getNextScramble, getSelectedScrambleType, setCurrentScramble, setScrambleType, isCurrentScrambleManual, hasPrevScramble, isViewingPreviousScramble, preloadScrambleEngines, needsCubingWarmup, runCubingWarmup } from './scramble.js?v=2026060701';
 import { sessionManager } from './session.js?v=2026060701';
 import { settings, DEFAULTS, THEME_OPTIONS, THEME_COLOR_SECTIONS, THEME_DEFAULT_ID, THEME_OLED_ID, THEME_CUSTOM_IDS, SETTING_SCOPE_GLOBAL, SETTING_SCOPE_SESSION, SESSION_SCOPABLE_SETTING_KEYS, AUTO_EXPORT_EVERY_100_SOLVES_NEVER, AUTO_EXPORT_EVERY_100_SOLVES_REMIND, AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE, AUTO_EXPORT_EVERY_100_SOLVES_FILE, composeThemeColor, decomposeThemeColor, getLinkedSessionScopeKeys, getThemePresetColors, isCustomThemeId, isInspectionTimeEnabled, normalizeAutoExportEvery100Solves } from './settings.js?v=2026060701';
-import { buildRollingBestFlags, buildRollingStatValues, parseGraphStatType, parseRollingStatType, rollingStatAt, StatsCache } from './stats.js?v=2026060701';
-import { formatTime, formatSolveTime, formatSolveTimeWithSplits, formatTimerDisplayTime, getEffectiveTime, getSolvePhaseSplits, normalizePhaseCount, formatDate, formatDateTime, parseTimeInputToMs, truncateTimeDisplay } from './utils.js?v=2026060701';
-import { initModal, showSolveDetail, showAverageDetail, closeModal, closeMoveSessionMenus, customConfirm, customConfirmChoice, customPrompt, getModalSelectionContext, setModalStatNavigator, setModalStatButtons, armModalGhostClickGuard } from './modal.js?v=2026060701';
+import { buildRollingBestFlags, buildRollingStatValues, getAverageTrimCount, parseGraphStatType, parseRollingStatType, rollingStatAt, StatsCache } from './stats.js?v=2026060701';
+import { formatTime, formatSolveTime, formatSolveTimeWithSplits, formatTimerDisplayTime, getEffectiveTime, getSolvePhaseSplits, normalizePhaseCount, formatDate, formatReadableDate, formatDateTime, parseCustomStatsFilter, parseTimeInputToMs, truncateTimeDisplay } from './utils.js?v=2026060701';
+import { initModal, showSolveDetail, showAverageDetail, showTextDetail, closeModal, closeMoveSessionMenus, customConfirm, customConfirmChoice, customPrompt, getModalSelectionContext, setModalStatNavigator, setModalCloseHandler, setModalStatButtons, armModalGhostClickGuard } from './modal.js?v=2026060701';
 import { applyMegaminxScramble, applyPyraminxScramble, applyScramble, applySquare1Scramble, applySkewbScramble, applyClockScramble, clearCubeDisplay, drawMegaminxFacePreview, drawSquare1, drawClock, initCubeDisplay, updateCubeDisplay, updateMegaminxDisplay, updatePyraminxDisplay, updateSquare1Display, updateSkewbDisplay, updateClockDisplay } from './cube-display.js?v=2026060701';
 import { initGraph, updateGraph, updateGraphData, setLineVisibility, getLineVisibility, applyAction, graphEvents, getGraphLineDefinitions } from './graph.js?v=2026060701';
 import { closeTimeDistributionModal, initTimeDistributionModal, isTimeDistributionModalOpen, refreshTimeDistributionData, refreshTimeDistributionTheme, showTimeDistributionModal } from './distribution.js?v=2026060701';
@@ -1291,7 +1291,7 @@ const ALT_SCRAMBLE_TYPE_SHORTCUTS = new Map([
     ['KeyC', 'clock'],
     ['KeyS', 'skewb'],
 ]);
-const blockingOverlayIds = ['modal-overlay', 'distribution-overlay', 'daily-streak-overlay', 'scramble-preview-overlay', 'confirm-overlay', 'prompt-overlay', 'shortcuts-overlay', 'chart-image-overlay', 'changelog-overlay', 'theme-customization-overlay', 'battle-overlay', 'graph-overlay', 'battle-create-overlay', 'scramble-generator-overlay'];
+const blockingOverlayIds = ['modal-overlay', 'session-stats-overlay', 'distribution-overlay', 'daily-streak-overlay', 'scramble-preview-overlay', 'confirm-overlay', 'prompt-overlay', 'shortcuts-overlay', 'chart-image-overlay', 'changelog-overlay', 'theme-customization-overlay', 'battle-overlay', 'graph-overlay', 'battle-create-overlay', 'scramble-generator-overlay'];
 const THEME_OPTION_LABELS = new Map(THEME_OPTIONS.map(({ value, label }) => [value, label]));
 let settingsOverlayEl = null;
 let shortcutsOverlayEl = null;
@@ -1313,7 +1313,19 @@ let desktopScrambleTransitionSyncFrame = null;
 let summaryRowsCache = { signature: '', rows: [] };
 const rollingStatSummaryCache = new Map();
 const MAIN_STATS_SOURCE_TIME = 'time';
+const SESSION_STATS_METRIC_SIGMA = 'sigma';
+const SESSION_STATS_METRIC_CV = 'cv';
+const SESSION_STATS_TEXT_TIMESTAMP_DATE_TIME = 'date-time';
+const SESSION_STATS_TEXT_TIMESTAMP_TIME = 'time';
+const SESSION_STATS_METRIC_MODES = new Set([SESSION_STATS_METRIC_SIGMA, SESSION_STATS_METRIC_CV]);
+const SESSION_STATS_TABLE_FONT_SIZE_PROPERTY = '--session-stats-table-font-size';
+const SESSION_STATS_TABLE_MIN_FONT_SIZE_PX = 5;
 let selectedMainStatsSource = MAIN_STATS_SOURCE_TIME;
+let sessionStatsMetricMode = normalizeSessionStatsMetricMode(settings.get('sessionStatsMetricMode'));
+let sessionStatsOverlayEl = null;
+let sessionStatsMouseDownTarget = null;
+let sessionStatsMouseUpTarget = null;
+let sessionStatsTableFitFrame = 0;
 let solvesTableTextMeasureContext = null;
 let phaseSourceTimeColumnWidthRevision = 0;
 const phaseSourceTimeColumnWidthCache = new Map();
@@ -1516,6 +1528,11 @@ function handlePopState(event) {
 
     if (isDailyStreakModalOpen()) {
         closeDailyStreakModal({ isPopState: true });
+        return;
+    }
+
+    if (isSessionStatsModalOpen()) {
+        closeSessionStatsModal({ isPopState: true });
         return;
     }
 
@@ -5909,6 +5926,7 @@ async function init() {
     initSolvesPanelWidthToggle();
     initGraphLineToggles();
     initGraphDistributionButton();
+    initSessionStatsModal();
     initMobilePanels();
     initTimerQuickActions();
     syncPersistentManualEntryMode();
@@ -9661,6 +9679,7 @@ function refreshUI() {
     updateGraphData(graphAndDistributionSolves, graphDistributionData.cache, {
         timeLabel: graphDistributionData.sourceContext.label,
     });
+    refreshSessionStatsModalIfOpen();
     if (isTimeDistributionModalOpen()) {
         refreshTimeDistributionData(graphAndDistributionSolves, {
             ...getDistributionOptionsForContext(graphDistributionData.sourceContext),
@@ -10728,6 +10747,735 @@ function getRollingStatSummary(times, statType) {
 function findBestRollingStat(times, statType) {
     const summary = getRollingStatSummary(times, statType);
     return { value: summary.value, index: summary.index };
+}
+
+function isSessionStatsModalOpen() {
+    return Boolean(sessionStatsOverlayEl?.classList.contains('active'));
+}
+
+function normalizeSessionStatsMetricMode(value) {
+    const metric = String(value ?? '').trim().toLowerCase();
+    return SESSION_STATS_METRIC_MODES.has(metric) ? metric : SESSION_STATS_METRIC_SIGMA;
+}
+
+function getFiniteSessionStatValues(values) {
+    return values.filter((value) => Number.isFinite(value));
+}
+
+function getSessionStatsTotalTime(solves) {
+    if (!Array.isArray(solves) || solves.length === 0) return null;
+
+    return solves.reduce((total, solve) => {
+        const rawTime = Number(solve?.time);
+        return Number.isFinite(rawTime) && rawTime >= 0
+            ? total + Math.round(rawTime)
+            : total;
+    }, 0);
+}
+
+function formatSessionStatsDuration(ms) {
+    if (!ms || !Number.isFinite(ms) || ms <= 0) return '-';
+
+    const totalSeconds = ms / 1000;
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = Math.floor(totalSeconds % 60);
+    const parts = [];
+
+    if (hours > 0) parts.push(`${hours}h`);
+    if (minutes > 0) parts.push(`${minutes}m`);
+    parts.push(`${seconds}s`);
+    return parts.join(' ');
+}
+
+function formatSessionStatsTimestampTime(timestamp) {
+    const date = new Date(timestamp);
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    return `${hours}:${minutes}:${seconds}`;
+}
+
+function formatSessionStatsTextTimestamp(timestamp, options = {}) {
+    if (!timestamp) return '';
+
+    switch (options.scrambleTimestampDisplay) {
+        case SESSION_STATS_TEXT_TIMESTAMP_DATE_TIME:
+            return formatDateTime(timestamp);
+        case SESSION_STATS_TEXT_TIMESTAMP_TIME:
+            return formatSessionStatsTimestampTime(timestamp);
+        default:
+            return '';
+    }
+}
+
+function getSessionStatsTextCommentSuffix(solve, options = {}) {
+    const comment = String(solve?.comment ?? '').trim();
+    return options.includeComments && comment ? ` [${comment}]` : '';
+}
+
+function getSessionStatsTextDateSuffix(solve, options = {}) {
+    const timestampText = formatSessionStatsTextTimestamp(solve?.timestamp, options);
+    return timestampText ? `  |  ${timestampText}` : '';
+}
+
+function getSessionStatsCustomFilterLabel() {
+    const rawValue = String(settings.get('customFilterDuration') ?? '').trim();
+    const parsed = parseCustomStatsFilter(rawValue);
+    if (parsed?.mode === 'count') {
+        return `Last ${parsed.solveCount} ${parsed.solveCount === 1 ? 'solve' : 'solves'}`;
+    }
+    if (parsed?.mode === 'duration') {
+        const durationText = rawValue.toLowerCase().replace(/\s+/g, ' ');
+        return durationText ? `Last ${durationText}` : '';
+    }
+
+    return '';
+}
+
+function getSessionStatsFilterLabel() {
+    switch (settings.get('statsFilter')) {
+        case 'today':
+            return 'Today';
+        case 'week':
+            return 'This week';
+        case 'month':
+            return 'This month';
+        case 'custom':
+            return getSessionStatsCustomFilterLabel();
+        default:
+            return '';
+    }
+}
+
+function getSessionStatsTitle() {
+    const filterLabel = getSessionStatsFilterLabel();
+    return filterLabel ? `Session Stats - ${filterLabel}` : 'Session Stats';
+}
+
+function findExtremeFiniteTimeIndex(values, direction = 'best') {
+    let targetValue = direction === 'worst' ? -Infinity : Infinity;
+    let targetIndex = -1;
+
+    values.forEach((value, index) => {
+        if (!Number.isFinite(value)) return;
+        if (direction === 'worst') {
+            if (value > targetValue) {
+                targetValue = value;
+                targetIndex = index;
+            }
+            return;
+        }
+
+        if (value < targetValue) {
+            targetValue = value;
+            targetIndex = index;
+        }
+    });
+
+    return targetIndex;
+}
+
+function getSampleStandardDeviation(values) {
+    if (!Array.isArray(values) || values.length === 0) return null;
+    if (values.length === 1) return 0;
+
+    const meanValue = values.reduce((total, value) => total + value, 0) / values.length;
+    const variance = values.reduce((total, value) => total + ((value - meanValue) ** 2), 0) / (values.length - 1);
+    return Math.sqrt(variance);
+}
+
+function getSessionStatsAverageTrimCounts(length) {
+    const trim = getAverageTrimCount(length);
+    if (trim * 2 === length) {
+        return {
+            low: Math.max(trim - 1, 0),
+            high: Math.max(trim - 1, 0),
+        };
+    }
+
+    return { low: trim, high: trim };
+}
+
+function getTrimmedAverageContributingTimes(values, trimCounts) {
+    const lowTrim = trimCounts.low;
+    const highTrim = trimCounts.high;
+    const dnfCount = values.filter((value) => !Number.isFinite(value)).length;
+    if (dnfCount > highTrim) return null;
+
+    const sortedFinite = values
+        .filter((value) => Number.isFinite(value))
+        .sort((a, b) => a - b);
+    const finiteHighTrim = highTrim - dnfCount;
+    const endIndex = sortedFinite.length - finiteHighTrim;
+    if (endIndex <= lowTrim) return [];
+
+    return sortedFinite.slice(lowTrim, endIndex);
+}
+
+function getSessionStatsTrimmedAverageSummary(values) {
+    if (!Array.isArray(values) || values.length === 0) {
+        return { value: null, metrics: { sigma: null, cv: null } };
+    }
+
+    const trimCounts = getSessionStatsAverageTrimCounts(values.length);
+    if (values.length - trimCounts.low - trimCounts.high <= 0) {
+        return { value: Infinity, metrics: { sigma: 0, cv: null } };
+    }
+
+    const contributingTimes = getTrimmedAverageContributingTimes(values, trimCounts);
+    if (!contributingTimes) {
+        return { value: Infinity, metrics: { sigma: null, cv: null } };
+    }
+
+    const value = contributingTimes.reduce((total, time) => total + time, 0) / contributingTimes.length;
+    const sigma = getSampleStandardDeviation(contributingTimes);
+    const cv = sigma != null && value > 0 ? (sigma / value) * 100 : null;
+
+    return { value, metrics: { sigma, cv } };
+}
+
+function getRollingStatContributingTimes(times, index, config) {
+    if (!config || index < config.windowSize - 1) return [];
+
+    const window = times.slice(index - config.windowSize + 1, index + 1);
+    if (config.kind === 'mo') {
+        return window.every((value) => Number.isFinite(value)) ? window : [];
+    }
+
+    const dnfCount = window.filter((value) => value === Infinity).length;
+    if (dnfCount > config.trim) return [];
+
+    const sortedFinite = window
+        .filter((value) => Number.isFinite(value))
+        .sort((a, b) => a - b);
+    const highTrim = config.trim - dnfCount;
+    const endIndex = sortedFinite.length - highTrim;
+    if (endIndex <= config.trim) return [];
+
+    return sortedFinite.slice(config.trim, endIndex);
+}
+
+function getRollingStatVariation(times, index, config, value) {
+    if (!Number.isFinite(value)) {
+        return { sigma: null, cv: null };
+    }
+
+    const contributingTimes = getRollingStatContributingTimes(times, index, config);
+    const sigma = getSampleStandardDeviation(contributingTimes);
+    const cv = sigma != null && value > 0 ? (sigma / value) * 100 : null;
+    return { sigma, cv };
+}
+
+function formatSessionStatsCv(value) {
+    return Number.isFinite(value) ? `${value.toFixed(2)}%` : '-';
+}
+
+function formatSessionStatsSigma(value) {
+    return Number.isFinite(value) ? (value / 1000).toFixed(2) : '-';
+}
+
+function formatSessionStatsSecondaryMetric(metrics, metricMode = sessionStatsMetricMode) {
+    if (metricMode === SESSION_STATS_METRIC_CV) {
+        return Number.isFinite(metrics?.cv) ? `(CV=${formatSessionStatsCv(metrics.cv)})` : '';
+    }
+
+    return Number.isFinite(metrics?.sigma) ? `(σ=${formatSessionStatsSigma(metrics.sigma)})` : '';
+}
+
+function formatSessionStatsTextMetrics(metrics) {
+    if (!Number.isFinite(metrics?.sigma) && !Number.isFinite(metrics?.cv)) return '';
+
+    const parts = [];
+    if (Number.isFinite(metrics?.sigma)) parts.push(`σ = ${formatSessionStatsSigma(metrics.sigma)}`);
+    if (Number.isFinite(metrics?.cv)) parts.push(`CV = ${formatSessionStatsCv(metrics.cv)}`);
+    return ` (${parts.join(', ')})`;
+}
+
+function formatSessionStatsValue(value, metrics = null, metricMode = sessionStatsMetricMode) {
+    if (value == null) return '-';
+
+    const valueText = formatTime(value);
+    const secondaryText = formatSessionStatsSecondaryMetric(metrics, metricMode);
+    return secondaryText ? `${valueText} ${secondaryText}` : valueText;
+}
+
+function getReadableRollingStatLabel(statType) {
+    const config = parseRollingStatType(statType);
+    if (!config) return statType;
+
+    return `${config.kind === 'mo' ? 'Mean' : 'Average'} of ${config.windowSize}`;
+}
+
+function getSessionStatsRollingRows(times) {
+    return getConfiguredSummaryStatTokens()
+        .map((statType) => {
+            const config = getRollingStatConfig(statType);
+            if (!config || times.length < config.windowSize) return null;
+
+            const summary = getRollingStatSummary(times, statType);
+            const currentIndex = times.length - 1;
+            const current = summary.current;
+            const best = summary.value;
+            return {
+                type: statType,
+                label: getReadableRollingStatLabel(statType),
+                current,
+                best,
+                currentIndex,
+                bestIndex: summary.index,
+                currentMetrics: getRollingStatVariation(times, currentIndex, config, current),
+                bestMetrics: summary.index >= 0
+                    ? getRollingStatVariation(times, summary.index, config, best)
+                    : { sigma: null, cv: null },
+            };
+        })
+        .filter(Boolean);
+}
+
+function buildSessionStatsModel() {
+    const solves = syncStatsCacheWithFilteredSolves();
+    const stats = statsCache.getStats();
+    const source = getSelectedMainStatsSource(solves);
+    const sourceContext = getMainStatsSourceContext(solves, source);
+    const times = sourceContext.times;
+    const finiteTimes = getFiniteSessionStatValues(times);
+    const bestIndex = findExtremeFiniteTimeIndex(times, 'best');
+    const worstIndex = findExtremeFiniteTimeIndex(times, 'worst');
+
+    return {
+        solves,
+        stats,
+        source,
+        sourceContext,
+        times,
+        finiteTimes,
+        validCount: finiteTimes.length,
+        solveCount: solves.length,
+        sessionMean: sourceContext.sessionMean,
+        sessionAverage: getSessionStatsTrimmedAverageSummary(times),
+        totalTime: getSessionStatsTotalTime(solves),
+        bestIndex,
+        best: bestIndex >= 0 ? times[bestIndex] : null,
+        worstIndex,
+        worst: worstIndex >= 0 ? times[worstIndex] : null,
+        rows: getSessionStatsRollingRows(times),
+    };
+}
+
+function setSessionStatsButtonDisabled(button, disabled) {
+    if (!button) return;
+    button.disabled = disabled;
+    button.classList.toggle('is-clickable', !disabled);
+}
+
+function renderSessionStatsMetricToggle() {
+    document.querySelectorAll('[data-session-stats-metric]').forEach((button) => {
+        const isActive = button.dataset.sessionStatsMetric === sessionStatsMetricMode;
+        button.classList.toggle('active-toggle', isActive);
+        button.setAttribute('aria-pressed', String(isActive));
+    });
+}
+
+function getSessionStatsTableFitTargets(table) {
+    if (!table) return [];
+    return Array.from(table.querySelectorAll('thead th, tbody td:first-child, .session-stats-value'))
+        .filter((el) => el instanceof HTMLElement && el.clientWidth > 0);
+}
+
+function getSessionStatsTableMaxOverflowRatio(targets) {
+    return targets.reduce((maxRatio, el) => {
+        const availableWidth = Math.max(0, el.clientWidth);
+        if (availableWidth <= 0) return maxRatio;
+
+        const requiredWidth = Math.max(0, el.scrollWidth);
+        if (requiredWidth <= availableWidth + 0.5) return maxRatio;
+        return Math.max(maxRatio, requiredWidth / availableWidth);
+    }, 1);
+}
+
+function fitSessionStatsTableText() {
+    const table = sessionStatsOverlayEl?.querySelector('.session-stats-table');
+    if (!table) return;
+
+    table.style.removeProperty(SESSION_STATS_TABLE_FONT_SIZE_PROPERTY);
+    if (!isSessionStatsModalOpen() || !mobileViewportQuery.matches) return;
+
+    const targets = getSessionStatsTableFitTargets(table);
+    if (!targets.length) return;
+
+    const baseFontSizePx = parseFloat(getComputedStyle(table).fontSize) || 12;
+    const maxOverflowRatio = getSessionStatsTableMaxOverflowRatio(targets);
+    if (maxOverflowRatio <= 1) return;
+
+    let nextFontSizePx = Math.max(
+        SESSION_STATS_TABLE_MIN_FONT_SIZE_PX,
+        Math.floor((baseFontSizePx / maxOverflowRatio) * 10) / 10,
+    );
+
+    table.style.setProperty(SESSION_STATS_TABLE_FONT_SIZE_PROPERTY, `${nextFontSizePx}px`);
+
+    for (let i = 0; i < 16 && nextFontSizePx > SESSION_STATS_TABLE_MIN_FONT_SIZE_PX; i += 1) {
+        if (getSessionStatsTableMaxOverflowRatio(targets) <= 1) break;
+        nextFontSizePx = Math.max(SESSION_STATS_TABLE_MIN_FONT_SIZE_PX, nextFontSizePx - 0.5);
+        table.style.setProperty(SESSION_STATS_TABLE_FONT_SIZE_PROPERTY, `${nextFontSizePx}px`);
+    }
+}
+
+function scheduleSessionStatsTableFit() {
+    if (sessionStatsTableFitFrame) {
+        window.cancelAnimationFrame(sessionStatsTableFitFrame);
+    }
+
+    sessionStatsTableFitFrame = window.requestAnimationFrame(() => {
+        sessionStatsTableFitFrame = 0;
+        fitSessionStatsTableText();
+    });
+}
+
+function cancelSessionStatsTableFit() {
+    if (!sessionStatsTableFitFrame) return;
+    window.cancelAnimationFrame(sessionStatsTableFitFrame);
+    sessionStatsTableFitFrame = 0;
+}
+
+function renderSessionStatsModal() {
+    if (!sessionStatsOverlayEl) return;
+
+    const model = buildSessionStatsModel();
+    const titleEl = document.getElementById('session-stats-title');
+    const sourceEl = document.getElementById('session-stats-source');
+    const solvesTotalEl = document.getElementById('session-stats-solves-total');
+    const sessionMeanEl = document.getElementById('session-stats-session-mean');
+    const totalTimeEl = document.getElementById('session-stats-total-time');
+    const bestSingleButton = document.getElementById('session-stats-best-single');
+    const worstSingleButton = document.getElementById('session-stats-worst-single');
+    const tableShell = sessionStatsOverlayEl.querySelector('.session-stats-table-shell');
+    const tableBody = document.getElementById('session-stats-table-body');
+    const emptyEl = document.getElementById('session-stats-empty');
+
+    if (titleEl) titleEl.textContent = getSessionStatsTitle();
+    if (sourceEl) {
+        sourceEl.textContent = model.source === MAIN_STATS_SOURCE_TIME ? '' : getMainStatsSourceLabel(model.source);
+        sourceEl.hidden = model.source === MAIN_STATS_SOURCE_TIME;
+    }
+    if (solvesTotalEl) solvesTotalEl.textContent = `solves/total: ${model.validCount}/${model.solveCount}`;
+    if (sessionMeanEl) sessionMeanEl.textContent = `Mean: ${model.sessionMean != null ? formatTime(model.sessionMean) : '-'}`;
+    if (totalTimeEl) totalTimeEl.textContent = `Total time spent: ${formatSessionStatsDuration(model.totalTime)}`;
+
+    if (bestSingleButton) {
+        bestSingleButton.textContent = `best: ${model.best != null ? formatTime(model.best) : '-'}`;
+        bestSingleButton.dataset.sessionStatsSingle = 'best';
+        setSessionStatsButtonDisabled(bestSingleButton, model.bestIndex < 0);
+    }
+    if (worstSingleButton) {
+        worstSingleButton.textContent = `worst: ${model.worst != null ? formatTime(model.worst) : '-'}`;
+        worstSingleButton.dataset.sessionStatsSingle = 'worst';
+        setSessionStatsButtonDisabled(worstSingleButton, model.worstIndex < 0);
+    }
+
+    renderSessionStatsMetricToggle();
+
+    if (tableShell) tableShell.hidden = model.rows.length === 0;
+    if (emptyEl) emptyEl.hidden = model.rows.length > 0;
+    if (!tableBody) return;
+
+    tableBody.innerHTML = model.rows.map((row) => {
+        const currentClickable = row.current != null;
+        const bestClickable = row.best != null && row.bestIndex >= 0;
+
+        return `<tr>
+            <td>${escapeHtml(row.label)}</td>
+            <td>
+                <button class="session-stats-value" type="button"
+                    data-session-stats-type="${escapeHtml(row.type)}" data-session-stats-which="current"
+                    ${currentClickable ? '' : 'disabled'}>
+                    ${escapeHtml(formatSessionStatsValue(row.current, row.currentMetrics))}
+                </button>
+            </td>
+            <td>
+                <button class="session-stats-value" type="button"
+                    data-session-stats-type="${escapeHtml(row.type)}" data-session-stats-which="best"
+                    ${bestClickable ? '' : 'disabled'}>
+                    ${escapeHtml(formatSessionStatsValue(row.best, row.bestMetrics))}
+                </button>
+            </td>
+        </tr>`;
+    }).join('');
+    scheduleSessionStatsTableFit();
+}
+
+function formatSessionStatsTextLine(label, value, metrics) {
+    return `    ${label}: ${value != null ? formatTime(value) : '-'}${formatSessionStatsTextMetrics(metrics)}`;
+}
+
+function formatSessionStatsTimeListLine(solve, index, source, sourceLabel, options = {}) {
+    const commentSuffix = getSessionStatsTextCommentSuffix(solve, options);
+    const scramble = String(solve?.scramble ?? '').trim();
+    const scrambleSuffix = scramble ? `   ${scramble}` : '';
+    const dateSuffix = getSessionStatsTextDateSuffix(solve, options);
+
+    if (source === MAIN_STATS_SOURCE_TIME) {
+        return `${index + 1}. ${formatSolveTimeWithSplits(solve)}${commentSuffix}${scrambleSuffix}${dateSuffix}`;
+    }
+
+    return `${index + 1}. ${sourceLabel}: ${formatSolveForMainStatsSource(solve, source)} (time: ${formatSolveTimeWithSplits(solve)})${commentSuffix}${scrambleSuffix}${dateSuffix}`;
+}
+
+function formatSessionStatsCompactTimeListEntry(solve, source, options = {}) {
+    const timeText = source === MAIN_STATS_SOURCE_TIME
+        ? formatSolveTimeWithSplits(solve)
+        : formatSolveForMainStatsSource(solve, source);
+    return `${timeText}${getSessionStatsTextCommentSuffix(solve, options)}`;
+}
+
+function buildSessionStatsText(model = buildSessionStatsModel(), options = {}) {
+    const sourceLabel = getMainStatsSourceLabel(model.source);
+    const includeTimeList = options.includeTimeList !== false;
+    const isCompactSummary = options.compactSummary === true;
+    const lines = [
+        `Generated by UkraTimer on ${formatReadableDate(Date.now())}`,
+        `solves/total: ${model.validCount}/${model.solveCount}`,
+        `Total time spent: ${formatSessionStatsDuration(model.totalTime)}`,
+        '',
+        'single',
+        `    best: ${model.best != null ? formatTime(model.best) : '-'}`,
+        `    worst: ${model.worst != null ? formatTime(model.worst) : '-'}`,
+    ];
+
+    model.rows.forEach((row) => {
+        lines.push(
+            '',
+            row.type,
+            formatSessionStatsTextLine('current', row.current, row.currentMetrics),
+            formatSessionStatsTextLine('best', row.best, row.bestMetrics),
+        );
+    });
+
+    lines.push(
+        '',
+        `Average: ${model.sessionAverage.value != null ? formatTime(model.sessionAverage.value) : '-'}${formatSessionStatsTextMetrics(model.sessionAverage.metrics)}`,
+        `Mean: ${model.sessionMean != null ? formatTime(model.sessionMean) : '-'}`,
+    );
+
+    if (includeTimeList) {
+        if (isCompactSummary) {
+            lines.push(
+                '',
+                `Time List: ${model.solves.map((solve) => formatSessionStatsCompactTimeListEntry(solve, model.source, options)).join(', ')}`,
+            );
+        } else {
+            lines.push(
+                '',
+                'Time List:',
+                ...model.solves.map((solve, index) => formatSessionStatsTimeListLine(solve, index, model.source, sourceLabel, options)),
+            );
+        }
+    }
+
+    return lines.join('\n');
+}
+
+function blurFocusedSessionStatsElement() {
+    const activeElement = document.activeElement;
+    if (!(activeElement instanceof HTMLElement) || !sessionStatsOverlayEl?.contains(activeElement)) return;
+    activeElement.blur();
+}
+
+function closeSessionStatsModal({ isPopState = false, preserveHistoryState = false } = {}) {
+    if (!isSessionStatsModalOpen()) return;
+
+    if (!isPopState && !preserveHistoryState) backToDismiss();
+    blurFocusedSessionStatsElement();
+    cancelSessionStatsTableFit();
+    sessionStatsOverlayEl.classList.remove('active');
+    sessionStatsOverlayEl.setAttribute('aria-hidden', 'true');
+}
+
+function showSessionStatsModal({ preserveHistoryState = false } = {}) {
+    if (!sessionStatsOverlayEl) return;
+
+    if (!isSessionStatsModalOpen() && !preserveHistoryState) pushHistoryState();
+    renderSessionStatsModal();
+    sessionStatsOverlayEl.classList.add('active');
+    sessionStatsOverlayEl.setAttribute('aria-hidden', 'false');
+    document.getElementById('session-stats-close')?.focus({ preventScroll: true });
+}
+
+function refreshSessionStatsModalIfOpen() {
+    if (isSessionStatsModalOpen()) renderSessionStatsModal();
+}
+
+function restoreSessionStatsModalAfterDetailClose({ isPopState = false } = {}) {
+    showSessionStatsModal({ preserveHistoryState: !isPopState });
+}
+
+function prepareSessionStatsDetailOpen() {
+    closeSessionStatsModal({ preserveHistoryState: true });
+    setModalCloseHandler(restoreSessionStatsModalAfterDetailClose);
+}
+
+function openSessionStatsTextDetail() {
+    const model = buildSessionStatsModel();
+    const title = getSessionStatsTitle();
+    prepareSessionStatsDetailOpen();
+    showTextDetail(title, (options) => buildSessionStatsText(model, options), {
+        supportsCompactSummary: true,
+        mobileCopyActions: [
+            {
+                key: 'summary',
+                label: 'Copy Summary',
+                buildText: (options) => buildSessionStatsText(model, { ...options, includeTimeList: false }),
+            },
+            {
+                key: 'summary-time-list',
+                label: 'Copy Summary & Time List',
+                buildText: (options) => buildSessionStatsText(model, { ...options, includeTimeList: true }),
+            },
+        ],
+    });
+}
+
+function openSessionStatsSingleDetail(which) {
+    const model = buildSessionStatsModel();
+    const index = which === 'worst' ? model.worstIndex : model.bestIndex;
+    if (index < 0) return;
+
+    prepareSessionStatsDetailOpen();
+    const opened = openStatDetailAtIndex('time', model.solves, model.stats, index, {
+        isBest: which === 'best',
+        times: model.times,
+        statSource: model.source,
+    });
+    if (!opened) {
+        setModalCloseHandler(null);
+        showSessionStatsModal({ preserveHistoryState: true });
+    }
+}
+
+function openSessionStatsRollingDetail(type, which) {
+    const model = buildSessionStatsModel();
+    const row = model.rows.find((entry) => entry.type === type);
+    if (!row) return;
+
+    const index = which === 'best' ? row.bestIndex : row.currentIndex;
+    if (index < 0) return;
+
+    prepareSessionStatsDetailOpen();
+    const opened = openStatDetailAtIndex(type, model.solves, model.stats, index, {
+        label: which === 'best' ? `Best ${type}` : type,
+        times: model.times,
+        statSource: model.source,
+    });
+    if (!opened) {
+        setModalCloseHandler(null);
+        showSessionStatsModal({ preserveHistoryState: true });
+    }
+}
+
+function setSessionInfoSharedHover(isActive) {
+    document.getElementById('session-info')?.classList.toggle('session-info-shared-hover', isActive);
+}
+
+function initSessionInfoTrigger() {
+    const sessionInfoEl = document.getElementById('session-info');
+    const triggerEls = [
+        document.getElementById('solve-count'),
+        document.getElementById('session-mean'),
+    ].filter(Boolean);
+    if (!sessionInfoEl || triggerEls.length === 0) return;
+
+    sessionInfoEl.classList.add('session-info-action');
+    triggerEls.forEach((triggerEl) => {
+        triggerEl.tabIndex = 0;
+        triggerEl.setAttribute('role', 'button');
+        triggerEl.setAttribute('aria-haspopup', 'dialog');
+        triggerEl.setAttribute('aria-controls', 'session-stats-overlay');
+        triggerEl.setAttribute('aria-label', 'Open session stats');
+        triggerEl.dataset.noTimerStart = 'true';
+
+        triggerEl.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            showSessionStatsModal();
+        });
+        triggerEl.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            event.preventDefault();
+            showSessionStatsModal();
+        });
+        triggerEl.addEventListener('pointerenter', () => setSessionInfoSharedHover(true));
+        triggerEl.addEventListener('pointerleave', () => setSessionInfoSharedHover(false));
+        triggerEl.addEventListener('focus', () => setSessionInfoSharedHover(true));
+        triggerEl.addEventListener('blur', () => setSessionInfoSharedHover(false));
+    });
+}
+
+function initSessionStatsModal() {
+    sessionStatsOverlayEl = document.getElementById('session-stats-overlay');
+    if (!sessionStatsOverlayEl) return;
+
+    initSessionInfoTrigger();
+
+    sessionStatsOverlayEl.addEventListener('mousedown', (event) => {
+        sessionStatsMouseDownTarget = event.target;
+    });
+    sessionStatsOverlayEl.addEventListener('mouseup', (event) => {
+        sessionStatsMouseUpTarget = event.target;
+    });
+    sessionStatsOverlayEl.addEventListener('click', (event) => {
+        if (sessionStatsMouseDownTarget === sessionStatsOverlayEl && sessionStatsMouseUpTarget === sessionStatsOverlayEl) {
+            closeSessionStatsModal();
+        }
+        sessionStatsMouseDownTarget = null;
+        sessionStatsMouseUpTarget = null;
+    });
+
+    document.getElementById('session-stats-close')?.addEventListener('click', () => {
+        closeSessionStatsModal();
+    });
+    document.getElementById('session-stats-summary-row')?.addEventListener('click', () => {
+        openSessionStatsTextDetail();
+    });
+    document.getElementById('session-stats-best-single')?.addEventListener('click', () => {
+        openSessionStatsSingleDetail('best');
+    });
+    document.getElementById('session-stats-worst-single')?.addEventListener('click', () => {
+        openSessionStatsSingleDetail('worst');
+    });
+
+    document.getElementById('session-stats-metric-toggle')?.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-session-stats-metric]');
+        if (!button) return;
+
+        const metric = normalizeSessionStatsMetricMode(button.dataset.sessionStatsMetric);
+        sessionStatsMetricMode = metric;
+        settings.set('sessionStatsMetricMode', metric);
+        renderSessionStatsModal();
+    });
+
+    document.getElementById('session-stats-table-body')?.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-session-stats-type]');
+        if (!button || button.disabled) return;
+        openSessionStatsRollingDetail(button.dataset.sessionStatsType, button.dataset.sessionStatsWhich);
+    });
+
+    window.addEventListener('resize', () => {
+        if (isSessionStatsModalOpen()) scheduleSessionStatsTableFit();
+    });
+    window.addEventListener('orientationchange', () => {
+        if (isSessionStatsModalOpen()) scheduleSessionStatsTableFit();
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.code !== 'Escape') return;
+        if (!isSessionStatsModalOpen()) return;
+        if (document.getElementById('confirm-overlay')?.classList.contains('active')) return;
+
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        closeSessionStatsModal();
+    });
 }
 
 function renderMainStatsSourceLabelCell(source, phaseColumnCount) {

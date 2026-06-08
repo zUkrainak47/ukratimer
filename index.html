@@ -664,6 +664,10 @@
           <button id="modal-share-detail" class="btn-action btn-action-primary" type="button">Share Detail</button>
           <button id="modal-copy-scramble" class="btn-action" type="button" hidden>Copy Scramble</button>
         </div>
+        <div id="modal-mobile-text-actions" class="modal-mobile-text-actions" hidden>
+          <button id="modal-copy-summary" class="btn-action btn-action-primary" type="button">Copy Summary</button>
+          <button id="modal-copy-summary-time-list" class="btn-action btn-action-primary" type="button">Copy Summary &amp; Time List</button>
+        </div>
         <div id="modal-stat-nav" class="modal-stat-nav" style="display:none;">
           <button class="btn-action" data-stat-type="time" data-min-index="0" title="Single">1</button>
           <button class="btn-action" data-stat-type="mo3" data-min-index="2" title="Mean of 3">3</button>
@@ -731,6 +735,52 @@
             <button id="modal-secondary-copy-scramble" class="btn-action" type="button" hidden>Copy Scramble</button>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="session-stats-overlay" class="modal-overlay session-stats-overlay" aria-hidden="true" role="dialog"
+    aria-modal="true" aria-labelledby="session-stats-title">
+    <div class="modal-box session-stats-modal-box">
+      <div class="modal-header session-stats-modal-header">
+        <div class="session-stats-title-group">
+          <h2 id="session-stats-title">Session Stats</h2>
+          <div id="session-stats-source" class="session-stats-source"></div>
+        </div>
+        <div id="session-stats-metric-toggle" class="session-stats-metric-toggle" role="group"
+          aria-label="Secondary metric">
+          <button class="btn-action active-toggle" type="button" data-session-stats-metric="sigma"
+            title="Standard deviation" aria-label="Show standard deviation" aria-pressed="true">σ</button>
+          <button class="btn-action" type="button" data-session-stats-metric="cv"
+            title="Coefficient of variation" aria-label="Show coefficient of variation" aria-pressed="false">CV</button>
+        </div>
+        <button id="session-stats-close" class="modal-close" type="button"
+          aria-label="Close session stats">✕</button>
+      </div>
+      <div class="modal-body session-stats-modal-body">
+        <button id="session-stats-summary-row" class="session-stats-summary-row" type="button">
+          <span id="session-stats-solves-total">solves/total: 0/0</span>
+          <span id="session-stats-session-mean">Mean: -</span>
+        </button>
+        <div id="session-stats-total-time" class="session-stats-total-time">Total time spent: -</div>
+        <div class="session-stats-extremes">
+          <button id="session-stats-best-single" class="session-stats-extreme" type="button">best: -</button>
+          <span class="session-stats-extreme-divider" aria-hidden="true">|</span>
+          <button id="session-stats-worst-single" class="session-stats-extreme" type="button">worst: -</button>
+        </div>
+        <div class="session-stats-table-shell">
+          <table class="session-stats-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th>current</th>
+                <th>best</th>
+              </tr>
+            </thead>
+            <tbody id="session-stats-table-body"></tbody>
+          </table>
+        </div>
+        <div id="session-stats-empty" class="session-stats-empty" hidden>No session stats yet.</div>
       </div>
     </div>
   </div>

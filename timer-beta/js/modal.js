@@ -14,6 +14,9 @@ let _mobileShareActions = null;
 let _mobileCopyScrambleButton = null;
 let _mobileCopyButton = null;
 let _mobileShareButton = null;
+let _mobileTextActions = null;
+let _mobileCopySummaryButton = null;
+let _mobileCopySummaryTimeListButton = null;
 let _mobileListPanel = null;
 let _mobileList = null;
 let _mobileExportToast = null;
@@ -52,6 +55,7 @@ let _secondaryModalSource = null;
 let _currentSolveIndex = null;
 let _selectedStatContext = null;
 let _onStatNavigate = null;
+let _onPrimaryModalClose = null;
 let _currentDetailPayload = null;
 let _currentModalSource = null;
 let _ghostClickGuardCleanup = null;
@@ -88,8 +92,12 @@ function isAverageSummaryModal(source = _currentModalSource) {
     return source?.type === 'average';
 }
 
+function supportsCompactSummary(source = _currentModalSource) {
+    return isAverageSummaryModal(source) || source?.supportsCompactSummary === true;
+}
+
 function isCompactAverageSummaryEnabled(source = _currentModalSource) {
-    return isAverageSummaryModal(source) && modalCopyOptions.compactAverageSummary;
+    return supportsCompactSummary(source) && modalCopyOptions.compactAverageSummary;
 }
 
 function parseSummaryTimestampDisplay(value) {
@@ -286,7 +294,7 @@ function updateCopyOptionVisibilityForSource(source, includeAbsoluteIndexBtn, co
         includeAbsoluteIndexBtn.style.display = shouldShowAverageOptions ? '' : 'none';
     }
     if (compactBtn) {
-        compactBtn.style.display = shouldShowAverageOptions ? '' : 'none';
+        compactBtn.style.display = supportsCompactSummary(source) ? '' : 'none';
     }
 }
 
@@ -683,6 +691,9 @@ export function initModal() {
     _mobileCopyScrambleButton = document.getElementById('modal-copy-scramble');
     _mobileCopyButton = document.getElementById('modal-copy-detail');
     _mobileShareButton = document.getElementById('modal-share-detail');
+    _mobileTextActions = document.getElementById('modal-mobile-text-actions');
+    _mobileCopySummaryButton = document.getElementById('modal-copy-summary');
+    _mobileCopySummaryTimeListButton = document.getElementById('modal-copy-summary-time-list');
     _mobileListPanel = document.getElementById('modal-mobile-list-panel');
     _mobileList = document.getElementById('modal-mobile-list');
     _secondaryMobileSummary = document.getElementById('modal-secondary-mobile-summary');
@@ -854,6 +865,14 @@ export function initModal() {
         shareCurrentDetail();
     });
 
+    _mobileCopySummaryButton?.addEventListener('click', () => {
+        copyMobileTextAction('summary', _mobileCopySummaryButton);
+    });
+
+    _mobileCopySummaryTimeListButton?.addEventListener('click', () => {
+        copyMobileTextAction('summary-time-list', _mobileCopySummaryTimeListButton);
+    });
+
     _secondaryMobileCopyButton?.addEventListener('click', () => {
         copySecondaryDetailToClipboard();
     });
@@ -992,6 +1011,7 @@ export function initModal() {
     const handleMobileDetailViewportChange = () => {
         if (_overlay?.classList.contains('active')) {
             renderMobileDetail(_currentDetailPayload);
+            renderMobileTextDetail(_currentModalSource);
             renderSecondaryMobileDetail(_secondaryDetailPayload);
         }
     };
@@ -1017,6 +1037,10 @@ export function setModalStatNavigator(callback) {
     _onStatNavigate = callback;
 }
 
+export function setModalCloseHandler(callback) {
+    _onPrimaryModalClose = typeof callback === 'function' ? callback : null;
+}
+
 export function setModalStatButtons(buttons) {
     if (!_statNav && !_secondaryStatNav) return;
 
@@ -1038,10 +1062,10 @@ function expandReadableStatLabel(rawLabel) {
     ));
     return expanded
         .replace(/^(Best\s+)(P\.[1-9]\d*)\s+((?:Mean|Average) of [1-9]\d*)$/i, (_, bestPrefix, phaseLabel, statLabel) => (
-            `${bestPrefix}${phaseLabel} ${statLabel.toLowerCase()}`
+            `${bestPrefix}${phaseLabel} ${statLabel}`
         ))
         .replace(/^(P\.[1-9]\d*)\s+((?:Mean|Average) of [1-9]\d*)$/i, (_, phaseLabel, statLabel) => (
-            `${phaseLabel} ${statLabel.toLowerCase()}`
+            `${phaseLabel} ${statLabel}`
         ));
 }
 
@@ -1371,8 +1395,38 @@ function getSingleDetailOptionsForSource(source = _currentModalSource) {
     };
 }
 
+function getTextDetailCopyOptions(source = _currentModalSource) {
+    const isCompactSummary = isCompactAverageSummaryEnabled(source);
+    return {
+        includeComments: modalCopyOptions.includeComments,
+        scrambleTimestampDisplay: isCompactSummary ? SUMMARY_TIMESTAMP_DISPLAY_OFF : modalCopyOptions.scrambleTimestampDisplay,
+        compactSummary: isCompactSummary,
+    };
+}
+
+function buildTextDetailText(source) {
+    if (typeof source?.buildText === 'function') {
+        return String(source.buildText(getTextDetailCopyOptions(source)) ?? '');
+    }
+
+    return String(source?.text ?? '');
+}
+
+function getTextDetailMobileCopyActions(source = _currentModalSource) {
+    return Array.isArray(source?.mobileCopyActions)
+        ? source.mobileCopyActions.filter((action) => typeof action?.buildText === 'function')
+        : [];
+}
+
 function rerenderCurrentModalSource() {
     if (!_overlay?.classList.contains('active') || !_currentModalSource) return;
+
+    if (_currentModalSource.type === 'text') {
+        const nextText = buildTextDetailText(_currentModalSource);
+        _currentModalSource.text = nextText;
+        _showModal(_currentModalSource.title, nextText, null, _currentDetailPayload);
+        return;
+    }
 
     if (_currentModalSource.type === 'single') {
         const solveSession = getCurrentSingleSolveSession();
@@ -1640,6 +1694,46 @@ function renderMobileDetail(detailPayload) {
     _mobileList.scrollTop = 0;
 }
 
+function renderMobileTextDetail(source = _currentModalSource) {
+    if (!_overlay || !_mobileTextActions) return false;
+
+    const actions = getTextDetailMobileCopyActions(source);
+    const shouldUseMobileTextDetail = source?.type === 'text' && actions.length > 0 && isMobileDetailLayout();
+    _overlay.classList.toggle('mobile-text-detail-active', shouldUseMobileTextDetail);
+    _mobileTextActions.hidden = !shouldUseMobileTextDetail;
+
+    if (!shouldUseMobileTextDetail) return false;
+
+    const summaryAction = actions.find((action) => action.key === 'summary') || actions[0] || null;
+    const summaryTimeListAction = actions.find((action) => action.key === 'summary-time-list') || actions[1] || null;
+
+    if (_mobileCopySummaryButton) {
+        _mobileCopySummaryButton.hidden = !summaryAction;
+        _mobileCopySummaryButton.textContent = summaryAction?.label || 'Copy Summary';
+        _mobileCopySummaryButton.dataset.originalLabel = summaryAction?.label || 'Copy Summary';
+    }
+    if (_mobileCopySummaryTimeListButton) {
+        _mobileCopySummaryTimeListButton.hidden = !summaryTimeListAction;
+        _mobileCopySummaryTimeListButton.textContent = summaryTimeListAction?.label || 'Copy Summary & Time List';
+        _mobileCopySummaryTimeListButton.dataset.originalLabel = summaryTimeListAction?.label || 'Copy Summary & Time List';
+    }
+
+    return true;
+}
+
+function getMobileTextCopyAction(key) {
+    const actions = getTextDetailMobileCopyActions();
+    return actions.find((action) => action.key === key) || null;
+}
+
+async function copyMobileTextAction(key, feedbackButton) {
+    const action = getMobileTextCopyAction(key);
+    if (!action) return false;
+
+    const text = String(action.buildText(getTextDetailCopyOptions(_currentModalSource)) ?? '');
+    return copyTextWithFeedback(text, feedbackButton);
+}
+
 function getSolveDetailMetaLabel(singleLabel) {
     return singleLabel === 'Single' || singleLabel === 'Best single'
         ? singleLabel.toLowerCase()
@@ -1788,7 +1882,9 @@ export function closeModal({ isPopState = false } = {}) {
         closeSecondaryModal({ restoreHistoryState: isPopState });
         return;
     }
-    if (!isPopState && window.history.state?.isBackIntercepted) {
+    const onClose = _onPrimaryModalClose;
+    _onPrimaryModalClose = null;
+    if (!isPopState && window.history.state?.isBackIntercepted && typeof onClose !== 'function') {
         window.history.back();
     }
     clearModalGhostClickGuard();
@@ -1804,12 +1900,37 @@ export function closeModal({ isPopState = false } = {}) {
     _mobileExportToast?.classList.remove('visible');
     window.clearTimeout(_mobileExportToastTimeout);
     renderMobileDetail(null);
+    renderMobileTextDetail(null);
     if (document.activeElement) document.activeElement.blur();
+    if (typeof onClose === 'function') {
+        onClose({ isPopState });
+    }
 }
 
 export function getModalSelectionContext() {
     if (!_overlay?.classList.contains('active')) return null;
     return isSecondaryModalActive() ? _secondarySelectedStatContext : _selectedStatContext;
+}
+
+export function showTextDetail(title, textOrBuilder, options = {}) {
+    const buildText = typeof textOrBuilder === 'function' ? textOrBuilder : null;
+    const source = {
+        type: 'text',
+        title,
+        text: '',
+        buildText,
+        supportsCompactSummary: options.supportsCompactSummary === true,
+        mobileCopyActions: Array.isArray(options.mobileCopyActions) ? options.mobileCopyActions : [],
+    };
+    const text = buildText
+        ? String(buildText(getTextDetailCopyOptions(source)) ?? '')
+        : String(textOrBuilder ?? '');
+    source.text = text;
+    _currentSolveIndex = null;
+    _selectedStatContext = null;
+    _currentDetailPayload = null;
+    _currentModalSource = source;
+    _showModal(title, text, null, null);
 }
 
 /**
@@ -2019,6 +2140,7 @@ function syncTextareaRegularHeight(textareaEl, rowCount) {
 function _showModal(title, text, solveContext = null, detailPayload = null) {
     document.getElementById('modal-title').textContent = title;
     _textarea.value = text;
+    _textarea.scrollTop = 0;
     _currentDetailPayload = detailPayload;
     updateModalCopyOptionVisibility();
     renderModalCopyOptionButtons();
@@ -2103,6 +2225,7 @@ function _showModal(title, text, solveContext = null, detailPayload = null) {
 
     updateStatNavigation();
     renderMobileDetail(detailPayload);
+    const isMobileTextDetail = renderMobileTextDetail(_currentModalSource);
 
     if (!window.history.state?.isBackIntercepted) {
         window.history.pushState({ isBackIntercepted: true }, '');
@@ -2110,9 +2233,19 @@ function _showModal(title, text, solveContext = null, detailPayload = null) {
 
     _overlay.classList.add('active');
 
-    if (!isMobileDetailLayout() || !detailPayload) {
+    if (!isMobileDetailLayout() || (!detailPayload && !isMobileTextDetail)) {
+        const shouldKeepTextareaAtTop = _currentModalSource?.type === 'text';
         requestAnimationFrame(() => {
             _textarea.focus();
+            if (shouldKeepTextareaAtTop) {
+                if (typeof _textarea.setSelectionRange === 'function') {
+                    _textarea.setSelectionRange(0, _textarea.value.length, 'backward');
+                } else {
+                    _textarea.select();
+                }
+                _textarea.scrollTop = 0;
+                return;
+            }
             _textarea.select();
         });
     }
