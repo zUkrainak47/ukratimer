@@ -401,6 +401,7 @@ const PHASE_LEADING_COLUMN_ADJUSTMENT_PX = 2;
 const PHASE_SESSION_INFO_EDGE_ADJUSTMENT_PX = 4;
 const SOLVES_TABLE_COMPOSITE_TIME_GAP_EM = 0.35;
 const SOLVES_TABLE_TIME_COLUMN_WIDTH_BUFFER_PX = 4;
+const DESKTOP_SOLVES_TABLE_STANDARD_INDEX_RATIO = 0.20;
 const DESKTOP_SOLVES_TABLE_WIDTHS = Object.freeze({
     phase: 70,
 });
@@ -11621,7 +11622,10 @@ function renderSummaryStats(stats, solves) {
     const solveCount = stats.count;
     const validCount = times.filter((time) => Number.isFinite(time)).length;
     const meanStr = sourceContext.sessionMean != null ? formatTime(sourceContext.sessionMean) : '-';
-    document.getElementById('solve-count').textContent = `solve: ${validCount}/${solveCount}`;
+    const shouldUseCompactSolveCount = phaseColumnCount > 0 && solveCount >= 100000;
+    document.getElementById('solve-count').textContent = shouldUseCompactSolveCount
+        ? `${validCount}/${solveCount}`
+        : `solve: ${validCount}/${solveCount}`;
     document.getElementById('session-mean').textContent = `mean: ${meanStr}`;
     renderPhaseMeanChips(solves);
 
@@ -11716,6 +11720,28 @@ function ensureValidSolvesTableSort(configuredColumns, solves = sessionManager.g
     currentSortDir = null;
 }
 
+function getSolvesTableColumnWeights(statCount, isMobile, longestStatLabelLength) {
+    const statWeight = longestStatLabelLength >= 7
+        ? (isMobile ? 3.45 : 3.25)
+        : longestStatLabelLength >= 6
+            ? (isMobile ? 3.2 : 3.1)
+            : 3;
+    const timeWeight = longestStatLabelLength >= 7
+        ? (isMobile ? 2.55 : 2.75)
+        : longestStatLabelLength >= 6
+            ? (isMobile ? 2.8 : 2.9)
+            : 3;
+    let indexWeight = isMobile ? 1 : 2;
+
+    if (!isMobile && statCount === SOLVES_TABLE_STAT_SETTING_KEYS.length) {
+        const nonIndexWeight = timeWeight + (statCount * statWeight);
+        indexWeight = nonIndexWeight
+            * (DESKTOP_SOLVES_TABLE_STANDARD_INDEX_RATIO / (1 - DESKTOP_SOLVES_TABLE_STANDARD_INDEX_RATIO));
+    }
+
+    return { indexWeight, timeWeight, statWeight };
+}
+
 function getBaseSolvesTablePixelWidths(configuredColumns, isMobile, availableWidth) {
     const statCount = configuredColumns.length;
     const safeWidth = Math.max(220, Number(availableWidth) || (isMobile ? 360 : 300));
@@ -11738,17 +11764,11 @@ function getBaseSolvesTablePixelWidths(configuredColumns, isMobile, availableWid
         };
     }
 
-    const indexWeight = isMobile ? 1 : 2;
-    const statWeight = longestStatLabelLength >= 7
-        ? (isMobile ? 3.45 : 3.25)
-        : longestStatLabelLength >= 6
-            ? (isMobile ? 3.2 : 3.1)
-            : 3;
-    const timeWeight = longestStatLabelLength >= 7
-        ? (isMobile ? 2.55 : 2.75)
-        : longestStatLabelLength >= 6
-            ? (isMobile ? 2.8 : 2.9)
-            : 3;
+    const { indexWeight, timeWeight, statWeight } = getSolvesTableColumnWeights(
+        statCount,
+        isMobile,
+        longestStatLabelLength,
+    );
     const totalWeight = indexWeight + timeWeight + (statCount * statWeight);
 
     return {
@@ -12334,17 +12354,11 @@ function syncSolvesTableHeader(configuredColumns, solves = sessionManager.getFil
             headerFontSize = '0.58rem';
         }
     } else {
-        const indexWeight = isMobile ? 1 : 2;
-        const statWeight = longestStatLabelLength >= 7
-            ? (isMobile ? 3.45 : 3.25)
-            : longestStatLabelLength >= 6
-                ? (isMobile ? 3.2 : 3.1)
-                : 3;
-        const timeWeight = longestStatLabelLength >= 7
-            ? (isMobile ? 2.55 : 2.75)
-            : longestStatLabelLength >= 6
-                ? (isMobile ? 2.8 : 2.9)
-                : 3;
+        const { indexWeight, timeWeight, statWeight } = getSolvesTableColumnWeights(
+            statCount,
+            isMobile,
+            longestStatLabelLength,
+        );
         const totalWeight = indexWeight + timeWeight + (statCount * statWeight);
         indexWidth = (indexWeight / totalWeight) * 100;
         timeWidth = (timeWeight / totalWeight) * 100;

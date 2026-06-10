@@ -244,6 +244,9 @@
 }
 
 #session-info span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     flex: 1;
     text-align: center;
     background: transparent;
@@ -759,6 +762,11 @@
     white-space: nowrap;
 }
 
+#solves-table td.solve-index-td {
+    position: relative;
+    overflow: visible;
+}
+
 #solves-table td.phase-split-cell {
     color: var(--text-secondary);
 }
@@ -794,6 +802,7 @@
     position: relative;
     display: inline-block;
     z-index: 2;
+    pointer-events: none;
 }
 
 .solve-index-indicator {
