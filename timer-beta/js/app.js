@@ -5831,9 +5831,11 @@ async function init() {
         incrementAutoExportSolveSequence();
         scheduleAutoExportEvery100Solves();
     });
-    sessionManager.on('solveUpdated', (solve) => {
+    sessionManager.on('solveUpdated', (solve, updateInfo = {}) => {
         dailyStreakStore.upsertSolve(solve);
-        rebuildStatsCache();
+        if (updateInfo.affectsStats !== false) {
+            rebuildStatsCache();
+        }
 
         const battleRoundId = battleManager.getLocalSolveRoundId(solve.timestamp);
         if (battleRoundId != null) {

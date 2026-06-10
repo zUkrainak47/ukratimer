@@ -943,10 +943,11 @@ export function isDailyStreakModalOpen() {
     return Boolean(_overlay?.classList.contains('active'));
 }
 
-export function refreshDailyStreakModal() {
+export async function refreshDailyStreakModal() {
     if (!isDailyStreakModalOpen()) return;
 
     const previousSelectedDayKey = _state.selectedDayKey;
+    await dailyStreakStore.ensureSolvesHydrated();
     renderDailyStreakModal();
     if (_state.buttonByDayKey.has(previousSelectedDayKey)) {
         setSelectedDay(previousSelectedDayKey, { showTooltip: false });
@@ -979,12 +980,13 @@ export function closeDailyStreakModal({ isPopState = false, preserveHistoryState
     hideTooltip();
 }
 
-export function showDailyStreakModal({ preserveHistoryState = false } = {}) {
+export async function showDailyStreakModal({ preserveHistoryState = false } = {}) {
     if (!_overlay) return;
 
     if (!isDailyStreakModalOpen() && !preserveHistoryState) requestDailyStreakHistoryState();
     blurActiveElement();
     _state.selectedDayKey = toDayKey(Date.now());
+    await dailyStreakStore.ensureSolvesHydrated();
     renderDailyStreakModal();
     _overlay.classList.add('active');
     _overlay.setAttribute('aria-hidden', 'false');

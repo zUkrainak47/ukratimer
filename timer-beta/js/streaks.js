@@ -125,22 +125,54 @@ export class DailyStreakStore {
         this._solves = new Map();
         this._solveDayKeys = new Map();
         this._dayCounts = new Map();
+        this._solvesHydrated = false;
+        this._hydratePromise = null;
     }
 
     async init() {
-        const { solves } = await db.getAllData();
-        this.replaceAll(solves);
+        const entries = await db.getSolveDayEntries();
+        this.replaceDayEntries(entries);
         return this;
+    }
+
+    replaceDayEntries(entries) {
+        this._solves.clear();
+        this._solveDayKeys.clear();
+        this._dayCounts.clear();
+        this._solvesHydrated = false;
+
+        (Array.isArray(entries) ? entries : []).forEach((entry) => {
+            if (!entry?.id || !Number.isFinite(entry.timestamp)) return;
+            const dayKey = toDayKey(entry.timestamp);
+            this._solveDayKeys.set(entry.id, dayKey);
+            incrementDayCount(this._dayCounts, dayKey);
+        });
     }
 
     replaceAll(solves) {
         this._solves.clear();
         this._solveDayKeys.clear();
         this._dayCounts.clear();
+        this._solvesHydrated = true;
 
         (Array.isArray(solves) ? solves : []).forEach((solve) => {
             this.upsertSolve(solve);
         });
+    }
+
+    async ensureSolvesHydrated() {
+        if (this._solvesHydrated) return this;
+        if (!this._hydratePromise) {
+            this._hydratePromise = db.getAllData()
+                .then(({ solves }) => {
+                    this.replaceAll(solves);
+                    return this;
+                })
+                .finally(() => {
+                    this._hydratePromise = null;
+                });
+        }
+        return this._hydratePromise;
     }
 
     upsertSolve(solve) {
@@ -149,14 +181,17 @@ export class DailyStreakStore {
         const previousDayKey = this._solveDayKeys.get(solve.id);
         decrementDayCount(this._dayCounts, previousDayKey);
 
-        const storedSolve = cloneSolve(solve);
-        this._solves.set(storedSolve.id, storedSolve);
-        const nextDayKey = getSolveDayKey(storedSolve);
+        const nextDayKey = getSolveDayKey(solve);
         if (nextDayKey) {
-            this._solveDayKeys.set(storedSolve.id, nextDayKey);
+            this._solveDayKeys.set(solve.id, nextDayKey);
             incrementDayCount(this._dayCounts, nextDayKey);
         } else {
-            this._solveDayKeys.delete(storedSolve.id);
+            this._solveDayKeys.delete(solve.id);
+        }
+
+        if (this._solvesHydrated) {
+            const storedSolve = cloneSolve(solve);
+            this._solves.set(storedSolve.id, storedSolve);
         }
     }
 
