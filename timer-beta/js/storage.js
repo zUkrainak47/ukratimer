@@ -821,6 +821,12 @@ function _normalizeMergedSessionOrder(sessions) {
     }));
 }
 
+function _appendItems(target, items) {
+    (Array.isArray(items) ? items : []).forEach((item) => {
+        target.push(item);
+    });
+}
+
 function _mergeImportedDataset(
     importedSessions,
     importedSolves,
@@ -908,8 +914,9 @@ function _mergeImportedDataset(
         }
 
         if (solveMatchMode === SOLVE_MATCH_MODE_LOGICAL_EXACT) {
-            finalSolves.push(
-                ..._mergeLogicalSessionSolves(
+            _appendItems(
+                finalSolves,
+                _mergeLogicalSessionSolves(
                     importedSessionSolves,
                     existingSessionSolves,
                     mergedSession.id,
@@ -920,8 +927,9 @@ function _mergeImportedDataset(
         }
 
         if (solveMatchMode === SOLVE_MATCH_MODE_ID_OR_LOGICAL_EXACT) {
-            finalSolves.push(
-                ..._mergeIdOrLogicalSessionSolves(
+            _appendItems(
+                finalSolves,
+                _mergeIdOrLogicalSessionSolves(
                     importedSessionSolves,
                     existingSessionSolves,
                     mergedSession.id,
@@ -932,8 +940,9 @@ function _mergeImportedDataset(
         }
 
         if (solveMatchMode === SOLVE_MATCH_MODE_LOGICAL_CSTIMER) {
-            finalSolves.push(
-                ..._mergeLogicalSessionSolves(importedSessionSolves, existingSessionSolves, mergedSession.id, {
+            _appendItems(
+                finalSolves,
+                _mergeLogicalSessionSolves(importedSessionSolves, existingSessionSolves, mergedSession.id, {
                     ...solveMatchOptions,
                     roundTimestampToSecond: true,
                     includeScramble: true,
