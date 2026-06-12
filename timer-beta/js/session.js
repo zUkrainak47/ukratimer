@@ -580,7 +580,9 @@ class SessionManager extends EventEmitter {
         session.solves.splice(solveIndex, 1);
         session.solveCount = Math.max(0, session.solveCount - 1);
         rebuildSolveIndexes(session);
-        this._trackSolvePersistence(db.deleteSolve(solveId), {
+        this._trackSolvePersistence(db.deleteSolve(solveId, {
+            sessionIds: [session.id],
+        }), {
             warningMessage: 'Could not persist solve deletion:',
         });
         this.emit('solveDeleted', solveId);
@@ -712,6 +714,7 @@ class SessionManager extends EventEmitter {
         try {
             reportProgress({ phase: 'writing', completed: 0, total: deletedSolveIds.length, processed: scanWork });
             await db.deleteSolves(deletedSolveIds, {
+                sessionIds: [session.id],
                 onProgress: ({ completed, total }) => {
                     reportProgress({
                         phase: 'writing',

@@ -1016,6 +1016,11 @@ export async function showDailyStreakModal({ preserveHistoryState = false } = {}
                 blurFocusedModalElement();
                 hideTooltip();
             });
+        } catch (error) {
+            console.warn('Could not load daily streak data:', error);
+            if (openRequestId === _openRequestId) {
+                closeDailyStreakModal();
+            }
         } finally {
             if (openRequestId === _openRequestId) {
                 _openPromise = null;

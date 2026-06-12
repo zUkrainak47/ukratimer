@@ -551,11 +551,11 @@ export async function updateSolves(solves, { onProgress = null, sourceSessionIds
     return _txComplete(tx);
 }
 
-export async function deleteSolve(solveId) {
-    return deleteSolves([solveId]);
+export async function deleteSolve(solveId, options = {}) {
+    return deleteSolves([solveId], options);
 }
 
-export async function deleteSolves(solveIds, { onProgress = null } = {}) {
+export async function deleteSolves(solveIds, { onProgress = null, sessionIds = null } = {}) {
     const idSet = new Set((Array.isArray(solveIds) ? solveIds : []).filter(Boolean));
     if (idSet.size === 0) return;
 
@@ -563,7 +563,10 @@ export async function deleteSolves(solveIds, { onProgress = null } = {}) {
     const tx = db.transaction(['sessions', 'solveChunks'], 'readwrite');
     const sessionStore = tx.objectStore('sessions');
     const chunkStore = tx.objectStore('solveChunks');
-    const allChunks = await _getAllFromStore(chunkStore);
+    const scopedSessionIds = _normalizeSessionIdList(sessionIds);
+    const allChunks = scopedSessionIds.length > 0
+        ? (await Promise.all(scopedSessionIds.map((sessionId) => _getChunksFromStore(chunkStore, sessionId)))).flat()
+        : await _getAllFromStore(chunkStore);
     const nextSolvesBySession = new Map();
     const touchedSessionIds = new Set();
     let deletedCount = 0;
