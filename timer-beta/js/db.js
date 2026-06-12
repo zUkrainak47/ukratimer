@@ -1,12 +1,15 @@
 const DB_NAME = 'UkraTimerDB';
 const DB_VERSION = 2;
 const STORAGE_PREFIX = 'cubetimer_';
+const LOCAL_STORAGE_MIGRATION_SKIPPED_KEY = STORAGE_PREFIX + 'sessions_migration_skipped_v2';
 export const SOLVE_CHUNK_SIZE = 512;
 
+const DB_BLOCKED_UPGRADE_MESSAGE = 'UkraTimer needs to upgrade local storage, but another UkraTimer tab is still open. Close the other UkraTimer tabs, then reload this page.';
 const CHUNK_ID_SEPARATOR = '\u0000';
 const CHUNK_ID_WIDTH = 10;
 
 let _db = null;
+let _blockedUpgradeNotified = false;
 
 function _sessionOrderValue(session) {
     return Number.isFinite(session?.order) ? session.order : Number.POSITIVE_INFINITY;
@@ -141,6 +144,34 @@ async function _hasExistingIndexedAppData() {
     return false;
 }
 
+function _dispatchStorageEvent(name, detail = {}) {
+    if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') return;
+    window.dispatchEvent(new CustomEvent(name, { detail }));
+}
+
+function _notifyBlockedUpgrade() {
+    if (_blockedUpgradeNotified) return;
+    _blockedUpgradeNotified = true;
+    console.warn(DB_BLOCKED_UPGRADE_MESSAGE);
+    _dispatchStorageEvent('ukratimer:dbUpgradeBlocked', {
+        databaseName: DB_NAME,
+        version: DB_VERSION,
+        message: DB_BLOCKED_UPGRADE_MESSAGE,
+    });
+}
+
+function _attachDBLifecycleHandlers(db) {
+    db.onversionchange = () => {
+        db.close();
+        if (_db === db) _db = null;
+        console.warn('UkraTimer storage was closed because a newer app version requested a database upgrade.');
+        _dispatchStorageEvent('ukratimer:dbVersionChange', {
+            databaseName: DB_NAME,
+            version: DB_VERSION,
+        });
+    };
+}
+
 /**
  * Open (or create/upgrade) the IndexedDB database.
  * On first run, migrates old localStorage/per-solve IndexedDB data into chunks.
@@ -171,7 +202,12 @@ export async function openDB() {
             }
         };
 
-        request.onsuccess = (event) => resolve(event.target.result);
+        request.onblocked = _notifyBlockedUpgrade;
+        request.onsuccess = (event) => {
+            const db = event.target.result;
+            _attachDBLifecycleHandlers(db);
+            resolve(db);
+        };
         request.onerror = (event) => reject(event.target.error);
     });
 
@@ -188,6 +224,16 @@ async function _migrateFromLocalStorage() {
     const raw = localStorage.getItem(STORAGE_PREFIX + 'sessions');
     if (!raw) return;
 
+    if (await _hasExistingIndexedAppData()) {
+        if (localStorage.getItem(LOCAL_STORAGE_MIGRATION_SKIPPED_KEY) !== 'true') {
+            console.warn('Skipping embedded localStorage migration because IndexedDB already contains timer data. Keeping localStorage sessions as a backup.');
+            localStorage.setItem(LOCAL_STORAGE_MIGRATION_SKIPPED_KEY, 'true');
+        }
+        return;
+    }
+
+    localStorage.removeItem(LOCAL_STORAGE_MIGRATION_SKIPPED_KEY);
+
     let oldSessions;
     try {
         oldSessions = JSON.parse(raw);
@@ -198,12 +244,6 @@ async function _migrateFromLocalStorage() {
 
     if (!Array.isArray(oldSessions) || oldSessions.length === 0) return;
     if (!oldSessions.some((session) => Array.isArray(session.solves))) return;
-
-    if (await _hasExistingIndexedAppData()) {
-        console.warn('Skipping embedded localStorage migration because IndexedDB already contains timer data.');
-        localStorage.removeItem(STORAGE_PREFIX + 'sessions');
-        return;
-    }
 
     console.log('Migrating embedded localStorage sessions to chunked IndexedDB...');
 
@@ -234,6 +274,7 @@ async function _migrateFromLocalStorage() {
 
     await _txComplete(tx);
     localStorage.removeItem(STORAGE_PREFIX + 'sessions');
+    localStorage.removeItem(LOCAL_STORAGE_MIGRATION_SKIPPED_KEY);
     console.log('Chunked localStorage migration complete.');
 }
 

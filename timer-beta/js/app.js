@@ -5713,7 +5713,18 @@ function initScramblePreviewModal() {
 }
 
 // ──── Bootstrap ────
+let storageUpgradeBlockedAlertShown = false;
+
+function initStorageUpgradeBlockedAlert() {
+    window.addEventListener('ukratimer:dbUpgradeBlocked', (event) => {
+        if (storageUpgradeBlockedAlertShown) return;
+        storageUpgradeBlockedAlertShown = true;
+        window.alert(event.detail?.message || 'UkraTimer storage upgrade is blocked. Close other UkraTimer tabs, then reload this page.');
+    }, { once: true });
+}
+
 async function init() {
+    initStorageUpgradeBlockedAlert();
     initInspectionSpeechUnlockState();
     void registerServiceWorker();
     const sessionInitPromise = sessionManager.init();

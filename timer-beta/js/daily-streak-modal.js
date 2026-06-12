@@ -17,6 +17,7 @@ const WEEKDAY_LABELS = Object.freeze(['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 
 const ALL_FILTER_VALUE = 'all';
 const FILTER_MODE_SCRAMBLE_TYPE = 'scrambleType';
 const FILTER_MODE_SESSION = 'session';
+const HYDRATION_RETRY_YIELD_MS = 0;
 const HEATMAP_GREEN_STOPS = Object.freeze([
     Object.freeze({ r: 2, g: 58, b: 22 }),
     Object.freeze({ r: 24, g: 109, b: 46 }),
@@ -941,6 +942,22 @@ function blurActiveElement() {
     if (activeElement instanceof HTMLElement) activeElement.blur();
 }
 
+async function ensureDailyStreakSolvesHydrated() {
+    let forceHydration = false;
+
+    while (true) {
+        await sessionManager.waitForPendingSolvePersistence();
+        const mutationGeneration = sessionManager.getSolveMutationGeneration();
+        await dailyStreakStore.ensureSolvesHydrated({ force: forceHydration });
+        await sessionManager.waitForPendingSolvePersistence();
+
+        if (sessionManager.getSolveMutationGeneration() === mutationGeneration) return;
+
+        forceHydration = true;
+        await new Promise((resolve) => window.setTimeout(resolve, HYDRATION_RETRY_YIELD_MS));
+    }
+}
+
 export function isDailyStreakModalOpen() {
     return Boolean(_state.isOpen || _overlay?.classList.contains('active'));
 }
@@ -949,7 +966,7 @@ export async function refreshDailyStreakModal() {
     if (!isDailyStreakModalOpen()) return;
 
     const previousSelectedDayKey = _state.selectedDayKey;
-    await dailyStreakStore.ensureSolvesHydrated();
+    await ensureDailyStreakSolvesHydrated();
     if (!isDailyStreakModalOpen()) return;
 
     renderDailyStreakModal();
@@ -1005,7 +1022,7 @@ export async function showDailyStreakModal({ preserveHistoryState = false } = {}
 
     _openPromise = (async () => {
         try {
-            await dailyStreakStore.ensureSolvesHydrated();
+            await ensureDailyStreakSolvesHydrated();
             if (openRequestId !== _openRequestId || !_state.isOpen || !_overlay?.classList.contains('active')) return;
 
             renderDailyStreakModal();

@@ -153,6 +153,7 @@ class SessionManager extends EventEmitter {
         this._activeId = null;
         this._ready = false;
         this._pendingSolvePersistence = new Set();
+        this._solveMutationGeneration = 0;
         registerBeforeDataExportHook(() => this.waitForPendingSolvePersistence());
     }
 
@@ -443,8 +444,15 @@ class SessionManager extends EventEmitter {
             }
             : null;
 
+        if (deletedSolveIds.length > 0) {
+            this._markSolveDataMutation();
+        }
         this._sessions = this._sessions.filter(s => s.id !== id);
-        await db.deleteSession(id);
+        const deletePersistence = db.deleteSession(id);
+        this._trackSolvePersistence(deletePersistence, {
+            warningMessage: 'Could not persist session solve deletion:',
+        });
+        await deletePersistence;
 
         if (this._sessions.length === 0) {
             await this._createDefault({
@@ -476,6 +484,15 @@ class SessionManager extends EventEmitter {
         }
     }
 
+    getSolveMutationGeneration() {
+        return this._solveMutationGeneration;
+    }
+
+    _markSolveDataMutation() {
+        this._solveMutationGeneration += 1;
+        return this._solveMutationGeneration;
+    }
+
     _trackSolvePersistence(persistence, { onPersisted = null, warningMessage = 'Could not persist solve change:' } = {}) {
         if (!persistence || typeof persistence.then !== 'function') return persistence;
 
@@ -495,6 +512,7 @@ class SessionManager extends EventEmitter {
 
     addSolve(time, scramble, isManual = false, penalty = null, { phaseSplits = null, phaseCount = null } = {}) {
         const session = this.getActiveSession();
+        this._markSolveDataMutation();
         const normalizedPhaseSplits = Array.isArray(phaseSplits)
             ? phaseSplits
                 .map((value) => Math.round(Number(value)))
@@ -544,6 +562,7 @@ class SessionManager extends EventEmitter {
         const location = this._findSolveLocation(solveId);
         const solve = location?.solve;
         if (!solve) return null;
+        this._markSolveDataMutation();
         solve.penalty = solve.penalty === penalty ? null : penalty;
         this._trackSolvePersistence(db.updateSolve(solve), {
             warningMessage: 'Could not persist solve penalty:',
@@ -560,6 +579,7 @@ class SessionManager extends EventEmitter {
         const location = this._findSolveLocation(solveId);
         const solve = location?.solve;
         if (!solve) return;
+        this._markSolveDataMutation();
         solve.comment = comment;
         this._trackSolvePersistence(db.updateSolve(solve), {
             warningMessage: 'Could not persist solve comment:',
@@ -577,6 +597,7 @@ class SessionManager extends EventEmitter {
         if (!session) return;
         const solveIndex = location.index;
         if (solveIndex < 0) return;
+        this._markSolveDataMutation();
         session.solves.splice(solveIndex, 1);
         session.solveCount = Math.max(0, session.solveCount - 1);
         rebuildSolveIndexes(session);
@@ -597,6 +618,7 @@ class SessionManager extends EventEmitter {
 
         const sourceIndex = location.index;
         if (sourceIndex === -1) return null;
+        this._markSolveDataMutation();
 
         const [solve] = sourceSession.solves.splice(sourceIndex, 1);
         const shouldSyncTargetSolves = Boolean(targetSession.solvesLoaded || targetSession.solveCount === 0);
@@ -615,9 +637,13 @@ class SessionManager extends EventEmitter {
         if (shouldSyncTargetSolves) rebuildSolveIndexes(targetSession);
 
         try {
-            await db.updateSolves([solve], {
+            const movePersistence = db.updateSolves([solve], {
                 sourceSessionIds: [sourceSession.id],
             });
+            this._trackSolvePersistence(movePersistence, {
+                warningMessage: 'Could not persist solve move:',
+            });
+            await movePersistence;
         } catch (error) {
             solve.sessionId = sourceSession.id;
             sourceSession.solves.splice(sourceIndex, 0, solve);
@@ -707,13 +733,14 @@ class SessionManager extends EventEmitter {
 
         if (deletedSolveIds.length === 0) return 0;
 
+        this._markSolveDataMutation();
         session.solves = remainingSolves;
         session.solveCount = Math.max(0, previousSolveCount - deletedSolveIds.length);
         rebuildSolveIndexes(session);
 
         try {
             reportProgress({ phase: 'writing', completed: 0, total: deletedSolveIds.length, processed: scanWork });
-            await db.deleteSolves(deletedSolveIds, {
+            const deletePersistence = db.deleteSolves(deletedSolveIds, {
                 sessionIds: [session.id],
                 onProgress: ({ completed, total }) => {
                     reportProgress({
@@ -724,6 +751,10 @@ class SessionManager extends EventEmitter {
                     });
                 },
             });
+            this._trackSolvePersistence(deletePersistence, {
+                warningMessage: 'Could not persist bulk solve deletion:',
+            });
+            await deletePersistence;
         } catch (error) {
             session.solves = previousSolves;
             session.solveCount = previousSolveCount;
@@ -825,6 +856,7 @@ class SessionManager extends EventEmitter {
 
         if (movedSolves.length === 0) return 0;
 
+        this._markSolveDataMutation();
         const previousSourceSolves = sourceSession.solves;
         const previousSourceSolveCount = sourceSession.solveCount;
         const previousTargetSolves = targetSession.solves;
@@ -878,7 +910,7 @@ class SessionManager extends EventEmitter {
                 totalWork: actualTotalWork,
             });
 
-            await db.updateSolves(movedSolves, {
+            const movePersistence = db.updateSolves(movedSolves, {
                 sourceSessionIds: [sourceSession.id],
                 onProgress: ({ completed, total }) => {
                     reportProgress({
@@ -890,6 +922,10 @@ class SessionManager extends EventEmitter {
                     });
                 },
             });
+            this._trackSolvePersistence(movePersistence, {
+                warningMessage: 'Could not persist bulk solve move:',
+            });
+            await movePersistence;
         } catch (error) {
             sourceSession.solves = previousSourceSolves;
             sourceSession.solveCount = previousSourceSolveCount;

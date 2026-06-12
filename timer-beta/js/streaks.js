@@ -160,18 +160,21 @@ export class DailyStreakStore {
         });
     }
 
-    async ensureSolvesHydrated() {
-        if (this._solvesHydrated) return this;
-        if (!this._hydratePromise) {
-            this._hydratePromise = db.getAllData()
-                .then(({ solves }) => {
-                    this.replaceAll(solves);
-                    return this;
-                })
-                .finally(() => {
-                    this._hydratePromise = null;
-                });
+    async ensureSolvesHydrated({ force = false } = {}) {
+        if (!force && this._solvesHydrated) return this;
+        if (this._hydratePromise) {
+            await this._hydratePromise;
+            if (!force) return this;
         }
+
+        this._hydratePromise = db.getAllData()
+            .then(({ solves }) => {
+                this.replaceAll(solves);
+                return this;
+            })
+            .finally(() => {
+                this._hydratePromise = null;
+            });
         return this._hydratePromise;
     }
 
