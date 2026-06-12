@@ -597,7 +597,9 @@ class SessionManager extends EventEmitter {
         if (shouldSyncTargetSolves) rebuildSolveIndexes(targetSession);
 
         try {
-            await db.updateSolves([solve]);
+            await db.updateSolves([solve], {
+                sourceSessionIds: [sourceSession.id],
+            });
         } catch (error) {
             solve.sessionId = sourceSession.id;
             sourceSession.solves.splice(sourceIndex, 0, solve);
@@ -858,6 +860,7 @@ class SessionManager extends EventEmitter {
             });
 
             await db.updateSolves(movedSolves, {
+                sourceSessionIds: [sourceSession.id],
                 onProgress: ({ completed, total }) => {
                     reportProgress({
                         phase: 'writing',

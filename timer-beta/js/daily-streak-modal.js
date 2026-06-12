@@ -58,6 +58,8 @@ let _filterValueSelect = null;
 let _mouseDownTarget = null;
 let _mouseUpTarget = null;
 let _initialized = false;
+let _openRequestId = 0;
+let _openPromise = null;
 
 let _state = createEmptyState();
 
@@ -940,7 +942,7 @@ function blurActiveElement() {
 }
 
 export function isDailyStreakModalOpen() {
-    return Boolean(_overlay?.classList.contains('active'));
+    return Boolean(_state.isOpen || _overlay?.classList.contains('active'));
 }
 
 export async function refreshDailyStreakModal() {
@@ -948,6 +950,8 @@ export async function refreshDailyStreakModal() {
 
     const previousSelectedDayKey = _state.selectedDayKey;
     await dailyStreakStore.ensureSolvesHydrated();
+    if (!isDailyStreakModalOpen()) return;
+
     renderDailyStreakModal();
     if (_state.buttonByDayKey.has(previousSelectedDayKey)) {
         setSelectedDay(previousSelectedDayKey, { showTooltip: false });
@@ -969,34 +973,58 @@ function dismissDailyStreakHistoryState() {
 }
 
 export function closeDailyStreakModal({ isPopState = false, preserveHistoryState = false } = {}) {
-    if (!_overlay?.classList.contains('active')) return;
+    if (!_state.isOpen && !_overlay?.classList.contains('active')) return;
 
     if (!isPopState && !preserveHistoryState) dismissDailyStreakHistoryState();
 
+    _openRequestId += 1;
+    _openPromise = null;
     blurFocusedModalElement();
-    _overlay.classList.remove('active');
-    _overlay.setAttribute('aria-hidden', 'true');
+    _overlay?.classList.remove('active');
+    _overlay?.setAttribute('aria-hidden', 'true');
+    _overlay?.removeAttribute('aria-busy');
     _state.isOpen = false;
     hideTooltip();
 }
 
 export async function showDailyStreakModal({ preserveHistoryState = false } = {}) {
     if (!_overlay) return;
+    if (_openPromise) return _openPromise;
+    if (isDailyStreakModalOpen()) return;
 
-    if (!isDailyStreakModalOpen() && !preserveHistoryState) requestDailyStreakHistoryState();
+    if (!preserveHistoryState) requestDailyStreakHistoryState();
     blurActiveElement();
     _state.selectedDayKey = toDayKey(Date.now());
-    await dailyStreakStore.ensureSolvesHydrated();
-    renderDailyStreakModal();
+    _state.isOpen = true;
     _overlay.classList.add('active');
     _overlay.setAttribute('aria-hidden', 'false');
-    _state.isOpen = true;
-    scrollCalendarToToday();
+    _overlay.setAttribute('aria-busy', 'true');
 
-    window.requestAnimationFrame(() => {
-        blurFocusedModalElement();
-        hideTooltip();
-    });
+    const openRequestId = _openRequestId + 1;
+    _openRequestId = openRequestId;
+
+    _openPromise = (async () => {
+        try {
+            await dailyStreakStore.ensureSolvesHydrated();
+            if (openRequestId !== _openRequestId || !_state.isOpen || !_overlay?.classList.contains('active')) return;
+
+            renderDailyStreakModal();
+            scrollCalendarToToday();
+
+            window.requestAnimationFrame(() => {
+                if (openRequestId !== _openRequestId || !_state.isOpen) return;
+                blurFocusedModalElement();
+                hideTooltip();
+            });
+        } finally {
+            if (openRequestId === _openRequestId) {
+                _openPromise = null;
+                _overlay?.removeAttribute('aria-busy');
+            }
+        }
+    })();
+
+    return _openPromise;
 }
 
 export function initDailyStreakModal({ requestHistoryState = null, dismissHistoryState = null } = {}) {

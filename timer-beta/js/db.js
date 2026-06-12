@@ -34,6 +34,14 @@ function _compareSolvesByTimestamp(a, b) {
     return String(a?.id || '').localeCompare(String(b?.id || ''));
 }
 
+function _generateSolveId(usedIds = null) {
+    let id = '';
+    do {
+        id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    } while (usedIds?.has(id));
+    return id;
+}
+
 function _chunkId(sessionId, chunkIndex) {
     return `${sessionId}${CHUNK_ID_SEPARATOR}${String(chunkIndex).padStart(CHUNK_ID_WIDTH, '0')}`;
 }
@@ -49,6 +57,45 @@ function _sanitizeChunkSolves(solves, sessionId) {
         sessionId,
         ...(Array.isArray(solve?.phaseSplits) ? { phaseSplits: [...solve.phaseSplits] } : {}),
     }));
+}
+
+function _sanitizeUniqueSolveForStorage(solve, sessionId, usedSolveIds) {
+    const rawId = typeof solve?.id === 'string' ? solve.id : '';
+    const id = rawId && !usedSolveIds.has(rawId)
+        ? rawId
+        : _generateSolveId(usedSolveIds);
+    usedSolveIds.add(id);
+
+    return {
+        ...solve,
+        id,
+        sessionId,
+        ...(Array.isArray(solve?.phaseSplits) ? { phaseSplits: [...solve.phaseSplits] } : {}),
+    };
+}
+
+function _normalizeSolvesBySessionWithUniqueIds(sessions, solves) {
+    const sessionIds = new Set(
+        (Array.isArray(sessions) ? sessions : [])
+            .map((session) => session?.id)
+            .filter((id) => typeof id === 'string' && id),
+    );
+    const usedSolveIds = new Set();
+    const solvesBySessionId = new Map();
+
+    (Array.isArray(solves) ? solves : []).forEach((solve) => {
+        const sessionId = typeof solve?.sessionId === 'string' && solve.sessionId ? solve.sessionId : '';
+        if (!sessionId || !sessionIds.has(sessionId)) return;
+        if (!solvesBySessionId.has(sessionId)) solvesBySessionId.set(sessionId, []);
+        solvesBySessionId.get(sessionId).push(_sanitizeUniqueSolveForStorage(solve, sessionId, usedSolveIds));
+    });
+
+    return solvesBySessionId;
+}
+
+function _normalizeSessionIdList(value) {
+    const source = value instanceof Set ? Array.from(value) : (Array.isArray(value) ? value : []);
+    return source.filter((sessionId) => typeof sessionId === 'string' && sessionId);
 }
 
 function _buildSessionChunks(sessionId, solves, { sort = true } = {}) {
@@ -155,9 +202,11 @@ async function _migrateFromLocalStorage() {
     chunkStore.clear();
     solveStore?.clear();
 
+    const usedSolveIds = new Set();
     oldSessions.forEach((session, index) => {
         const sessionId = typeof session?.id === 'string' && session.id ? session.id : `legacy-${index + 1}`;
         const solves = Array.isArray(session.solves) ? session.solves : [];
+        const sanitizedSolves = solves.map((solve) => _sanitizeUniqueSolveForStorage(solve, sessionId, usedSolveIds));
         sessionStore.put(_normalizeSessionForStorage({
             id: sessionId,
             name: session.name,
@@ -165,8 +214,8 @@ async function _migrateFromLocalStorage() {
             order: Number.isFinite(session.order) ? session.order : index,
             ...(typeof session.scrambleType === 'string' ? { scrambleType: session.scrambleType } : {}),
             ...(session.settings && typeof session.settings === 'object' ? { settings: session.settings } : {}),
-        }, solves.length));
-        _buildSessionChunks(sessionId, solves).forEach((chunk) => chunkStore.put(chunk));
+        }, sanitizedSolves.length));
+        _buildSessionChunks(sessionId, sanitizedSolves).forEach((chunk) => chunkStore.put(chunk));
     });
 
     await _txComplete(tx);
@@ -405,7 +454,7 @@ export async function updateSolve(solve) {
     await _txComplete(tx);
 }
 
-export async function updateSolves(solves, { onProgress = null } = {}) {
+export async function updateSolves(solves, { onProgress = null, sourceSessionIds = null, sessionIds = null } = {}) {
     if (!Array.isArray(solves) || solves.length === 0) return;
 
     const updatesById = new Map(
@@ -419,12 +468,26 @@ export async function updateSolves(solves, { onProgress = null } = {}) {
     const tx = db.transaction(['sessions', 'solveChunks'], 'readwrite');
     const sessionStore = tx.objectStore('sessions');
     const chunkStore = tx.objectStore('solveChunks');
-    const allChunks = await _getAllFromStore(chunkStore);
+    const explicitSessionIds = [
+        ..._normalizeSessionIdList(sessionIds),
+        ..._normalizeSessionIdList(sourceSessionIds),
+    ];
+    const useSessionScope = explicitSessionIds.length > 0;
+    const requestedSessionIds = new Set(explicitSessionIds);
+    if (useSessionScope) updatesById.forEach((solve) => requestedSessionIds.add(solve.sessionId));
+    const allChunks = useSessionScope
+        ? (await Promise.all(Array.from(requestedSessionIds, (sessionId) => _getChunksFromStore(chunkStore, sessionId)))).flat()
+        : await _getAllFromStore(chunkStore);
     const touchedSessionIds = new Set();
     const nextSolvesBySession = new Map();
-    const matchedUpdateIds = new Set();
+    const insertedUpdateIds = new Set();
 
     allChunks.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    if (useSessionScope) {
+        requestedSessionIds.forEach((sessionId) => {
+            if (!nextSolvesBySession.has(sessionId)) nextSolvesBySession.set(sessionId, []);
+        });
+    }
     allChunks.forEach((chunk) => {
         const sessionId = chunk.sessionId;
         if (!nextSolvesBySession.has(sessionId)) nextSolvesBySession.set(sessionId, []);
@@ -436,19 +499,21 @@ export async function updateSolves(solves, { onProgress = null } = {}) {
                 return;
             }
 
-            matchedUpdateIds.add(updated.id);
             touchedSessionIds.add(sessionId);
             touchedSessionIds.add(updated.sessionId);
             if (!nextSolvesBySession.has(updated.sessionId)) nextSolvesBySession.set(updated.sessionId, []);
-            nextSolvesBySession.get(updated.sessionId).push({
-                ...updated,
-                ...(Array.isArray(updated.phaseSplits) ? { phaseSplits: [...updated.phaseSplits] } : {}),
-            });
+            if (!insertedUpdateIds.has(updated.id)) {
+                nextSolvesBySession.get(updated.sessionId).push({
+                    ...updated,
+                    ...(Array.isArray(updated.phaseSplits) ? { phaseSplits: [...updated.phaseSplits] } : {}),
+                });
+                insertedUpdateIds.add(updated.id);
+            }
         });
     });
 
     updatesById.forEach((solve) => {
-        if (matchedUpdateIds.has(solve.id)) return;
+        if (insertedUpdateIds.has(solve.id)) return;
         touchedSessionIds.add(solve.sessionId);
         if (!nextSolvesBySession.has(solve.sessionId)) nextSolvesBySession.set(solve.sessionId, []);
         nextSolvesBySession.get(solve.sessionId).push({
@@ -457,17 +522,16 @@ export async function updateSolves(solves, { onProgress = null } = {}) {
         });
     });
 
-    let completed = 0;
     for (const sessionId of touchedSessionIds) {
         const nextSolves = nextSolvesBySession.get(sessionId) || [];
         await _replaceSessionChunksInTransaction(sessionStore, chunkStore, sessionId, nextSolves);
-        completed += updatesById.size;
-        if (typeof onProgress === 'function') {
-            onProgress({
-                completed: Math.min(completed, updatesById.size),
-                total: updatesById.size,
-            });
-        }
+    }
+
+    if (typeof onProgress === 'function') {
+        onProgress({
+            completed: updatesById.size,
+            total: updatesById.size,
+        });
     }
 
     return _txComplete(tx);
@@ -586,21 +650,17 @@ export async function replaceAllData(sessions, solves, { onProgress = null } = {
     const db = await openDB();
     const normalizedSessions = Array.isArray(sessions) ? sessions : [];
     const normalizedSolves = Array.isArray(solves) ? solves : [];
-    const solvesBySessionId = new Map();
-
-    normalizedSolves.forEach((solve) => {
-        const sessionId = typeof solve?.sessionId === 'string' && solve.sessionId ? solve.sessionId : '';
-        if (!sessionId) return;
-        if (!solvesBySessionId.has(sessionId)) solvesBySessionId.set(sessionId, []);
-        solvesBySessionId.get(sessionId).push(solve);
-    });
+    const solvesBySessionId = _normalizeSolvesBySessionWithUniqueIds(normalizedSessions, normalizedSolves);
 
     const chunks = [];
     normalizedSessions.forEach((session) => {
         chunks.push(..._buildSessionChunks(session.id, solvesBySessionId.get(session.id) || []));
     });
 
-    const total = 1 + normalizedSessions.length + normalizedSolves.length;
+    const storedSolveCount = chunks.reduce((count, chunk) => (
+        count + (Array.isArray(chunk.solves) ? chunk.solves.length : 0)
+    ), 0);
+    const total = 1 + normalizedSessions.length + storedSolveCount;
     let completed = 0;
     const tx = db.transaction(_getStoreNames(db, ['sessions', 'solveChunks', 'solves']), 'readwrite');
     const sessionStore = tx.objectStore('sessions');
