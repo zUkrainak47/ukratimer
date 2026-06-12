@@ -133,6 +133,14 @@ function _getStoreNames(db, names) {
     return names.filter((name) => db.objectStoreNames.contains(name));
 }
 
+async function _hasExistingIndexedAppData() {
+    const storeNames = _getStoreNames(_db, ['sessions', 'solveChunks', 'solves']);
+    for (const storeName of storeNames) {
+        if (await _countStore(_db, storeName) > 0) return true;
+    }
+    return false;
+}
+
 /**
  * Open (or create/upgrade) the IndexedDB database.
  * On first run, migrates old localStorage/per-solve IndexedDB data into chunks.
@@ -190,6 +198,12 @@ async function _migrateFromLocalStorage() {
 
     if (!Array.isArray(oldSessions) || oldSessions.length === 0) return;
     if (!oldSessions.some((session) => Array.isArray(session.solves))) return;
+
+    if (await _hasExistingIndexedAppData()) {
+        console.warn('Skipping embedded localStorage migration because IndexedDB already contains timer data.');
+        localStorage.removeItem(STORAGE_PREFIX + 'sessions');
+        return;
+    }
 
     console.log('Migrating embedded localStorage sessions to chunked IndexedDB...');
 

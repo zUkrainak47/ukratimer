@@ -476,6 +476,21 @@ class SessionManager extends EventEmitter {
         }
     }
 
+    _trackSolvePersistence(persistence, { onPersisted = null, warningMessage = 'Could not persist solve change:' } = {}) {
+        if (!persistence || typeof persistence.then !== 'function') return persistence;
+
+        this._pendingSolvePersistence.add(persistence);
+        persistence.then(() => {
+            if (typeof onPersisted === 'function') onPersisted();
+        }).catch((error) => {
+            console.warn(warningMessage, error);
+        }).finally(() => {
+            this._pendingSolvePersistence.delete(persistence);
+        });
+
+        return persistence;
+    }
+
     // --- Solve CRUD ---
 
     addSolve(time, scramble, isManual = false, penalty = null, { phaseSplits = null, phaseCount = null } = {}) {
@@ -502,14 +517,9 @@ class SessionManager extends EventEmitter {
         session.solves.push(solve);
         session.solveCount += 1;
         indexSessionSolve(session, solve, session.solves.length - 1);
-        const persistence = db.addSolve(solve);
-        this._pendingSolvePersistence.add(persistence);
-        persistence.then(() => {
-            this.emit('solvePersisted', solve);
-        }).catch((error) => {
-            console.warn('Could not persist solve:', error);
-        }).finally(() => {
-            this._pendingSolvePersistence.delete(persistence);
+        this._trackSolvePersistence(db.addSolve(solve), {
+            onPersisted: () => this.emit('solvePersisted', solve),
+            warningMessage: 'Could not persist solve:',
         });
         this.emit('solveAdded', solve);
         return solve;
@@ -535,7 +545,9 @@ class SessionManager extends EventEmitter {
         const solve = location?.solve;
         if (!solve) return null;
         solve.penalty = solve.penalty === penalty ? null : penalty;
-        db.updateSolve(solve);
+        this._trackSolvePersistence(db.updateSolve(solve), {
+            warningMessage: 'Could not persist solve penalty:',
+        });
         this.emit('solveUpdated', solve, {
             affectsStats: true,
             solveIndex: location.index,
@@ -549,7 +561,9 @@ class SessionManager extends EventEmitter {
         const solve = location?.solve;
         if (!solve) return;
         solve.comment = comment;
-        db.updateSolve(solve);
+        this._trackSolvePersistence(db.updateSolve(solve), {
+            warningMessage: 'Could not persist solve comment:',
+        });
         this.emit('solveUpdated', solve, {
             affectsStats: false,
             solveIndex: location.index,
@@ -566,7 +580,9 @@ class SessionManager extends EventEmitter {
         session.solves.splice(solveIndex, 1);
         session.solveCount = Math.max(0, session.solveCount - 1);
         rebuildSolveIndexes(session);
-        db.deleteSolve(solveId);
+        this._trackSolvePersistence(db.deleteSolve(solveId), {
+            warningMessage: 'Could not persist solve deletion:',
+        });
         this.emit('solveDeleted', solveId);
     }
 
