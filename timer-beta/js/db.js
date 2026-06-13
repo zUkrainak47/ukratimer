@@ -469,28 +469,35 @@ export async function getSolveCountBySession(sessionId) {
 }
 
 export async function addSolve(solve) {
-    if (!solve?.sessionId) return;
+    const sessionId = typeof solve?.sessionId === 'string' && solve.sessionId ? solve.sessionId : '';
+    if (!sessionId) return;
+
+    const storedSolve = {
+        ...solve,
+        sessionId,
+        ...(Array.isArray(solve.phaseSplits) ? { phaseSplits: [...solve.phaseSplits] } : {}),
+    };
 
     const db = await openDB();
     const tx = db.transaction(['sessions', 'solveChunks'], 'readwrite');
     const sessionStore = tx.objectStore('sessions');
     const chunkStore = tx.objectStore('solveChunks');
-    const session = await _requestToPromise(sessionStore.get(solve.sessionId));
+    const session = await _requestToPromise(sessionStore.get(sessionId));
     const hasStoredSolveCount = Number.isFinite(session?.solveCount);
     const currentCount = hasStoredSolveCount
         ? Math.max(0, Math.floor(session.solveCount))
-        : await _countSolvesFromChunkStore(chunkStore, solve.sessionId);
+        : await _countSolvesFromChunkStore(chunkStore, sessionId);
     const chunkIndex = Math.floor(currentCount / SOLVE_CHUNK_SIZE);
-    const chunkId = _chunkId(solve.sessionId, chunkIndex);
+    const chunkId = _chunkId(sessionId, chunkIndex);
     const existingChunk = await _requestToPromise(chunkStore.get(chunkId));
     const chunk = existingChunk || {
         id: chunkId,
-        sessionId: solve.sessionId,
+        sessionId,
         chunkIndex,
         solves: [],
     };
 
-    chunk.solves = _sanitizeChunkSolves(chunk.solves, solve.sessionId);
+    chunk.solves = _sanitizeChunkSolves(chunk.solves, sessionId);
     const currentChunkOffset = currentCount % SOLVE_CHUNK_SIZE;
     let appendPositionMatchesStoredCount = false;
     if (existingChunk) {
@@ -499,25 +506,19 @@ export async function addSolve(solve) {
     } else if (!hasStoredSolveCount || currentCount === 0) {
         appendPositionMatchesStoredCount = true;
     } else if (currentChunkOffset === 0 && chunkIndex > 0) {
-        const previousChunk = await _requestToPromise(chunkStore.get(_chunkId(solve.sessionId, chunkIndex - 1)));
-        appendPositionMatchesStoredCount = _sanitizeChunkSolves(previousChunk?.solves, solve.sessionId).length === SOLVE_CHUNK_SIZE;
+        const previousChunk = await _requestToPromise(chunkStore.get(_chunkId(sessionId, chunkIndex - 1)));
+        appendPositionMatchesStoredCount = _sanitizeChunkSolves(previousChunk?.solves, sessionId).length === SOLVE_CHUNK_SIZE;
     }
 
     if (!appendPositionMatchesStoredCount) {
-        const chunks = await _getChunksFromStore(chunkStore, solve.sessionId);
-        const rebuiltSolves = chunks.flatMap((entry) => _sanitizeChunkSolves(entry.solves, solve.sessionId));
-        rebuiltSolves.push({
-            ...solve,
-            ...(Array.isArray(solve.phaseSplits) ? { phaseSplits: [...solve.phaseSplits] } : {}),
-        });
-        await _replaceSessionChunksInTransaction(sessionStore, chunkStore, solve.sessionId, rebuiltSolves);
+        const chunks = await _getChunksFromStore(chunkStore, sessionId);
+        const rebuiltSolves = chunks.flatMap((entry) => _sanitizeChunkSolves(entry.solves, sessionId));
+        rebuiltSolves.push(storedSolve);
+        await _replaceSessionChunksInTransaction(sessionStore, chunkStore, sessionId, rebuiltSolves);
         return _txComplete(tx);
     }
 
-    chunk.solves.push({
-        ...solve,
-        ...(Array.isArray(solve.phaseSplits) ? { phaseSplits: [...solve.phaseSplits] } : {}),
-    });
+    chunk.solves.push(storedSolve);
     chunkStore.put(chunk);
 
     if (session) {
@@ -528,20 +529,24 @@ export async function addSolve(solve) {
 }
 
 export async function updateSolve(solve) {
-    if (!solve?.id || !solve?.sessionId) return;
+    const sessionId = typeof solve?.sessionId === 'string' && solve.sessionId ? solve.sessionId : '';
+    if (!solve?.id || !sessionId) return;
+
+    const storedSolve = {
+        ...solve,
+        sessionId,
+        ...(Array.isArray(solve.phaseSplits) ? { phaseSplits: [...solve.phaseSplits] } : {}),
+    };
 
     const db = await openDB();
     const tx = db.transaction('solveChunks', 'readwrite');
     const chunkStore = tx.objectStore('solveChunks');
-    const chunks = await _getChunksFromStore(chunkStore, solve.sessionId);
+    const chunks = await _getChunksFromStore(chunkStore, sessionId);
 
     for (const chunk of chunks) {
-        const index = (Array.isArray(chunk.solves) ? chunk.solves : []).findIndex((entry) => entry?.id === solve.id);
+        const index = (Array.isArray(chunk.solves) ? chunk.solves : []).findIndex((entry) => entry?.id === storedSolve.id);
         if (index === -1) continue;
-        chunk.solves[index] = {
-            ...solve,
-            ...(Array.isArray(solve.phaseSplits) ? { phaseSplits: [...solve.phaseSplits] } : {}),
-        };
+        chunk.solves[index] = storedSolve;
         chunkStore.put(chunk);
         await _txComplete(tx);
         return;
@@ -555,8 +560,15 @@ export async function updateSolves(solves, { onProgress = null, sourceSessionIds
 
     const updatesById = new Map(
         solves
-            .filter((solve) => solve?.id && solve?.sessionId)
-            .map((solve) => [solve.id, solve]),
+            .filter((solve) => solve?.id && typeof solve.sessionId === 'string' && solve.sessionId)
+            .map((solve) => {
+                const sessionId = solve.sessionId;
+                return [solve.id, {
+                    ...solve,
+                    sessionId,
+                    ...(Array.isArray(solve.phaseSplits) ? { phaseSplits: [...solve.phaseSplits] } : {}),
+                }];
+            }),
     );
     if (updatesById.size === 0) return;
 

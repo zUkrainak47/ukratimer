@@ -76,6 +76,15 @@ function getIndexedSolveEntry(session, solveId) {
     return { solve, index };
 }
 
+function cloneSolveForPersistence(solve) {
+    if (!solve || typeof solve !== 'object') return solve;
+
+    return {
+        ...solve,
+        ...(Array.isArray(solve.phaseSplits) ? { phaseSplits: [...solve.phaseSplits] } : {}),
+    };
+}
+
 function waitForNextFrame() {
     return new Promise((resolve) => {
         if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
@@ -535,7 +544,7 @@ class SessionManager extends EventEmitter {
         session.solves.push(solve);
         session.solveCount += 1;
         indexSessionSolve(session, solve, session.solves.length - 1);
-        this._trackSolvePersistence(db.addSolve(solve), {
+        this._trackSolvePersistence(db.addSolve(cloneSolveForPersistence(solve)), {
             onPersisted: () => this.emit('solvePersisted', solve),
             warningMessage: 'Could not persist solve:',
         });
