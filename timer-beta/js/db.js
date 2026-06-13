@@ -344,8 +344,26 @@ export async function addSession(session) {
 
 export async function updateSession(session) {
     const db = await openDB();
-    const tx = db.transaction('sessions', 'readwrite');
-    tx.objectStore('sessions').put(_normalizeSessionForStorage(session));
+    const tx = db.transaction(_getStoreNames(db, ['sessions', 'solveChunks']), 'readwrite');
+    const sessionStore = tx.objectStore('sessions');
+    const existingSession = session?.id
+        ? await _requestToPromise(sessionStore.get(session.id))
+        : null;
+    let preservedSolveCount = null;
+
+    if (Number.isFinite(existingSession?.solveCount)) {
+        preservedSolveCount = existingSession.solveCount;
+    } else if (session?.id && tx.objectStoreNames.contains('solveChunks')) {
+        preservedSolveCount = await _countSolvesFromChunkStore(tx.objectStore('solveChunks'), session.id);
+    }
+
+    const normalizedSession = _normalizeSessionForStorage(session);
+    delete normalizedSession.solveCount;
+    if (Number.isFinite(preservedSolveCount)) {
+        normalizedSession.solveCount = Math.max(0, Math.floor(preservedSolveCount));
+    }
+
+    sessionStore.put(normalizedSession);
     return _txComplete(tx);
 }
 
@@ -459,7 +477,8 @@ export async function addSolve(solve) {
     const sessionStore = tx.objectStore('sessions');
     const chunkStore = tx.objectStore('solveChunks');
     const session = await _requestToPromise(sessionStore.get(solve.sessionId));
-    const currentCount = Number.isFinite(session?.solveCount)
+    const hasStoredSolveCount = Number.isFinite(session?.solveCount);
+    const currentCount = hasStoredSolveCount
         ? Math.max(0, Math.floor(session.solveCount))
         : await _countSolvesFromChunkStore(chunkStore, solve.sessionId);
     const chunkIndex = Math.floor(currentCount / SOLVE_CHUNK_SIZE);
@@ -473,6 +492,29 @@ export async function addSolve(solve) {
     };
 
     chunk.solves = _sanitizeChunkSolves(chunk.solves, solve.sessionId);
+    const currentChunkOffset = currentCount % SOLVE_CHUNK_SIZE;
+    let appendPositionMatchesStoredCount = false;
+    if (existingChunk) {
+        appendPositionMatchesStoredCount = chunk.solves.length === currentChunkOffset
+            && chunk.solves.length < SOLVE_CHUNK_SIZE;
+    } else if (!hasStoredSolveCount || currentCount === 0) {
+        appendPositionMatchesStoredCount = true;
+    } else if (currentChunkOffset === 0 && chunkIndex > 0) {
+        const previousChunk = await _requestToPromise(chunkStore.get(_chunkId(solve.sessionId, chunkIndex - 1)));
+        appendPositionMatchesStoredCount = _sanitizeChunkSolves(previousChunk?.solves, solve.sessionId).length === SOLVE_CHUNK_SIZE;
+    }
+
+    if (!appendPositionMatchesStoredCount) {
+        const chunks = await _getChunksFromStore(chunkStore, solve.sessionId);
+        const rebuiltSolves = chunks.flatMap((entry) => _sanitizeChunkSolves(entry.solves, solve.sessionId));
+        rebuiltSolves.push({
+            ...solve,
+            ...(Array.isArray(solve.phaseSplits) ? { phaseSplits: [...solve.phaseSplits] } : {}),
+        });
+        await _replaceSessionChunksInTransaction(sessionStore, chunkStore, solve.sessionId, rebuiltSolves);
+        return _txComplete(tx);
+    }
+
     chunk.solves.push({
         ...solve,
         ...(Array.isArray(solve.phaseSplits) ? { phaseSplits: [...solve.phaseSplits] } : {}),
