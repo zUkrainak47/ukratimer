@@ -809,15 +809,12 @@ async function _replaceSessionChunksInTransaction(sessionStore, chunkStore, sess
     const sortedSolves = _sanitizeChunkSolves(solves, sessionId).sort(_compareSolvesByTimestamp);
     const oldChunks = await _getChunksFromStore(chunkStore, sessionId);
     const nextChunks = _buildSessionChunks(sessionId, sortedSolves, { sort: false });
-    const maxChunkCount = Math.max(oldChunks.length, nextChunks.length);
+    const nextChunkIds = new Set(nextChunks.map((chunk) => chunk.id));
 
-    for (let index = 0; index < maxChunkCount; index += 1) {
-        if (nextChunks[index]) {
-            chunkStore.put(nextChunks[index]);
-        } else {
-            chunkStore.delete(_chunkId(sessionId, index));
-        }
-    }
+    nextChunks.forEach((chunk) => chunkStore.put(chunk));
+    oldChunks.forEach((chunk) => {
+        if (!nextChunkIds.has(chunk?.id)) chunkStore.delete(chunk.id);
+    });
 
     const session = await _requestToPromise(sessionStore.get(sessionId));
     if (session) {
