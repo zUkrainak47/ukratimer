@@ -965,13 +965,17 @@ export function isDailyStreakModalOpen() {
 export async function refreshDailyStreakModal() {
     if (!isDailyStreakModalOpen()) return;
 
-    const previousSelectedDayKey = _state.selectedDayKey;
-    await ensureDailyStreakSolvesHydrated();
-    if (!isDailyStreakModalOpen()) return;
+    try {
+        const previousSelectedDayKey = _state.selectedDayKey;
+        await ensureDailyStreakSolvesHydrated();
+        if (!isDailyStreakModalOpen()) return;
 
-    renderDailyStreakModal();
-    if (_state.buttonByDayKey.has(previousSelectedDayKey)) {
-        setSelectedDay(previousSelectedDayKey, { showTooltip: false });
+        renderDailyStreakModal();
+        if (_state.buttonByDayKey.has(previousSelectedDayKey)) {
+            setSelectedDay(previousSelectedDayKey, { showTooltip: false });
+        }
+    } catch (error) {
+        console.warn('Could not refresh daily streak data:', error);
     }
 }
 

@@ -118,6 +118,13 @@ function _buildSessionChunks(sessionId, solves, { sort = true } = {}) {
     return chunks;
 }
 
+function _flattenSessionChunkSolves(chunks, sessionId, { sort = true } = {}) {
+    const solves = (Array.isArray(chunks) ? chunks : [])
+        .flatMap((chunk) => _sanitizeChunkSolves(chunk.solves, sessionId));
+    if (sort) solves.sort(_compareSolvesByTimestamp);
+    return solves;
+}
+
 function _normalizeSessionForStorage(session, solveCount = null) {
     const normalized = { ...(session || {}) };
     delete normalized.solves;
@@ -396,7 +403,7 @@ export async function getSolvesBySession(sessionId) {
     const tx = db.transaction('solveChunks', 'readonly');
     const chunks = await _getChunksFromStore(tx.objectStore('solveChunks'), sessionId);
     await _txComplete(tx);
-    return chunks.flatMap((chunk) => _sanitizeChunkSolves(chunk.solves, sessionId));
+    return _flattenSessionChunkSolves(chunks, sessionId);
 }
 
 export async function getLatestSolvesBySession(sessionId, limit = SOLVE_CHUNK_SIZE) {
@@ -408,15 +415,7 @@ export async function getLatestSolvesBySession(sessionId, limit = SOLVE_CHUNK_SI
     const chunks = await _getChunksFromStore(tx.objectStore('solveChunks'), sessionId);
     await _txComplete(tx);
 
-    const solves = [];
-    for (let chunkIndex = chunks.length - 1; chunkIndex >= 0 && solves.length < safeLimit; chunkIndex -= 1) {
-        const chunkSolves = _sanitizeChunkSolves(chunks[chunkIndex].solves, sessionId);
-        for (let index = chunkSolves.length - 1; index >= 0 && solves.length < safeLimit; index -= 1) {
-            solves.push(chunkSolves[index]);
-        }
-    }
-    solves.reverse();
-    return solves;
+    return _flattenSessionChunkSolves(chunks, sessionId).slice(-safeLimit);
 }
 
 export async function getSolveIdsBySession(sessionId) {
