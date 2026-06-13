@@ -156,6 +156,16 @@ function _dispatchStorageEvent(name, detail = {}) {
     window.dispatchEvent(new CustomEvent(name, { detail }));
 }
 
+function _emitProgress(onProgress, snapshot) {
+    if (typeof onProgress !== 'function') return;
+
+    try {
+        onProgress(snapshot);
+    } catch (error) {
+        console.warn('Storage progress callback failed:', error);
+    }
+}
+
 function _notifyBlockedUpgrade() {
     if (_blockedUpgradeNotified) return;
     _blockedUpgradeNotified = true;
@@ -630,17 +640,39 @@ export async function updateSolves(solves, { onProgress = null, sourceSessionIds
         });
     });
 
-    for (const sessionId of touchedSessionIds) {
+    const touchedSessionIdList = Array.from(touchedSessionIds);
+    let completedSessions = 0;
+    touchedSessionIdList.forEach((sessionId) => {
+        if (!nextSolvesBySession.has(sessionId)) nextSolvesBySession.set(sessionId, []);
+    });
+
+    _emitProgress(onProgress, {
+        completed: 0,
+        total: updatesById.size,
+    });
+
+    for (const sessionId of touchedSessionIdList) {
         const nextSolves = nextSolvesBySession.get(sessionId) || [];
-        await _replaceSessionChunksInTransaction(sessionStore, chunkStore, sessionId, nextSolves);
+        await _replaceSessionChunksInTransaction(sessionStore, chunkStore, sessionId, nextSolves, {
+            onProgress: ({ completedWork, totalWork }) => {
+                const sessionRatio = totalWork > 0 ? completedWork / totalWork : 1;
+                const completed = Math.min(
+                    updatesById.size,
+                    Math.round(updatesById.size * ((completedSessions + sessionRatio) / Math.max(1, touchedSessionIdList.length))),
+                );
+                _emitProgress(onProgress, {
+                    completed,
+                    total: updatesById.size,
+                });
+            },
+        });
+        completedSessions += 1;
     }
 
-    if (typeof onProgress === 'function') {
-        onProgress({
-            completed: updatesById.size,
-            total: updatesById.size,
-        });
-    }
+    _emitProgress(onProgress, {
+        completed: updatesById.size,
+        total: updatesById.size,
+    });
 
     return _txComplete(tx);
 }
@@ -663,7 +695,6 @@ export async function deleteSolves(solveIds, { onProgress = null, sessionIds = n
         : await _getAllFromStore(chunkStore);
     const nextSolvesBySession = new Map();
     const touchedSessionIds = new Set();
-    let deletedCount = 0;
 
     allChunks.sort((a, b) => String(a.id).localeCompare(String(b.id)));
     allChunks.forEach((chunk) => {
@@ -673,22 +704,41 @@ export async function deleteSolves(solveIds, { onProgress = null, sessionIds = n
         (Array.isArray(chunk.solves) ? chunk.solves : []).forEach((solve) => {
             if (idSet.has(solve?.id)) {
                 touchedSessionIds.add(sessionId);
-                deletedCount += 1;
-                if (typeof onProgress === 'function') {
-                    onProgress({
-                        completed: Math.min(deletedCount, idSet.size),
-                        total: idSet.size,
-                    });
-                }
                 return;
             }
             nextSolvesBySession.get(sessionId).push(solve);
         });
     });
 
-    for (const sessionId of touchedSessionIds) {
-        await _replaceSessionChunksInTransaction(sessionStore, chunkStore, sessionId, nextSolvesBySession.get(sessionId) || []);
+    const touchedSessionIdList = Array.from(touchedSessionIds);
+    let completedSessions = 0;
+
+    _emitProgress(onProgress, {
+        completed: 0,
+        total: idSet.size,
+    });
+
+    for (const sessionId of touchedSessionIdList) {
+        await _replaceSessionChunksInTransaction(sessionStore, chunkStore, sessionId, nextSolvesBySession.get(sessionId) || [], {
+            onProgress: ({ completedWork, totalWork }) => {
+                const sessionRatio = totalWork > 0 ? completedWork / totalWork : 1;
+                const completed = Math.min(
+                    idSet.size,
+                    Math.round(idSet.size * ((completedSessions + sessionRatio) / Math.max(1, touchedSessionIdList.length))),
+                );
+                _emitProgress(onProgress, {
+                    completed,
+                    total: idSet.size,
+                });
+            },
+        });
+        completedSessions += 1;
     }
+
+    _emitProgress(onProgress, {
+        completed: idSet.size,
+        total: idSet.size,
+    });
 
     return _txComplete(tx);
 }
@@ -817,20 +867,43 @@ export async function replaceAllData(sessions, solves, { onProgress = null } = {
 
 // ──── Helpers ────
 
-async function _replaceSessionChunksInTransaction(sessionStore, chunkStore, sessionId, solves) {
+async function _replaceSessionChunksInTransaction(sessionStore, chunkStore, sessionId, solves, { onProgress = null } = {}) {
     const sortedSolves = _sanitizeChunkSolves(solves, sessionId).sort(_compareSolvesByTimestamp);
     const oldChunks = await _getChunksFromStore(chunkStore, sessionId);
     const nextChunks = _buildSessionChunks(sessionId, sortedSolves, { sort: false });
     const nextChunkIds = new Set(nextChunks.map((chunk) => chunk.id));
+    const staleChunks = oldChunks.filter((chunk) => !nextChunkIds.has(chunk?.id));
+    const session = await _requestToPromise(sessionStore.get(sessionId));
+    const totalWork = nextChunks.length + staleChunks.length + (session ? 1 : 0);
+    let completedWork = 0;
 
-    nextChunks.forEach((chunk) => chunkStore.put(chunk));
-    oldChunks.forEach((chunk) => {
-        if (!nextChunkIds.has(chunk?.id)) chunkStore.delete(chunk.id);
+    const trackWriteProgress = (request) => {
+        if (!request || typeof onProgress !== 'function') return;
+        request.onsuccess = () => {
+            completedWork += 1;
+            _emitProgress(onProgress, {
+                completedWork,
+                totalWork,
+            });
+        };
+    };
+
+    nextChunks.forEach((chunk) => {
+        trackWriteProgress(chunkStore.put(chunk));
+    });
+    staleChunks.forEach((chunk) => {
+        trackWriteProgress(chunkStore.delete(chunk.id));
     });
 
-    const session = await _requestToPromise(sessionStore.get(sessionId));
     if (session) {
-        sessionStore.put(_normalizeSessionForStorage(session, sortedSolves.length));
+        trackWriteProgress(sessionStore.put(_normalizeSessionForStorage(session, sortedSolves.length)));
+    }
+
+    if (totalWork === 0) {
+        _emitProgress(onProgress, {
+            completedWork: 0,
+            totalWork: 0,
+        });
     }
 }
 
