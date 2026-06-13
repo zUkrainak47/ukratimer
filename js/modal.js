@@ -784,27 +784,13 @@ export function initModal() {
     document.getElementById('modal-btn-plus2').onclick = () => {
         const id = _modalActions.dataset.solveId;
         if (id) {
-            sessionManager.togglePenalty(id, '+2');
-            if (_currentSolveIndex !== null) {
-                const solve = sessionManager.getActiveSession().solves.find(s => s.id === id);
-                if (solve) showSolveDetail(solve, _currentSolveIndex, _currentModalSource?.isBest ?? null, {
-                    enableStatNavigation: _currentModalSource?.enableStatNavigation !== false,
-                    ...getSingleDetailOptionsForSource(),
-                });
-            }
+            rerenderCurrentSingleSolveDetail(sessionManager.togglePenalty(id, '+2'));
         }
     };
     document.getElementById('modal-btn-dnf').onclick = () => {
         const id = _modalActions.dataset.solveId;
         if (id) {
-            sessionManager.togglePenalty(id, 'DNF');
-            if (_currentSolveIndex !== null) {
-                const solve = sessionManager.getActiveSession().solves.find(s => s.id === id);
-                if (solve) showSolveDetail(solve, _currentSolveIndex, _currentModalSource?.isBest ?? null, {
-                    enableStatNavigation: _currentModalSource?.enableStatNavigation !== false,
-                    ...getSingleDetailOptionsForSource(),
-                });
-            }
+            rerenderCurrentSingleSolveDetail(sessionManager.togglePenalty(id, 'DNF'));
         }
     };
     document.getElementById('modal-btn-delete').onclick = async () => {
@@ -1334,6 +1320,15 @@ function getCurrentSingleSolveSessionId() {
 
 function getCurrentSingleSolveSession() {
     return sessionManager.getSessionById(getCurrentSingleSolveSessionId());
+}
+
+function rerenderCurrentSingleSolveDetail(solve) {
+    if (!solve || _currentSolveIndex === null) return;
+
+    showSolveDetail(solve, _currentSolveIndex, _currentModalSource?.isBest ?? null, {
+        enableStatNavigation: _currentModalSource?.enableStatNavigation !== false,
+        ...getSingleDetailOptionsForSource(),
+    });
 }
 
 function setActionButtonFeedback(button, label) {

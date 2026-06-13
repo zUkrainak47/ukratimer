@@ -23,7 +23,7 @@ const BACKUP_LOCAL_STORAGE_KEYS = Object.freeze([
     'scrambleType',
 ]);
 const BACKUP_LOCAL_STORAGE_KEY_SET = new Set(BACKUP_LOCAL_STORAGE_KEYS);
-const IMPORT_PROGRESS_YIELD_INTERVAL = 2000;
+const IMPORT_PROGRESS_YIELD_INTERVAL = 10000;
 const LOCAL_ONLY_SETTING_KEYS = new Set(['zenMode']);
 const LOCAL_ONLY_SESSION_SETTING_KEYS = new Set(['zenMode']);
 const beforeDataExportHooks = new Set();
@@ -821,6 +821,12 @@ function _normalizeMergedSessionOrder(sessions) {
     }));
 }
 
+function _appendItems(target, items) {
+    (Array.isArray(items) ? items : []).forEach((item) => {
+        target.push(item);
+    });
+}
+
 function _mergeImportedDataset(
     importedSessions,
     importedSolves,
@@ -908,8 +914,9 @@ function _mergeImportedDataset(
         }
 
         if (solveMatchMode === SOLVE_MATCH_MODE_LOGICAL_EXACT) {
-            finalSolves.push(
-                ..._mergeLogicalSessionSolves(
+            _appendItems(
+                finalSolves,
+                _mergeLogicalSessionSolves(
                     importedSessionSolves,
                     existingSessionSolves,
                     mergedSession.id,
@@ -920,8 +927,9 @@ function _mergeImportedDataset(
         }
 
         if (solveMatchMode === SOLVE_MATCH_MODE_ID_OR_LOGICAL_EXACT) {
-            finalSolves.push(
-                ..._mergeIdOrLogicalSessionSolves(
+            _appendItems(
+                finalSolves,
+                _mergeIdOrLogicalSessionSolves(
                     importedSessionSolves,
                     existingSessionSolves,
                     mergedSession.id,
@@ -932,8 +940,9 @@ function _mergeImportedDataset(
         }
 
         if (solveMatchMode === SOLVE_MATCH_MODE_LOGICAL_CSTIMER) {
-            finalSolves.push(
-                ..._mergeLogicalSessionSolves(importedSessionSolves, existingSessionSolves, mergedSession.id, {
+            _appendItems(
+                finalSolves,
+                _mergeLogicalSessionSolves(importedSessionSolves, existingSessionSolves, mergedSession.id, {
                     ...solveMatchOptions,
                     roundTimestampToSecond: true,
                     includeScramble: true,
@@ -1240,6 +1249,7 @@ function _buildCsTimerSessionMergeResolver(
 export async function exportAll() {
     await _runBeforeDataExportHooks();
     const { sessions, solves } = await db.getAllData();
+    const solvesBySessionId = _groupSolvesBySessionId(solves);
 
     // Reconstruct the old embedded format for export compatibility
     const sessionsWithSolves = sessions.map(session => ({
@@ -1247,8 +1257,8 @@ export async function exportAll() {
         ...(session.settings && typeof session.settings === 'object'
             ? { settings: _sanitizeSessionSettingsForTransport(session.settings) }
             : {}),
-        solves: solves
-            .filter(s => s.sessionId === session.id)
+        solves: (solvesBySessionId.get(session.id) || [])
+            .slice()
             .sort((a, b) => a.timestamp - b.timestamp)
             .map(({ sessionId, ...rest }) => rest), // strip sessionId from export
     }));
@@ -3077,6 +3087,7 @@ export async function importCsTimer(csData, { mode = IMPORT_MODE_REWRITE, onProg
 export async function exportCsTimer() {
     await _runBeforeDataExportHooks();
     const { sessions, solves } = await db.getAllData();
+    const solvesBySessionId = _groupSolvesBySessionId(solves);
     const csData = {};
     const sessionMeta = {};
     const storedSettingsData = _sanitizeStoredSettingsForExport(load('settings', {}));
@@ -3100,8 +3111,8 @@ export async function exportCsTimer() {
         });
         const sessionPhaseCount = _normalizePhaseCount(effectiveSessionSettings.multiPhaseCount, 1);
 
-        const sessionSolves = solves
-            .filter(s => s.sessionId === session.id)
+        const sessionSolves = (solvesBySessionId.get(session.id) || [])
+            .slice()
             .sort((a, b) => a.timestamp - b.timestamp);
 
         csData[key] = sessionSolves.map(solve => {

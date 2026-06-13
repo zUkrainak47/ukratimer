@@ -34,6 +34,57 @@ function findSolveInsertIndex(solves, solve) {
     return low;
 }
 
+function rebuildSolveIndexes(session) {
+    if (!session || !Array.isArray(session.solves)) return;
+
+    session.solveById = new Map();
+    session.solveIndexById = new Map();
+    session.solves.forEach((solve, index) => {
+        if (!solve?.id) return;
+        session.solveById.set(solve.id, solve);
+        session.solveIndexById.set(solve.id, index);
+    });
+}
+
+function setSessionSolves(session, solves, solvesLoaded = true) {
+    if (!session) return;
+    session.solves = Array.isArray(solves) ? solves : [];
+    session.solveCount = session.solves.length;
+    session.solvesLoaded = solvesLoaded;
+    rebuildSolveIndexes(session);
+}
+
+function indexSessionSolve(session, solve, index = null) {
+    if (!session || !solve?.id) return;
+    if (!(session.solveById instanceof Map)) session.solveById = new Map();
+    if (!(session.solveIndexById instanceof Map)) session.solveIndexById = new Map();
+    session.solveById.set(solve.id, solve);
+    session.solveIndexById.set(
+        solve.id,
+        Number.isInteger(index) ? index : Math.max(0, session.solves.length - 1),
+    );
+}
+
+function getIndexedSolveEntry(session, solveId) {
+    if (!session || !solveId) return null;
+    if (!(session.solveById instanceof Map) || !(session.solveIndexById instanceof Map)) {
+        rebuildSolveIndexes(session);
+    }
+    const solve = session.solveById?.get(solveId);
+    const index = session.solveIndexById?.get(solveId);
+    if (!solve || !Number.isInteger(index)) return null;
+    return { solve, index };
+}
+
+function cloneSolveForPersistence(solve) {
+    if (!solve || typeof solve !== 'object') return solve;
+
+    return {
+        ...solve,
+        ...(Array.isArray(solve.phaseSplits) ? { phaseSplits: [...solve.phaseSplits] } : {}),
+    };
+}
+
 function waitForNextFrame() {
     return new Promise((resolve) => {
         if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
@@ -111,6 +162,7 @@ class SessionManager extends EventEmitter {
         this._activeId = null;
         this._ready = false;
         this._pendingSolvePersistence = new Set();
+        this._solveMutationGeneration = 0;
         registerBeforeDataExportHook(() => this.waitForPendingSolvePersistence());
     }
 
@@ -155,6 +207,7 @@ class SessionManager extends EventEmitter {
                     order,
                     scrambleType: nextScrambleType,
                     settings: normalizedSessionSettings,
+                    solveCount: solveCounts[index] ?? 0,
                 });
             }
 
@@ -168,6 +221,8 @@ class SessionManager extends EventEmitter {
                 solveCount: solveCounts[index] ?? 0,
                 solves: [],
                 solvesLoaded: false,
+                solveById: new Map(),
+                solveIndexById: new Map(),
             };
         });
 
@@ -256,8 +311,7 @@ class SessionManager extends EventEmitter {
         const session = this._sessions.find(s => s.id === sessionId);
         if (!session) return;
         session.solves = await db.getSolvesBySession(sessionId);
-        session.solveCount = session.solves.length;
-        session.solvesLoaded = true;
+        setSessionSolves(session, session.solves, true);
     }
 
     _serializeSession(session) {
@@ -268,6 +322,7 @@ class SessionManager extends EventEmitter {
             order: session.order,
             scrambleType: sanitizeSessionScrambleType(session.scrambleType),
             settings: settings.normalizeSessionSettings(session.settings),
+            solveCount: Number.isFinite(session.solveCount) ? session.solveCount : 0,
         };
     }
 
@@ -284,6 +339,8 @@ class SessionManager extends EventEmitter {
             solveCount: 0,
             solves: [],
             solvesLoaded: false,
+            solveById: new Map(),
+            solveIndexById: new Map(),
         };
         this._sessions.push(session);
         await db.addSession(this._serializeSession(session));
@@ -350,6 +407,8 @@ class SessionManager extends EventEmitter {
             solveCount: 0,
             solves: [],
             solvesLoaded: false,
+            solveById: new Map(),
+            solveIndexById: new Map(),
         };
         this._sessions.push(session);
         await db.addSession(this._serializeSession(session));
@@ -383,17 +442,30 @@ class SessionManager extends EventEmitter {
         const deletedIndex = this._sessions.findIndex(s => s.id === id);
         if (deletedIndex === -1) return;
 
-        const deletedSession = await this.ensureSessionSolvesLoaded(id);
-        const deletedSolveIds = Array.isArray(deletedSession?.solves)
+        const deletedSession = this.getSessionById(id);
+        const deletedSolveIds = deletedSession?.solvesLoaded && Array.isArray(deletedSession.solves)
             ? deletedSession.solves.map((solve) => solve?.id).filter(Boolean)
-            : [];
+            : await db.getSolveIdsBySession(id);
 
+        const deletedSessionSnapshot = deletedSession
+            ? {
+                scrambleType: deletedSession.scrambleType,
+            }
+            : null;
+
+        if (deletedSolveIds.length > 0) {
+            this._markSolveDataMutation();
+        }
         this._sessions = this._sessions.filter(s => s.id !== id);
-        await db.deleteSession(id);
+        const deletePersistence = db.deleteSession(id);
+        this._trackSolvePersistence(deletePersistence, {
+            warningMessage: 'Could not persist session solve deletion:',
+        });
+        await deletePersistence;
 
         if (this._sessions.length === 0) {
             await this._createDefault({
-                scrambleType: deletedSession?.scrambleType ?? getLegacyScrambleTypeFallback(),
+                scrambleType: deletedSessionSnapshot?.scrambleType ?? getLegacyScrambleTypeFallback(),
                 sessionSettings: settings.getSessionSettingsForNewSession(),
             });
             this._activeId = this._sessions[0].id;
@@ -421,10 +493,35 @@ class SessionManager extends EventEmitter {
         }
     }
 
+    getSolveMutationGeneration() {
+        return this._solveMutationGeneration;
+    }
+
+    _markSolveDataMutation() {
+        this._solveMutationGeneration += 1;
+        return this._solveMutationGeneration;
+    }
+
+    _trackSolvePersistence(persistence, { onPersisted = null, warningMessage = 'Could not persist solve change:' } = {}) {
+        if (!persistence || typeof persistence.then !== 'function') return persistence;
+
+        this._pendingSolvePersistence.add(persistence);
+        persistence.then(() => {
+            if (typeof onPersisted === 'function') onPersisted();
+        }).catch((error) => {
+            console.warn(warningMessage, error);
+        }).finally(() => {
+            this._pendingSolvePersistence.delete(persistence);
+        });
+
+        return persistence;
+    }
+
     // --- Solve CRUD ---
 
     addSolve(time, scramble, isManual = false, penalty = null, { phaseSplits = null, phaseCount = null } = {}) {
         const session = this.getActiveSession();
+        this._markSolveDataMutation();
         const normalizedPhaseSplits = Array.isArray(phaseSplits)
             ? phaseSplits
                 .map((value) => Math.round(Number(value)))
@@ -446,14 +543,10 @@ class SessionManager extends EventEmitter {
         }
         session.solves.push(solve);
         session.solveCount += 1;
-        const persistence = db.addSolve(solve);
-        this._pendingSolvePersistence.add(persistence);
-        persistence.then(() => {
-            this.emit('solvePersisted', solve);
-        }).catch((error) => {
-            console.warn('Could not persist solve:', error);
-        }).finally(() => {
-            this._pendingSolvePersistence.delete(persistence);
+        indexSessionSolve(session, solve, session.solves.length - 1);
+        this._trackSolvePersistence(db.addSolve(cloneSolveForPersistence(solve)), {
+            onPersisted: () => this.emit('solvePersisted', solve),
+            warningMessage: 'Could not persist solve:',
         });
         this.emit('solveAdded', solve);
         return solve;
@@ -461,12 +554,12 @@ class SessionManager extends EventEmitter {
 
     _findSolveLocation(solveId) {
         for (const session of this._sessions) {
-            const index = session.solves.findIndex((solve) => solve.id === solveId);
-            if (index >= 0) {
+            const indexed = getIndexedSolveEntry(session, solveId);
+            if (indexed) {
                 return {
                     session,
-                    index,
-                    solve: session.solves[index],
+                    index: indexed.index,
+                    solve: indexed.solve,
                 };
             }
         }
@@ -478,9 +571,16 @@ class SessionManager extends EventEmitter {
         const location = this._findSolveLocation(solveId);
         const solve = location?.solve;
         if (!solve) return null;
+        this._markSolveDataMutation();
         solve.penalty = solve.penalty === penalty ? null : penalty;
-        db.updateSolve(solve);
-        this.emit('solveUpdated', solve);
+        this._trackSolvePersistence(db.updateSolve(solve), {
+            warningMessage: 'Could not persist solve penalty:',
+        });
+        this.emit('solveUpdated', solve, {
+            affectsStats: true,
+            solveIndex: location.index,
+            changedFields: ['penalty'],
+        });
         return solve;
     }
 
@@ -488,9 +588,16 @@ class SessionManager extends EventEmitter {
         const location = this._findSolveLocation(solveId);
         const solve = location?.solve;
         if (!solve) return;
+        this._markSolveDataMutation();
         solve.comment = comment;
-        db.updateSolve(solve);
-        this.emit('solveUpdated', solve);
+        this._trackSolvePersistence(db.updateSolve(solve), {
+            warningMessage: 'Could not persist solve comment:',
+        });
+        this.emit('solveUpdated', solve, {
+            affectsStats: false,
+            solveIndex: location.index,
+            changedFields: ['comment'],
+        });
     }
 
     deleteSolve(solveId) {
@@ -499,9 +606,15 @@ class SessionManager extends EventEmitter {
         if (!session) return;
         const solveIndex = location.index;
         if (solveIndex < 0) return;
+        this._markSolveDataMutation();
         session.solves.splice(solveIndex, 1);
         session.solveCount = Math.max(0, session.solveCount - 1);
-        db.deleteSolve(solveId);
+        rebuildSolveIndexes(session);
+        this._trackSolvePersistence(db.deleteSolve(solveId, {
+            sessionIds: [session.id],
+        }), {
+            warningMessage: 'Could not persist solve deletion:',
+        });
         this.emit('solveDeleted', solveId);
     }
 
@@ -514,6 +627,7 @@ class SessionManager extends EventEmitter {
 
         const sourceIndex = location.index;
         if (sourceIndex === -1) return null;
+        this._markSolveDataMutation();
 
         const [solve] = sourceSession.solves.splice(sourceIndex, 1);
         const shouldSyncTargetSolves = Boolean(targetSession.solvesLoaded || targetSession.solveCount === 0);
@@ -528,9 +642,17 @@ class SessionManager extends EventEmitter {
             const insertIndex = findSolveInsertIndex(targetSession.solves, solve);
             targetSession.solves.splice(insertIndex, 0, solve);
         }
+        rebuildSolveIndexes(sourceSession);
+        if (shouldSyncTargetSolves) rebuildSolveIndexes(targetSession);
 
         try {
-            await db.updateSolve(solve);
+            const movePersistence = db.updateSolves([solve], {
+                sourceSessionIds: [sourceSession.id],
+            });
+            this._trackSolvePersistence(movePersistence, {
+                warningMessage: 'Could not persist solve move:',
+            });
+            await movePersistence;
         } catch (error) {
             solve.sessionId = sourceSession.id;
             sourceSession.solves.splice(sourceIndex, 0, solve);
@@ -541,6 +663,8 @@ class SessionManager extends EventEmitter {
                 targetSession.solvesLoaded = wasTargetSolvesLoaded;
                 targetSession.solves = targetSession.solves.filter((entry) => entry.id !== solve.id);
             }
+            rebuildSolveIndexes(sourceSession);
+            if (shouldSyncTargetSolves) rebuildSolveIndexes(targetSession);
 
             throw error;
         }
@@ -564,10 +688,11 @@ class SessionManager extends EventEmitter {
 
         const previousSolves = session.solves;
         const previousSolveCount = session.solveCount;
-        const remainingSolves = [];
         const deletedSolveIds = [];
-        const totalScanCount = session.solves.length;
-        const totalWork = totalScanCount + solveIdSet.size;
+        const useIndexedSelection = solveIdSet.size <= 5000
+            && solveIdSet.size < Math.max(1, session.solves.length / 4);
+        const scanWork = useIndexedSelection ? solveIdSet.size : session.solves.length;
+        const totalWork = scanWork + solveIdSet.size;
         const reportProgress = (snapshot) => {
             if (typeof onProgress !== 'function') return;
             const effectiveTotalWork = Number.isFinite(snapshot.totalWork) ? snapshot.totalWork : totalWork;
@@ -581,62 +706,68 @@ class SessionManager extends EventEmitter {
             });
         };
 
-        reportProgress({
-            phase: 'scanning',
-            completed: 0,
-            total: totalScanCount,
-            processed: 0,
-        });
+        reportProgress({ phase: 'scanning', completed: 0, total: scanWork, processed: 0 });
 
-        for (let index = 0; index < session.solves.length; index += 1) {
-            const solve = session.solves[index];
-            if (solveIdSet.has(solve.id)) {
-                deletedSolveIds.push(solve.id);
-            } else {
-                remainingSolves.push(solve);
+        let remainingSolves;
+        if (useIndexedSelection) {
+            const indexedEntries = [];
+            solveIdSet.forEach((solveId) => {
+                const indexed = getIndexedSolveEntry(session, solveId);
+                if (indexed) indexedEntries.push(indexed);
+            });
+            indexedEntries.sort((a, b) => a.index - b.index);
+            deletedSolveIds.push(...indexedEntries.map(({ solve }) => solve.id));
+            remainingSolves = session.solves.slice();
+            for (let index = indexedEntries.length - 1; index >= 0; index -= 1) {
+                remainingSolves.splice(indexedEntries[index].index, 1);
             }
+            reportProgress({ phase: 'scanning', completed: scanWork, total: scanWork, processed: scanWork });
+        } else {
+            remainingSolves = [];
+            for (let index = 0; index < session.solves.length; index += 1) {
+                const solve = session.solves[index];
+                if (solveIdSet.has(solve.id)) {
+                    deletedSolveIds.push(solve.id);
+                } else {
+                    remainingSolves.push(solve);
+                }
 
-            const completed = index + 1;
-            if (completed % BULK_OPERATION_YIELD_INTERVAL === 0 || completed === totalScanCount) {
-                reportProgress({
-                    phase: 'scanning',
-                    completed,
-                    total: totalScanCount,
-                    processed: completed,
-                });
-
-                if (completed < totalScanCount) {
-                    await waitForNextFrame();
+                const completed = index + 1;
+                if (completed % BULK_OPERATION_YIELD_INTERVAL === 0 || completed === scanWork) {
+                    reportProgress({ phase: 'scanning', completed, total: scanWork, processed: completed });
+                    if (completed < scanWork) await waitForNextFrame();
                 }
             }
         }
 
         if (deletedSolveIds.length === 0) return 0;
 
+        this._markSolveDataMutation();
         session.solves = remainingSolves;
         session.solveCount = Math.max(0, previousSolveCount - deletedSolveIds.length);
+        rebuildSolveIndexes(session);
 
         try {
-            reportProgress({
-                phase: 'writing',
-                completed: 0,
-                total: deletedSolveIds.length,
-                processed: totalScanCount,
-            });
-
-            await db.deleteSolves(deletedSolveIds, {
+            reportProgress({ phase: 'writing', completed: 0, total: deletedSolveIds.length, processed: scanWork });
+            const deletePersistence = db.deleteSolves(deletedSolveIds, {
+                sessionIds: [session.id],
                 onProgress: ({ completed, total }) => {
                     reportProgress({
                         phase: 'writing',
                         completed,
                         total,
-                        processed: totalScanCount + completed,
+                        processed: scanWork + completed,
                     });
                 },
             });
+            this._trackSolvePersistence(deletePersistence, {
+                warningMessage: 'Could not persist bulk solve deletion:',
+            });
+            await deletePersistence;
         } catch (error) {
             session.solves = previousSolves;
             session.solveCount = previousSolveCount;
+            rebuildSolveIndexes(session);
             throw error;
         }
 
@@ -660,9 +791,11 @@ class SessionManager extends EventEmitter {
         const solveIdSet = solveIds instanceof Set ? solveIds : new Set(solveIds);
         if (solveIdSet.size === 0) return 0;
 
-        const remainingSolves = [];
+        const useIndexedSelection = solveIdSet.size <= 5000
+            && solveIdSet.size < Math.max(1, sourceSession.solves.length / 4);
+        let remainingSolves = [];
         const movedSolves = [];
-        const totalScanCount = sourceSession.solves.length;
+        const totalScanCount = useIndexedSelection ? solveIdSet.size : sourceSession.solves.length;
         const shouldSyncTargetSolves = Boolean(targetSession.solvesLoaded || targetSession.solveCount === 0);
         const mergeTotal = shouldSyncTargetSolves ? (targetSession.solves.length + solveIdSet.size) : 0;
         const totalWork = totalScanCount + mergeTotal + solveIdSet.size;
@@ -688,31 +821,51 @@ class SessionManager extends EventEmitter {
             processed: 0,
         });
 
-        for (let index = 0; index < sourceSession.solves.length; index += 1) {
-            const solve = sourceSession.solves[index];
-            if (solveIdSet.has(solve.id)) {
-                movedSolves.push(solve);
-            } else {
-                remainingSolves.push(solve);
+        if (useIndexedSelection) {
+            const indexedEntries = [];
+            solveIdSet.forEach((solveId) => {
+                const indexed = getIndexedSolveEntry(sourceSession, solveId);
+                if (indexed) indexedEntries.push(indexed);
+            });
+            indexedEntries.sort((a, b) => a.index - b.index);
+            movedSolves.push(...indexedEntries.map(({ solve }) => solve));
+            remainingSolves = sourceSession.solves.slice();
+            for (let index = indexedEntries.length - 1; index >= 0; index -= 1) {
+                remainingSolves.splice(indexedEntries[index].index, 1);
             }
 
-            const completed = index + 1;
-            if (completed % BULK_OPERATION_YIELD_INTERVAL === 0 || completed === totalScanCount) {
-                reportProgress({
-                    phase: 'scanning',
-                    completed,
-                    total: totalScanCount,
-                    processed: completed,
-                });
+            reportProgress({
+                phase: 'scanning',
+                completed: totalScanCount,
+                total: totalScanCount,
+                processed: totalScanCount,
+            });
+        } else {
+            for (let index = 0; index < sourceSession.solves.length; index += 1) {
+                const solve = sourceSession.solves[index];
+                if (solveIdSet.has(solve.id)) {
+                    movedSolves.push(solve);
+                } else {
+                    remainingSolves.push(solve);
+                }
 
-                if (completed < totalScanCount) {
-                    await waitForNextFrame();
+                const completed = index + 1;
+                if (completed % BULK_OPERATION_YIELD_INTERVAL === 0 || completed === totalScanCount) {
+                    reportProgress({
+                        phase: 'scanning',
+                        completed,
+                        total: totalScanCount,
+                        processed: completed,
+                    });
+
+                    if (completed < totalScanCount) await waitForNextFrame();
                 }
             }
         }
 
         if (movedSolves.length === 0) return 0;
 
+        this._markSolveDataMutation();
         const previousSourceSolves = sourceSession.solves;
         const previousSourceSolveCount = sourceSession.solveCount;
         const previousTargetSolves = targetSession.solves;
@@ -729,6 +882,7 @@ class SessionManager extends EventEmitter {
         for (const solve of movedSolves) {
             solve.sessionId = targetSession.id;
         }
+        rebuildSolveIndexes(sourceSession);
 
         if (shouldSyncTargetSolves) {
             targetSession.solvesLoaded = true;
@@ -753,6 +907,7 @@ class SessionManager extends EventEmitter {
                     });
                 },
             );
+            rebuildSolveIndexes(targetSession);
         }
 
         try {
@@ -764,7 +919,8 @@ class SessionManager extends EventEmitter {
                 totalWork: actualTotalWork,
             });
 
-            await db.updateSolves(movedSolves, {
+            const movePersistence = db.updateSolves(movedSolves, {
+                sourceSessionIds: [sourceSession.id],
                 onProgress: ({ completed, total }) => {
                     reportProgress({
                         phase: 'writing',
@@ -775,6 +931,10 @@ class SessionManager extends EventEmitter {
                     });
                 },
             });
+            this._trackSolvePersistence(movePersistence, {
+                warningMessage: 'Could not persist bulk solve move:',
+            });
+            await movePersistence;
         } catch (error) {
             sourceSession.solves = previousSourceSolves;
             sourceSession.solveCount = previousSourceSolveCount;
@@ -785,6 +945,8 @@ class SessionManager extends EventEmitter {
             for (const solve of movedSolves) {
                 solve.sessionId = sourceSession.id;
             }
+            rebuildSolveIndexes(sourceSession);
+            if (shouldSyncTargetSolves) rebuildSolveIndexes(targetSession);
 
             throw error;
         }
