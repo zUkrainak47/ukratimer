@@ -1,4 +1,4 @@
-import * as db from './db.js?v=2026061401';
+import * as db from './db.js?v=2026061402';
 
 export function toDayKey(timestamp) {
     const date = new Date(timestamp);
