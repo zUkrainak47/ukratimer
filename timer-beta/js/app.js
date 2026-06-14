@@ -16852,6 +16852,19 @@ function initSettingsPanel() {
         syncScopeModeHardwareButtons();
     };
 
+    const setConnectedGoogleDriveBackupStatus = (file) => {
+        const modifiedAt = file?.modifiedTime ? Date.parse(file.modifiedTime) : NaN;
+        const accountPrefix = 'Connected. ';
+
+        if (!file) {
+            setGoogleDriveStatus(`${accountPrefix}No cloud backup found yet.`, 'success');
+        } else if (Number.isFinite(modifiedAt)) {
+            setGoogleDriveStatus(`${accountPrefix}Cloud backup last updated ${formatDateTime(modifiedAt)}.`, 'success');
+        } else {
+            setGoogleDriveStatus(`${accountPrefix}Cloud backup is available.`, 'success');
+        }
+    };
+
     const refreshGoogleDriveStatus = async () => {
         syncGoogleDriveButtons();
 
@@ -16884,16 +16897,7 @@ function initSettingsPanel() {
 
         try {
             const info = await getGoogleDriveBackupInfo();
-            const modifiedAt = info?.file?.modifiedTime ? Date.parse(info.file.modifiedTime) : NaN;
-            const accountPrefix = 'Connected. ';
-
-            if (!info?.file) {
-                setGoogleDriveStatus(`${accountPrefix}No cloud backup found yet.`, 'success');
-            } else if (Number.isFinite(modifiedAt)) {
-                setGoogleDriveStatus(`${accountPrefix}Cloud backup last updated ${formatDateTime(modifiedAt)}.`, 'success');
-            } else {
-                setGoogleDriveStatus(`${accountPrefix}Cloud backup is available.`, 'success');
-            }
+            setConnectedGoogleDriveBackupStatus(info?.file);
         } catch (error) {
             setGoogleDriveStatus(error?.message || 'Could not read Google Drive backup status.', 'error');
         } finally {
@@ -16984,7 +16988,7 @@ function initSettingsPanel() {
 
             try {
                 if (!(await ensureGoogleDriveSession())) return;
-                const { text } = await importBackupFromGoogleDrive();
+                const { file, text } = await importBackupFromGoogleDrive();
                 let data = null;
 
                 try {
@@ -17003,18 +17007,21 @@ function initSettingsPanel() {
                     'Choose how to import this Google Drive backup. Merge keeps solves that are missing from the backup. Rewrite replaces everything.',
                 );
 
-                if (importMode) {
-                    await settings.waitForPendingSessionSettingsPersistence();
-                    await beginImportProgress('backup');
-                    didBeginImport = true;
-                    await importAll(data, {
-                        mode: importMode,
-                        onProgress: applyImportProgress,
-                    });
-                    await waitForNextPaint();
-                    location.reload();
+                if (!importMode) {
+                    setConnectedGoogleDriveBackupStatus(file);
                     return;
                 }
+
+                await settings.waitForPendingSessionSettingsPersistence();
+                await beginImportProgress('backup');
+                didBeginImport = true;
+                await importAll(data, {
+                    mode: importMode,
+                    onProgress: applyImportProgress,
+                });
+                await waitForNextPaint();
+                location.reload();
+                return;
             } catch (error) {
                 if (didBeginImport) {
                     failImportProgress('backup');
