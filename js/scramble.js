@@ -26,6 +26,31 @@ const SCRAMBOW_BATCH_SIZE = 12;
 const CUBING_BATCH_CONCURRENCY = 12;
 const SUBSET_BATCH_YIELD_INTERVAL = 12;
 const CUSTOM_BATCH_SIZE = 12;
+const TWO_BY_TWO_STANDARD_SCRAMBLE_TYPE = '222';
+const TWO_BY_TWO_RUF_FACES = new Set(['R', 'U', 'F']);
+const TWO_BY_TWO_OPPOSITE_RUF_FACE = Object.freeze({
+    L: 'R',
+    D: 'U',
+    B: 'F',
+});
+const TWO_BY_TWO_DISALLOWED_FACE_ROTATION = Object.freeze({
+    L: 'x',
+    D: 'y',
+    B: 'z',
+});
+const CUBE_ROTATION_FACE_MAPS = Object.freeze({
+    x: Object.freeze({ U: 'F', R: 'R', F: 'D', D: 'B', L: 'L', B: 'U' }),
+    "x'": Object.freeze({ U: 'B', R: 'R', F: 'U', D: 'F', L: 'L', B: 'D' }),
+    x2: Object.freeze({ U: 'D', R: 'R', F: 'B', D: 'U', L: 'L', B: 'F' }),
+    y: Object.freeze({ U: 'U', R: 'B', F: 'R', D: 'D', L: 'F', B: 'L' }),
+    "y'": Object.freeze({ U: 'U', R: 'F', F: 'L', D: 'D', L: 'B', B: 'R' }),
+    y2: Object.freeze({ U: 'U', R: 'L', F: 'B', D: 'D', L: 'R', B: 'F' }),
+    z: Object.freeze({ U: 'L', R: 'U', F: 'F', D: 'R', L: 'D', B: 'B' }),
+    "z'": Object.freeze({ U: 'R', R: 'D', F: 'F', D: 'L', L: 'U', B: 'B' }),
+    z2: Object.freeze({ U: 'D', R: 'L', F: 'F', D: 'U', L: 'R', B: 'B' }),
+});
+const IDENTITY_FACE_MAP = Object.freeze({ U: 'U', R: 'R', F: 'F', D: 'D', L: 'L', B: 'B' });
+const CUBE_FACE_NAMES = Object.freeze(['U', 'R', 'F', 'D', 'L', 'B']);
 
 export const SCRAMBLE_TYPE_OPTIONS = Object.freeze([
     { id: '333', menuLabel: '3x3x3', buttonLabel: '3x3x3', generator: 'cubing', eventId: '333' },
@@ -94,11 +119,11 @@ let _prevScramble = null;
 let _isViewingPrev = false;
 let _cubingWarmupPromise = null;
 
-function sanitizeScrambleQueue(value) {
+function sanitizeScrambleQueue(value, type = null) {
     if (!Array.isArray(value)) return [];
     return value
         .filter((entry) => typeof entry === 'string' && entry.trim())
-        .map((entry) => normalizeScrambleText(entry))
+        .map((entry) => normalizeGeneratedScrambleForType(type, entry))
         .slice(0, SCRAMBLE_QUEUE_MAX);
 }
 
@@ -107,7 +132,7 @@ function sanitizeScrambleQueues(value, legacy333Queue = []) {
 
     if (value && typeof value === 'object' && !Array.isArray(value)) {
         SCRAMBLE_QUEUE_TYPES.forEach((type) => {
-            queues[type] = sanitizeScrambleQueue(value[type]);
+            queues[type] = sanitizeScrambleQueue(value[type], type);
         });
     }
 
@@ -125,8 +150,64 @@ function sanitizeScrambleType(value) {
 
 function normalizeScrambleText(value) {
     return String(value ?? '')
+        .replace(/[`´‘’′]/g, "'")
         .replace(/\s+/g, ' ')
         .trim();
+}
+
+function invertMoveModifier(modifier = '') {
+    if (modifier === '2') return '2';
+    if (modifier === "'") return '';
+    return "'";
+}
+
+function getRotationToken(axis, modifier = '') {
+    return `${axis}${modifier}`;
+}
+
+function composeFaceMaps(outerMap, innerMap) {
+    return Object.fromEntries(CUBE_FACE_NAMES.map((face) => [face, outerMap[innerMap[face]]]));
+}
+
+function translateTwoByTwoRulfToRuf(scramble) {
+    const normalized = normalizeScrambleText(scramble);
+    if (!normalized) return '';
+
+    const outputTokens = [];
+    let orientationMap = IDENTITY_FACE_MAP;
+
+    for (const token of normalized.split(' ')) {
+        const match = token.match(/^([URFDLB])([2']?)$/);
+        if (!match) return normalized;
+
+        const [, face, modifier] = match;
+        const mappedFace = orientationMap[face];
+
+        if (TWO_BY_TWO_RUF_FACES.has(mappedFace)) {
+            outputTokens.push(`${mappedFace}${modifier}`);
+            continue;
+        }
+
+        const outputFace = TWO_BY_TWO_OPPOSITE_RUF_FACE[mappedFace];
+        const rotationAxis = TWO_BY_TWO_DISALLOWED_FACE_ROTATION[mappedFace];
+        if (!outputFace || !rotationAxis) return normalized;
+
+        outputTokens.push(`${outputFace}${modifier}`);
+
+        const rotationToken = getRotationToken(rotationAxis, invertMoveModifier(modifier));
+        const rotationMap = CUBE_ROTATION_FACE_MAPS[rotationToken];
+        if (!rotationMap) return normalized;
+        orientationMap = composeFaceMaps(rotationMap, orientationMap);
+    }
+
+    return outputTokens.join(' ');
+}
+
+function normalizeGeneratedScrambleForType(type, scramble) {
+    const normalized = normalizeScrambleText(scramble);
+    return sanitizeScrambleType(type) === TWO_BY_TWO_STANDARD_SCRAMBLE_TYPE
+        ? translateTwoByTwoRulfToRuf(normalized)
+        : normalized;
 }
 
 function createAbortError() {
@@ -373,7 +454,7 @@ async function createCubingScramble(eventId) {
 
         const alg = await randomScrambleForEvent(eventId);
         markCubingTypeWarmed(type);
-        return normalizeScrambleText(alg.toString());
+        return normalizeGeneratedScrambleForType(type, alg.toString());
     } catch (error) {
         _cubingUnavailable = true;
         _cubingInitPromise = null;
@@ -561,14 +642,14 @@ function getScrambowInstance(type) {
 function getSingleScrambowScramble(type) {
     const scrambler = getScrambowInstance(type);
     const result = scrambler.get(1)?.[0];
-    return extractScrambleText(result);
+    return normalizeGeneratedScrambleForType(type, extractScrambleText(result));
 }
 
 function getScrambowBatchScrambles(type, count) {
     const scrambler = getScrambowInstance(type);
     const results = scrambler.get(count);
     if (!Array.isArray(results)) return [];
-    return results.map(extractScrambleText);
+    return results.map((result) => normalizeGeneratedScrambleForType(type, extractScrambleText(result)));
 }
 
 async function createScrambowScramble(type) {
@@ -649,11 +730,13 @@ function resetScrambleHistory() {
 }
 
 function pushNewScramble(scrambleStr, type = _scrambleType, isManual = false) {
+    const entryType = sanitizeScrambleType(type);
+
     _prevScramble = _currentScramble;
     _currentScramble = {
-        text: isManual ? String(scrambleStr ?? '') : normalizeScrambleText(scrambleStr),
+        text: isManual ? String(scrambleStr ?? '') : normalizeGeneratedScrambleForType(entryType, scrambleStr),
         isManual,
-        type: sanitizeScrambleType(type),
+        type: entryType,
     };
     _isViewingPrev = false;
 }
@@ -715,7 +798,7 @@ async function createCubingScrambleBatch(eventId, count, { signal = null, onProg
             );
 
             throwIfBatchGenerationAborted(signal);
-            scrambles.push(...batch.map((alg) => normalizeScrambleText(alg.toString())));
+            scrambles.push(...batch.map((alg) => normalizeGeneratedScrambleForType(type, alg.toString())));
             markCubingTypeWarmed(type);
             reportBatchGenerationProgress(onProgress, scrambles.length, count);
 
