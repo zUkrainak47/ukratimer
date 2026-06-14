@@ -2132,6 +2132,21 @@ function syncTextareaRegularHeight(textareaEl, rowCount) {
     }
 }
 
+function shouldKeepTextareaSelectionAtTop(source) {
+    return source?.type === 'text' || source?.type === 'average';
+}
+
+function selectTextareaFromTop(textareaEl) {
+    if (!(textareaEl instanceof HTMLTextAreaElement)) return;
+
+    if (typeof textareaEl.setSelectionRange === 'function') {
+        textareaEl.setSelectionRange(0, textareaEl.value.length, 'backward');
+    } else {
+        textareaEl.select();
+    }
+    textareaEl.scrollTop = 0;
+}
+
 function _showModal(title, text, solveContext = null, detailPayload = null) {
     document.getElementById('modal-title').textContent = title;
     _textarea.value = text;
@@ -2229,16 +2244,11 @@ function _showModal(title, text, solveContext = null, detailPayload = null) {
     _overlay.classList.add('active');
 
     if (!isMobileDetailLayout() || (!detailPayload && !isMobileTextDetail)) {
-        const shouldKeepTextareaAtTop = _currentModalSource?.type === 'text';
+        const shouldKeepTextareaAtTop = shouldKeepTextareaSelectionAtTop(_currentModalSource);
         requestAnimationFrame(() => {
             _textarea.focus();
             if (shouldKeepTextareaAtTop) {
-                if (typeof _textarea.setSelectionRange === 'function') {
-                    _textarea.setSelectionRange(0, _textarea.value.length, 'backward');
-                } else {
-                    _textarea.select();
-                }
-                _textarea.scrollTop = 0;
+                selectTextareaFromTop(_textarea);
                 return;
             }
             _textarea.select();
@@ -2257,6 +2267,7 @@ function _showSecondaryModal(title, text, solveContext = null, detailPayload = n
 
     _secondaryTitle.textContent = title;
     _secondaryTextarea.value = text;
+    _secondaryTextarea.scrollTop = 0;
     _secondaryDetailPayload = detailPayload;
     updateModalCopyOptionVisibility();
     renderModalCopyOptionButtons();
@@ -2286,8 +2297,13 @@ function _showSecondaryModal(title, text, solveContext = null, detailPayload = n
     _overlay?.classList.add('secondary-active');
 
     if (!isMobileDetailLayout() || !detailPayload) {
+        const shouldKeepTextareaAtTop = shouldKeepTextareaSelectionAtTop(_secondaryModalSource);
         requestAnimationFrame(() => {
             _secondaryTextarea.focus();
+            if (shouldKeepTextareaAtTop) {
+                selectTextareaFromTop(_secondaryTextarea);
+                return;
+            }
             _secondaryTextarea.select();
         });
     }
