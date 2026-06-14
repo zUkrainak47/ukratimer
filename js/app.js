@@ -6,7 +6,7 @@ import { buildRollingBestFlags, buildRollingStatValues, getAverageTrimCount, par
 import { formatTime, formatSolveTime, formatSolveTimeWithSplits, formatTimerDisplayTime, getEffectiveTime, getSolvePhaseSplits, normalizePhaseCount, formatDate, formatReadableDate, formatDateTime, parseCustomStatsFilter, parseTimeInputToMs, truncateTimeDisplay } from './utils.js?v=2026061403';
 import { initModal, showSolveDetail, showAverageDetail, showTextDetail, closeModal, closeMoveSessionMenus, customConfirm, customConfirmChoice, customPrompt, getModalSelectionContext, setModalStatNavigator, setModalCloseHandler, setModalStatButtons, armModalGhostClickGuard } from './modal.js?v=2026061403';
 import { applyMegaminxScramble, applyPyraminxScramble, applyScramble, applySquare1Scramble, applySkewbScramble, applyClockScramble, clearCubeDisplay, drawMegaminxFacePreview, drawSquare1, drawClock, initCubeDisplay, updateCubeDisplay, updateMegaminxDisplay, updatePyraminxDisplay, updateSquare1Display, updateSkewbDisplay, updateClockDisplay } from './cube-display.js?v=2026061403';
-import { initGraph, updateGraph, updateGraphData, setLineVisibility, getLineVisibility, applyAction, graphEvents, getGraphLineDefinitions } from './graph.js?v=2026061403';
+import { initGraph, updateGraph, updateGraphData, setLineVisibility, getLineVisibility, applyAction, graphEvents, getGraphLineDefinitions, setGraphViewMode } from './graph.js?v=2026061403';
 import { closeTimeDistributionModal, initTimeDistributionModal, isTimeDistributionModalOpen, refreshTimeDistributionData, refreshTimeDistributionTheme, showTimeDistributionModal } from './distribution.js?v=2026061403';
 import { closeDailyStreakModal, initDailyStreakModal, isDailyStreakModalOpen, refreshDailyStreakModal, showDailyStreakModal } from './daily-streak-modal.js?v=2026061403';
 import { exportAll, importAll, isCsTimerFormat, importCsTimer, exportCsTimer, importSessionCsv, isTwistyTimerOtherTimersCsvFormat, TWISTY_TIMER_OTHER_TIMERS_EXPORT_MESSAGE, IMPORT_MODE_MERGE, IMPORT_MODE_REWRITE, load, save } from './storage.js?v=2026061403';
@@ -72,6 +72,7 @@ const GOOGLE_DRIVE_AUTO_EXPORT_DISCONNECTED_MESSAGE = 'Google Drive auto export 
 const CHANGELOG_LAST_SEEN_STORAGE_KEY = 'changelogLastSeenEntryId';
 const THEME_EDITOR_MODE_SIMPLE = 'simple';
 const THEME_EDITOR_MODE_FULL = 'full';
+const MULTI_PHASE_ACTIVE_BODY_CLASS = 'multi-phase-active';
 const SIMPLE_THEME_COLOR_SECTIONS = Object.freeze([
     Object.freeze({
         id: 'simple-core',
@@ -126,6 +127,7 @@ const SCRAMBLE_GENERATOR_PREFIX_FORMATTERS = Object.freeze({
 let battleRestoreScrambleType = null;
 let isBattleEnvironmentActive = false;
 let battleGraphModalOpen = false;
+let battleGraphModalCanPersist = false;
 let battleGraphCanvasPlaceholder = null;
 let battleGraphControlsPlaceholder = null;
 let battleGraphCloseRestoreTimer = null;
@@ -1105,6 +1107,7 @@ const buttonShortcutTooltipBindings = [
     { selector: '#btn-zen', action: 'Zen mode', binding: ['Z'] },
     { selector: '#timer-action-comment', action: 'Comment on last solve', binding: ['Tab'] },
     { selector: '#btn-graph-distribution', action: 'Time distribution', binding: ['T'] },
+    { selector: '#btn-graph-fullscreen', action: 'Open graph full screen', binding: [], placement: 'top' },
     { selector: 'button[data-action="last25"]', action: 'Show last 25 solves', binding: ['Shift', 'Enter'] },
     { selector: 'button[data-action="reset"]', action: 'Reset view', binding: ['Enter'] },
     { selector: 'button[data-action="zoom-x-in"]', action: 'Zoom in horizontally', binding: ['Shift', 'ArrowLeft'], placement: 'top' },
@@ -2109,6 +2112,42 @@ function ensureGraphOverlayModal() {
     return { overlay, modalBox, legendSlot, modalBody };
 }
 
+function sanitizeGraphOverlayPlaceholderIds(root) {
+    if (!(root instanceof Element)) return;
+    if (root.id) root.removeAttribute('id');
+    root.querySelectorAll('[id]').forEach((element) => {
+        element.removeAttribute('id');
+    });
+    root.querySelectorAll('button, [href], input, select, textarea, [tabindex]').forEach((element) => {
+        element.setAttribute('tabindex', '-1');
+    });
+}
+
+function copyGraphCanvasSnapshot(sourceRoot, cloneRoot) {
+    const sourceCanvas = sourceRoot?.querySelector?.('canvas');
+    const cloneCanvas = cloneRoot?.querySelector?.('canvas');
+    if (!(sourceCanvas instanceof HTMLCanvasElement) || !(cloneCanvas instanceof HTMLCanvasElement)) return;
+    if (sourceCanvas.width <= 0 || sourceCanvas.height <= 0) return;
+
+    cloneCanvas.width = sourceCanvas.width;
+    cloneCanvas.height = sourceCanvas.height;
+    const context = cloneCanvas.getContext('2d');
+    if (!context) return;
+    context.drawImage(sourceCanvas, 0, 0);
+}
+
+function createGraphOverlayPlaceholder(sourceElement, placeholderClass) {
+    if (!(sourceElement instanceof HTMLElement)) return null;
+
+    const placeholder = sourceElement.cloneNode(true);
+    placeholder.classList.add('graph-modal-source-placeholder', placeholderClass);
+    placeholder.setAttribute('aria-hidden', 'true');
+    placeholder.setAttribute('inert', '');
+    sanitizeGraphOverlayPlaceholderIds(placeholder);
+    copyGraphCanvasSnapshot(sourceElement, placeholder);
+    return placeholder;
+}
+
 function restoreGraphOverlayContent() {
     const graphBody = getEl('graph-body');
     const graphCanvasContainer = getEl('graph-canvas-container');
@@ -2132,7 +2171,7 @@ function restoreGraphOverlayContent() {
     }
 }
 
-function openGraphOverlay() {
+function openGraphOverlay({ persistWithoutBattleAction = false } = {}) {
     const graphPanel = getEl('graph-panel');
     const graphBody = getEl('graph-body');
     const graphCanvasContainer = getEl('graph-canvas-container');
@@ -2146,21 +2185,34 @@ function openGraphOverlay() {
     }
 
     if (!battleGraphCanvasPlaceholder) {
-        battleGraphCanvasPlaceholder = document.createComment('graph-canvas-container-placeholder');
-        graphCanvasContainer.parentElement?.insertBefore(battleGraphCanvasPlaceholder, graphCanvasContainer);
+        battleGraphCanvasPlaceholder = createGraphOverlayPlaceholder(
+            graphCanvasContainer,
+            'graph-canvas-container-placeholder',
+        );
+        if (battleGraphCanvasPlaceholder) {
+            graphCanvasContainer.parentElement?.insertBefore(battleGraphCanvasPlaceholder, graphCanvasContainer);
+        }
     }
     if (!battleGraphControlsPlaceholder) {
-        battleGraphControlsPlaceholder = document.createComment('graph-controls-placeholder');
-        graphControls.parentElement?.insertBefore(battleGraphControlsPlaceholder, graphControls);
+        battleGraphControlsPlaceholder = createGraphOverlayPlaceholder(
+            graphControls,
+            'graph-controls-placeholder',
+        );
+        if (battleGraphControlsPlaceholder) {
+            graphControls.parentElement?.insertBefore(battleGraphControlsPlaceholder, graphControls);
+        }
     }
 
     modal.legendSlot.replaceChildren(graphLegend ? graphLegend.cloneNode(true) : document.createTextNode('Time Trend'));
     modal.modalBody.append(graphCanvasContainer, graphControls);
+    setGraphViewMode('modal', { initializeModalFromPanel: true });
 
     battleGraphModalOpen = true;
+    battleGraphModalCanPersist = Boolean(persistWithoutBattleAction);
     document.body.classList.add('battle-graph-modal-open');
     modal.overlay.classList.add('active');
     modal.overlay.setAttribute('aria-hidden', 'false');
+    syncGraphFullscreenButton();
     syncBattleAuxButtons();
 }
 
@@ -2168,6 +2220,7 @@ function closeGraphOverlay() {
     const overlay = getEl('graph-overlay');
     if (!overlay) return;
     battleGraphModalOpen = false;
+    battleGraphModalCanPersist = false;
     document.body.classList.remove('battle-graph-modal-open');
     overlay.classList.remove('active');
     overlay.setAttribute('aria-hidden', 'true');
@@ -2177,9 +2230,23 @@ function closeGraphOverlay() {
     battleGraphCloseRestoreTimer = window.setTimeout(() => {
         battleGraphCloseRestoreTimer = null;
         if (battleGraphModalOpen) return;
+        setGraphViewMode('panel');
         restoreGraphOverlayContent();
     }, 200);
+    syncGraphFullscreenButton();
     syncBattleAuxButtons();
+}
+
+function syncGraphFullscreenButton() {
+    const fullscreenButton = getEl('btn-graph-fullscreen');
+    if (!fullscreenButton) return;
+
+    const fullscreenLabel = battleGraphModalOpen
+        ? 'Close full screen graph'
+        : 'Open graph full screen';
+    fullscreenButton.setAttribute('aria-label', fullscreenLabel);
+    fullscreenButton.setAttribute('aria-pressed', String(battleGraphModalOpen));
+    fullscreenButton.dataset.shortcutTooltipAction = fullscreenLabel;
 }
 
 function applyBattleScramble(scramble) {
@@ -2623,6 +2690,12 @@ function selectRightPanelSecondary(panelType) {
     return false;
 }
 
+function shouldUseBattleGraphOverlayAction(state = battleManager.getState()) {
+    return !mobileViewportQuery.matches
+        && Boolean(state?.joined)
+        && document.body.classList.contains('camera-background-active');
+}
+
 function syncBattleAuxButtons() {
     const previewButton = getEl('btn-scramble-preview');
     const graphButton = getEl('btn-battle-graph');
@@ -2642,7 +2715,7 @@ function syncBattleAuxButtons() {
     const showGraphPanelAction = !isMobileLayout
         && !isGraphPanelVisibleInCurrentLayout()
         && canSwapRightPanelContent;
-    const showGraphOverlayAction = !isMobileLayout && isJoined && isCameraBackgroundActive;
+    const showGraphOverlayAction = shouldUseBattleGraphOverlayAction(battleState);
     const showGraph = showGraphPanelAction || showGraphOverlayAction;
     const localElo = Number.isFinite(Number(battleState.localPlayer?.elo))
         ? Math.round(Number(battleState.localPlayer.elo))
@@ -2681,9 +2754,12 @@ function syncBattleAuxButtons() {
         roomLaunchValue.textContent = String(localElo);
     }
 
-    if (!showGraph && battleGraphModalOpen) {
+    if (!showGraph && battleGraphModalOpen && !battleGraphModalCanPersist) {
         closeGraphOverlay();
+        return;
     }
+
+    syncGraphFullscreenButton();
 }
 
 function performBattleManagedControlLockVisuals(locked) {
@@ -5884,6 +5960,7 @@ async function init() {
         refreshUI();
     });
     ensureAutoExportSolveSequenceFloor();
+    syncMultiPhaseBodyClass();
 
     settings.on('change', (key, _value, signalType = 'modify') => {
         const isSessionContextChange = signalType === 'session';
@@ -5910,8 +5987,14 @@ async function init() {
             renderSolvesTable();
             scheduleViewportLayoutSync();
         }
-        if (key === 'multiPhaseCount' && getConfiguredPhaseCount() <= 1) {
-            renderPhaseSplitDisplay([]);
+        if (key === 'multiPhaseCount') {
+            const configuredPhaseCount = getConfiguredPhaseCount();
+            syncMultiPhaseBodyClass(configuredPhaseCount);
+            if (configuredPhaseCount <= 1) {
+                renderPhaseSplitDisplay([]);
+            } else {
+                syncPhaseSplitDisplayFromSolves();
+            }
         }
         if (key === 'timeEntryMode') {
             clearPenaltyShortcutAlert();
@@ -5941,6 +6024,13 @@ async function init() {
     });
     settings.on('reset', () => {
         invalidatePhaseSourceTimeColumnWidthCache();
+        const configuredPhaseCount = getConfiguredPhaseCount();
+        syncMultiPhaseBodyClass(configuredPhaseCount);
+        if (configuredPhaseCount <= 1) {
+            renderPhaseSplitDisplay([]);
+        } else {
+            syncPhaseSplitDisplayFromSolves();
+        }
         syncSolvesPanelWidthPreferenceFromSettings();
         renderSolvesTable();
         clearPenaltyShortcutAlert();
@@ -9882,6 +9972,10 @@ function getConfiguredPhaseCount() {
     return normalizePhaseCount(settings.get('multiPhaseCount'), DEFAULTS.multiPhaseCount);
 }
 
+function syncMultiPhaseBodyClass(phaseCount = getConfiguredPhaseCount()) {
+    document.body.classList.toggle(MULTI_PHASE_ACTIVE_BODY_CLASS, phaseCount > 1);
+}
+
 function getMaxSolvePhaseCount(solves = sessionManager.getFilteredSolves()) {
     if (!Array.isArray(solves)) return 0;
 
@@ -10173,6 +10267,7 @@ function renderPhaseMeanChips(solves) {
 function isDesktopPhaseSplitSurfaceForcedVisible(displayEl) {
     return Boolean(displayEl)
         && displayEl.classList.contains('phase-splits-display-desktop')
+        && getConfiguredPhaseCount() > 1
         && document.body.classList.contains('camera-background-live')
         && !mobileViewportQuery.matches;
 }
@@ -10226,6 +10321,10 @@ function syncPhaseSplitDisplayPosition() {
 function syncPhaseSplitDisplayFromSolves(solves = sessionManager.getFilteredSolves()) {
     const state = timer.getState();
     if (state !== 'idle' && state !== 'stopped') return;
+    if (getConfiguredPhaseCount() <= 1) {
+        renderPhaseSplitDisplay([]);
+        return;
+    }
 
     const lastSolve = Array.isArray(solves) ? solves[solves.length - 1] : null;
     const lastSplits = getSolvePhaseSplits(lastSolve);
@@ -12932,6 +13031,7 @@ function initBattleControls() {
     const previewPanel = getEl('battle-preview-panel');
     const roomLaunchButton = getEl('btn-battle-room-launch');
     const graphButton = getEl('btn-battle-graph');
+    const graphFullscreenButton = getEl('btn-graph-fullscreen');
     const nicknameInput = getEl('battle-nickname-input');
     const roomInput = getEl('battle-room-input');
     const copyLinkButton = getEl('battle-copy-link');
@@ -13008,15 +13108,30 @@ function initBattleControls() {
     });
 
     graphButton?.addEventListener('click', () => {
-        if (selectRightPanelSecondary(RIGHT_PANEL_SECONDARY_GRAPH)) {
+        if (battleGraphModalOpen) {
+            closeGraphOverlay();
             graphButton.blur();
             return;
         }
-        if (battleGraphModalOpen) {
-            closeGraphOverlay();
+
+        if (shouldUseBattleGraphOverlayAction()) {
+            openGraphOverlay();
+            graphButton.blur();
             return;
         }
-        openGraphOverlay();
+
+        if (selectRightPanelSecondary(RIGHT_PANEL_SECONDARY_GRAPH)) {
+            graphButton.blur();
+        }
+    });
+
+    graphFullscreenButton?.addEventListener('click', () => {
+        if (battleGraphModalOpen) {
+            closeGraphOverlay();
+        } else {
+            openGraphOverlay({ persistWithoutBattleAction: true });
+        }
+        graphFullscreenButton.blur();
     });
 
     copyLinkButton?.addEventListener('click', () => {
@@ -14350,7 +14465,6 @@ function initSettingsPanel() {
         multiPhaseCountSelect.value = String(getConfiguredPhaseCount());
         multiPhaseCountSelect.onchange = () => {
             settings.set('multiPhaseCount', multiPhaseCountSelect.value);
-            renderPhaseSplitDisplay([]);
             multiPhaseCountSelect.blur();
         };
     }

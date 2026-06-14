@@ -83,7 +83,9 @@ body.camera-background-active #cube-panel.camera-background-hosting-timer #cube-
 }
 
 body.camera-background-active #graph-panel.camera-background-hosting-timer #graph-canvas-container,
-body.camera-background-active #graph-panel.camera-background-hosting-timer #graph-controls {
+body.camera-background-active #graph-panel.camera-background-hosting-timer #graph-controls,
+body.camera-background-active #graph-panel.camera-background-hosting-timer .graph-modal-source-placeholder.graph-canvas-container-placeholder,
+body.camera-background-active #graph-panel.camera-background-hosting-timer .graph-modal-source-placeholder.graph-controls-placeholder {
     display: none;
 }
 

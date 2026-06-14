@@ -47,6 +47,9 @@
   <link rel="preload" href="resources/hashtag-full.svg?v=2026061403" as="image" type="image/svg+xml">
   <link rel="preload" href="resources/settings.svg?v=2026061403" as="image" type="image/svg+xml">
   <link rel="preload" href="resources/distribution.svg?v=2026061403" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/fullscreen.svg?v=2026061403" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/restore.svg?v=2026061403" as="image" type="image/svg+xml">
+  <link rel="preload" href="resources/circle.svg?v=2026061403" as="image" type="image/svg+xml">
   <link rel="preload" href="resources/trash.svg?v=2026061403" as="image" type="image/svg+xml">
   <link rel="preload" href="resources/search.svg?v=2026061403" as="image" type="image/svg+xml">
   <link rel="preload" href="resources/camera-video.svg?v=2026061403" as="image" type="image/svg+xml">
@@ -547,17 +550,26 @@
                   <span class="icon-mask icon-mask-distribution" aria-hidden="true"></span>
                 </button>
                 <button data-action="last25" data-mobile-label="Last 25" title="Show last 25 solves">25</button>
-                <button data-action="reset" data-mobile-label="Reset" title="Reset view"
-                  style="font-size:18px">⟲</button>
+                <button data-action="reset" data-mobile-label="Reset" title="Reset view">
+                  <span class="icon-mask icon-mask-restore" aria-hidden="true"></span>
+                </button>
                 <span style="flex:1"></span>
                 <button class="graph-line-toggle active" data-line="time" data-mobile-label="Time"
-                  title="Toggle time line" style="color:var(--graph-color-time)">●</button>
+                  title="Toggle time line" style="color:var(--graph-color-time)">
+                  <span class="icon-mask icon-mask-circle" aria-hidden="true"></span>
+                </button>
                 <button id="graph-line-toggle-line1" class="graph-line-toggle active" data-line="line1"
-                  data-mobile-label="LINE 1" title="Toggle line 1" style="color:var(--graph-color-line1)">●</button>
+                  data-mobile-label="LINE 1" title="Toggle line 1" style="color:var(--graph-color-line1)">
+                  <span class="icon-mask icon-mask-circle" aria-hidden="true"></span>
+                </button>
                 <button id="graph-line-toggle-line2" class="graph-line-toggle active" data-line="line2"
-                  data-mobile-label="LINE 2" title="Toggle line 2" style="color:var(--graph-color-line2)">●</button>
+                  data-mobile-label="LINE 2" title="Toggle line 2" style="color:var(--graph-color-line2)">
+                  <span class="icon-mask icon-mask-circle" aria-hidden="true"></span>
+                </button>
                 <button id="graph-line-toggle-line3" class="graph-line-toggle active" data-line="line3"
-                  data-mobile-label="LINE 3" title="Toggle line 3" style="color:var(--graph-color-line3)">●</button>
+                  data-mobile-label="LINE 3" title="Toggle line 3" style="color:var(--graph-color-line3)">
+                  <span class="icon-mask icon-mask-circle" aria-hidden="true"></span>
+                </button>
                 <button id="btn-graph-tools" class="btn-graph-toggle" title="Toggle zoom/pan controls"
                   aria-label="Toggle zoom and pan controls" style="font-size:16px">
                   <span class="icon-mask icon-mask-settings" aria-hidden="true"></span>
@@ -577,6 +589,11 @@
                   <button data-action="pan-right" title="Pan right">→</button>
                   <button data-action="pan-down" title="Pan down">↓</button>
                 </div>
+                <span class="graph-controls-sep graph-controls-fullscreen-sep"></span>
+                <button id="btn-graph-fullscreen" class="graph-controls-secondary-action" type="button"
+                  aria-label="Open graph full screen" aria-pressed="false" title="Open graph full screen">
+                  <span class="icon-mask icon-mask-fullscreen" aria-hidden="true"></span>
+                </button>
               </div>
             </div>
           </div>
