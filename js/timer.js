@@ -1,6 +1,6 @@
-import { isInspectionTimeCountingDown, isInspectionTimeEnabled, settings } from './settings.js?v=2026061403';
-import { isHardwareTimeEntryMode, TIME_ENTRY_MODE_TIMER, TIME_ENTRY_MODE_TYPING } from './time-entry.js?v=2026061403';
-import { EventEmitter, formatTime, normalizePhaseCount, truncateTimeDisplay } from './utils.js?v=2026061403';
+import { isInspectionTimeCountingDown, isInspectionTimeEnabled, settings } from './settings.js?v=2026061501';
+import { isHardwareTimeEntryMode, TIME_ENTRY_MODE_TIMER, TIME_ENTRY_MODE_TYPING } from './time-entry.js?v=2026061501';
+import { EventEmitter, formatTime, normalizePhaseCount, truncateTimeDisplay } from './utils.js?v=2026061501';
 
 const State = {
     IDLE: 'idle',

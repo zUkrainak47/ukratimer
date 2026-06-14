@@ -1,6 +1,6 @@
-import { load, registerBeforeDataExportHook, save } from './storage.js?v=2026061403';
-import { normalizeTimeEntryMode, TIME_ENTRY_MODE_TIMER, TIME_ENTRY_MODE_TYPING } from './time-entry.js?v=2026061403';
-import { EventEmitter, normalizePhaseCount } from './utils.js?v=2026061403';
+import { load, registerBeforeDataExportHook, save } from './storage.js?v=2026061501';
+import { normalizeTimeEntryMode, TIME_ENTRY_MODE_TIMER, TIME_ENTRY_MODE_TYPING } from './time-entry.js?v=2026061501';
+import { EventEmitter, normalizePhaseCount } from './utils.js?v=2026061501';
 import {
     SETTING_SCOPE_GLOBAL,
     SETTING_SCOPE_SESSION,
@@ -10,7 +10,7 @@ import {
     getSessionScopedSettingKeys,
     isDefaultSessionScopedSetting,
     normalizeSettingScopes,
-} from './setting-scopes.js?v=2026061403';
+} from './setting-scopes.js?v=2026061501';
 
 export {
     SETTING_SCOPE_GLOBAL,
