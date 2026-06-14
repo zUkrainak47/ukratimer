@@ -66,14 +66,16 @@
 }
 
 /* Canvas area */
-#graph-canvas-container {
+#graph-canvas-container,
+.graph-modal-source-placeholder.graph-canvas-container-placeholder {
     width: 100%;
     height: 200px;
     padding: var(--space-xs);
     overflow: hidden;
 }
 
-#graph-canvas {
+#graph-canvas,
+.graph-modal-source-placeholder.graph-canvas-container-placeholder canvas {
     width: 100%;
     height: 100%;
     display: block;
@@ -81,7 +83,8 @@
 }
 
 /* Controls bar — stacked rows */
-#graph-controls {
+#graph-controls,
+.graph-modal-source-placeholder.graph-controls-placeholder {
     display: flex;
     flex-direction: column;
     border-top: 1px solid var(--surface-border);
@@ -97,16 +100,21 @@
     position: relative;
 }
 
-#btn-graph-distribution .icon-mask {
+#btn-graph-distribution .icon-mask,
+.graph-modal-source-placeholder.graph-controls-placeholder .icon-mask-distribution {
     width: 14px;
     height: 14px;
+}
+
+.graph-modal-source-placeholder {
+    pointer-events: none;
 }
 
 .graph-controls-secondary {
     display: flex;
     align-items: center;
     justify-content: flex-start;
-    gap: 4px;
+    gap: 3px;
     padding: 6px;
     background: var(--bg-tertiary);
 
@@ -123,15 +131,23 @@
     border-bottom-right-radius: 12px;
 
     overflow: hidden;
-    max-height: 42px;
+    max-height: 40px;
     transition: max-height 0.25s ease, padding 0.25s ease, opacity 0.2s ease, border-color 0.25s ease;
     opacity: 1;
 }
 
 .graph-controls-secondary-group {
     display: flex;
+    flex: 4 1 0;
     align-items: center;
-    gap: 4px;
+    gap: 3px;
+    min-width: 0;
+}
+
+.graph-controls-secondary-group>button,
+.graph-controls-secondary-action {
+    flex: 1 1 0;
+    min-width: 0;
 }
 
 .graph-controls-secondary.collapsed {
@@ -142,7 +158,8 @@
 }
 
 /* Square buttons */
-#graph-controls button {
+#graph-controls button,
+.graph-modal-source-placeholder.graph-controls-placeholder button {
     font-size: 12px;
     padding: 0;
     width: 30px;
@@ -160,16 +177,31 @@
     outline: none;
 }
 
-#graph-controls button:hover {
+#btn-graph-fullscreen .icon-mask,
+.graph-controls-secondary-action .icon-mask-fullscreen {
+    width: 13px;
+    height: 13px;
+}
+
+#graph-controls button[data-action="reset"] .icon-mask,
+.graph-modal-source-placeholder.graph-controls-placeholder button[data-action="reset"] .icon-mask {
+    width: 14px;
+    height: 14px;
+}
+
+#graph-controls button:hover,
+.graph-modal-source-placeholder.graph-controls-placeholder button:hover {
     background: var(--surface-hover);
     color: var(--text-primary);
 }
 
-#graph-controls button:active {
+#graph-controls button:active,
+.graph-modal-source-placeholder.graph-controls-placeholder button:active {
     background: var(--surface-active);
 }
 
 #graph-controls button,
+.graph-modal-source-placeholder.graph-controls-placeholder button,
 .graph-line-toggle {
     user-select: none;
     -webkit-user-select: none;
@@ -184,7 +216,24 @@
     width: 1px;
     height: 20px;
     background: var(--surface-border);
-    margin: 0 auto;
+    flex: 0 0 1px;
+    margin: 0 4px;
+}
+
+@media (min-width: 1101px) and (pointer: fine) {
+    #graph-controls .graph-controls-secondary button,
+    .graph-modal-source-placeholder.graph-controls-placeholder .graph-controls-secondary button {
+        width: auto;
+        height: 26px;
+        font-size: 11px;
+        border-radius: calc(var(--radius-md) - 2px);
+    }
+
+    #graph-controls .graph-controls-secondary .graph-controls-secondary-action,
+    .graph-modal-source-placeholder.graph-controls-placeholder .graph-controls-secondary .graph-controls-secondary-action {
+        flex: 0 0 26px;
+        width: 26px;
+    }
 }
 
 /* Line toggle buttons */
@@ -192,6 +241,11 @@
     font-size: 16px !important;
     opacity: 0.3;
     transition: opacity 0.15s ease;
+}
+
+.graph-line-toggle .icon-mask-circle {
+    width: 13px;
+    height: 13px;
 }
 
 .graph-line-toggle.active {
@@ -283,6 +337,10 @@
     }
 
     .graph-controls-sep {
+        display: none;
+    }
+
+    #graph-controls #btn-graph-fullscreen {
         display: none;
     }
 
@@ -395,13 +453,9 @@
         border-color: var(--floating-surface-border);
     }
 
-    .graph-controls-primary .graph-line-toggle::before {
-        content: "";
-        width: 9px;
-        height: 9px;
-        border-radius: 50%;
-        background: currentColor;
-        flex: 0 0 auto;
+    .graph-controls-primary .graph-line-toggle .icon-mask-circle {
+        width: 8px;
+        height: 8px;
     }
 
     .graph-controls-primary .graph-line-toggle::after {

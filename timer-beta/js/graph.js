@@ -102,53 +102,78 @@ export function getLineVisibility() {
 }
 
 // View state — target and animated current
+const DEFAULT_GRAPH_VIEW = Object.freeze({ visibleCount: 0, yZoom: 1, xPan: 1, yPan: 0 });
 let savedView = settings.get('graphView');
 if (savedView && savedView.xZoom !== undefined) {
     savedView = { visibleCount: 0, yZoom: savedView.yZoom, xPan: savedView.xPan, yPan: savedView.yPan };
 }
-let _target = savedView || { visibleCount: 0, yZoom: 1, xPan: 1, yPan: 0 };
-let _view = { ..._target };
-let _animating = false;
+const panelInitialView = savedView || { ...DEFAULT_GRAPH_VIEW };
+const _viewStates = {
+    panel: {
+        target: { ...panelInitialView },
+        view: { ...panelInitialView },
+        animating: false,
+        persist: true,
+    },
+    modal: {
+        target: { ...DEFAULT_GRAPH_VIEW },
+        view: { ...DEFAULT_GRAPH_VIEW },
+        animating: false,
+        initialized: false,
+        persist: false,
+    },
+};
+let _activeViewMode = 'panel';
 const BASE_PAN_STEP = 0.15;
 
-function saveView() {
-    settings.set('graphView', _target);
+function getViewState(mode = _activeViewMode) {
+    return _viewStates[mode] || _viewStates.panel;
 }
 
-function resetView() {
-    _target = { visibleCount: 0, yZoom: 1, xPan: 1, yPan: 0 };
-    saveView();
-    startAnimation();
+function saveView(mode = _activeViewMode) {
+    const state = getViewState(mode);
+    if (!state.persist) return;
+    settings.set('graphView', state.target);
 }
 
-function showLast25() {
+function resetView(mode = _activeViewMode) {
+    const state = getViewState(mode);
+    state.target = { ...DEFAULT_GRAPH_VIEW };
+    saveView(mode);
+    startAnimation(mode);
+}
+
+function showLast25(mode = _activeViewMode) {
     if (_solves.length <= 25) {
-        resetView();
+        resetView(mode);
         return;
     }
-    _target = {
-        ..._target,
+    const state = getViewState(mode);
+    state.target = {
+        ...state.target,
         visibleCount: 25,
         xPan: 1, // Pan to end
         yZoom: 1,
         yPan: 0
     };
-    saveView();
-    startAnimation();
+    saveView(mode);
+    startAnimation(mode);
 }
 
-function startAnimation() {
-    if (_animating) return;
-    _animating = true;
-    animateStep();
+function startAnimation(mode = _activeViewMode) {
+    const state = getViewState(mode);
+    if (state.animating) return;
+    state.animating = true;
+    animateStep(mode);
 }
 
-function animateStep() {
+function animateStep(mode = _activeViewMode) {
+    const state = getViewState(mode);
     const speed = 0.18;
     let done = true;
     for (const key of ['visibleCount', 'yZoom', 'xPan', 'yPan']) {
-        let tVal = _target[key];
-        let vVal = _view[key];
+        let tVal = state.target[key];
+        let vVal = state.view[key];
 
         // Handle "fit all" dynamic state for visual animation
         if (key === 'visibleCount') {
@@ -160,14 +185,14 @@ function animateStep() {
             if (Math.abs(diff) > 0.05) {
                 let nextVal = vVal + diff * speed;
                 // If target is 0 and we are very close to total, snap to 0
-                if (_target.visibleCount === 0 && Math.abs(nextVal - tot) < 0.1) {
-                    _view.visibleCount = 0;
+                if (state.target.visibleCount === 0 && Math.abs(nextVal - tot) < 0.1) {
+                    state.view.visibleCount = 0;
                 } else {
-                    _view.visibleCount = nextVal;
+                    state.view.visibleCount = nextVal;
                     done = false;
                 }
             } else {
-                _view.visibleCount = _target.visibleCount;
+                state.view.visibleCount = state.target.visibleCount;
             }
             continue;
         }
@@ -176,17 +201,17 @@ function animateStep() {
         // Use a much tighter threshold for large solve counts (e.g. 50k+)
         // where a 0.001 difference in xPan (0 to 1) can equal 50+ solves.
         if (Math.abs(diff) > 1e-8) {
-            _view[key] += diff * speed;
+            state.view[key] += diff * speed;
             done = false;
         } else {
-            _view[key] = tVal;
+            state.view[key] = tVal;
         }
     }
-    render();
+    if (mode === _activeViewMode) render();
     if (!done) {
-        requestAnimationFrame(animateStep);
+        requestAnimationFrame(() => animateStep(mode));
     } else {
-        _animating = false;
+        state.animating = false;
     }
 }
 
@@ -236,11 +261,13 @@ function formatSolveDate(timestamp) {
 }
 
 function getTargetVisibleCount() {
+    const state = getViewState();
     const tot = Math.max(2, _solves.length);
-    return _target.visibleCount === 0 ? tot : Math.max(2, Math.min(tot, _target.visibleCount));
+    return state.target.visibleCount === 0 ? tot : Math.max(2, Math.min(tot, state.target.visibleCount));
 }
 
 function getPanStep(action) {
+    const state = getViewState();
     if (action === 'pan-left' || action === 'pan-right') {
         const tot = Math.max(2, _solves.length);
         const visibleCount = getTargetVisibleCount();
@@ -253,19 +280,20 @@ function getPanStep(action) {
     }
 
     if (action === 'pan-up' || action === 'pan-down') {
-        return BASE_PAN_STEP / Math.max(1, _target.yZoom);
+        return BASE_PAN_STEP / Math.max(1, state.target.yZoom);
     }
 
     return BASE_PAN_STEP;
 }
 
 export function applyAction(action) {
+    const state = getViewState();
     const tot = Math.max(2, _solves.length);
     let curVis = getTargetVisibleCount();
     const panStep = getPanStep(action);
 
     // Use immutable-style updates for better persistence reliability
-    let nextTarget = { ..._target };
+    let nextTarget = { ...state.target };
 
     switch (action) {
         case 'zoom-x-in':
@@ -273,18 +301,18 @@ export function applyAction(action) {
             break;
         case 'zoom-x-out':
             let nextVisCount = curVis * 1.15;
-            if (_target.visibleCount === 0 || nextVisCount >= tot) {
+            if (state.target.visibleCount === 0 || nextVisCount >= tot) {
                 nextTarget.visibleCount = 0;
             } else {
                 nextTarget.visibleCount = nextVisCount;
             }
             break;
-        case 'zoom-y-in': nextTarget.yZoom = Math.min(50, _target.yZoom * 1.15); break;
-        case 'zoom-y-out': nextTarget.yZoom = Math.max(0.3, _target.yZoom / 1.15); break;
-        case 'pan-left': nextTarget.xPan = Math.max(0, _target.xPan - panStep); break;
-        case 'pan-right': nextTarget.xPan = Math.min(1, _target.xPan + panStep); break;
-        case 'pan-up': nextTarget.yPan = Math.max(-1, _target.yPan - panStep); break;
-        case 'pan-down': nextTarget.yPan = Math.min(1, _target.yPan + panStep); break;
+        case 'zoom-y-in': nextTarget.yZoom = Math.min(50, state.target.yZoom * 1.15); break;
+        case 'zoom-y-out': nextTarget.yZoom = Math.max(0.3, state.target.yZoom / 1.15); break;
+        case 'pan-left': nextTarget.xPan = Math.max(0, state.target.xPan - panStep); break;
+        case 'pan-right': nextTarget.xPan = Math.min(1, state.target.xPan + panStep); break;
+        case 'pan-up': nextTarget.yPan = Math.max(-1, state.target.yPan - panStep); break;
+        case 'pan-down': nextTarget.yPan = Math.min(1, state.target.yPan + panStep); break;
         case 'reset': resetView(); return;
         case 'last25': showLast25(); return;
     }
@@ -292,7 +320,7 @@ export function applyAction(action) {
     if (['pan-left', 'pan-right'].includes(action)) nextTarget.xPan = Math.max(0, Math.min(1, nextTarget.xPan));
     if (['pan-up', 'pan-down'].includes(action)) nextTarget.yPan = Math.max(-1, Math.min(1, nextTarget.yPan));
 
-    _target = nextTarget;
+    state.target = nextTarget;
     saveView();
     startAnimation();
 }
@@ -300,6 +328,22 @@ export function applyAction(action) {
 function stopHold() {
     if (_holdTimeout) { clearTimeout(_holdTimeout); _holdTimeout = null; }
     if (_holdInterval) { clearInterval(_holdInterval); _holdInterval = null; }
+}
+
+export function setGraphViewMode(mode, { initializeModalFromPanel = false } = {}) {
+    const nextMode = mode === 'modal' ? 'modal' : 'panel';
+    if (nextMode === 'modal' && initializeModalFromPanel && !_viewStates.modal.initialized) {
+        const panelState = getViewState('panel');
+        _viewStates.modal.target = { ...panelState.target };
+        _viewStates.modal.view = { ...panelState.view };
+        _viewStates.modal.initialized = true;
+    }
+
+    _activeViewMode = nextMode;
+    clearTouchInteraction();
+    _hoveredIndex = -1;
+    _touchFocusedIndex = -1;
+    render();
 }
 
 function getActiveFocusedIndex() {
@@ -321,14 +365,15 @@ function getCanvasPointerPosition(canvas, event) {
 }
 
 function getSolveIndexAtCanvasX(rect, x) {
+    const state = getViewState();
     const drawW = rect.width - PADDING.left - PADDING.right;
     if (_solves.length < 1 || drawW <= 0) return -1;
 
     const totalCount = _solves.length;
     const tot = Math.max(2, totalCount);
-    const visibleCount = _view.visibleCount === 0 ? tot : Math.max(2, Math.min(tot, Math.ceil(_view.visibleCount)));
+    const visibleCount = state.view.visibleCount === 0 ? tot : Math.max(2, Math.min(tot, Math.ceil(state.view.visibleCount)));
     const maxStart = Math.max(0, totalCount - visibleCount);
-    const startIdx = Math.round(_view.xPan * maxStart);
+    const startIdx = Math.round(state.view.xPan * maxStart);
     const clampedX = Math.max(PADDING.left, Math.min(rect.width - PADDING.right, x));
     const step = visibleCount > 1 ? drawW / (visibleCount - 1) : drawW;
     const idx = startIdx + Math.round((clampedX - PADDING.left) / step);
@@ -919,6 +964,7 @@ function getLineStatValue(statType, index, allTimes) {
 
 function render() {
     if (!_canvas || !_ctx) return;
+    const state = getViewState();
     const ctx = _ctx;
     const COLORS = getColors();
     const w = _canvas.width / devicePixelRatio;
@@ -944,9 +990,9 @@ function render() {
     const totalCount = _solves.length;
     const tot = Math.max(2, totalCount);
     // Use fractional visibleCount and xPan-derived offset for perfectly smooth movement
-    const visibleCount = _view.visibleCount === 0 ? tot : Math.max(2, Math.min(tot, _view.visibleCount));
+    const visibleCount = state.view.visibleCount === 0 ? tot : Math.max(2, Math.min(tot, state.view.visibleCount));
     const maxStart = Math.max(0, totalCount - visibleCount);
-    const viewOffset = _view.xPan * maxStart;
+    const viewOffset = state.view.xPan * maxStart;
 
     // Bounds for looping (ensure we cover the fractional range)
     const startIdx = Math.max(0, Math.floor(viewOffset));
@@ -1003,8 +1049,8 @@ function render() {
     const dataRange = dataMax - dataMin || 1000;
 
     // Apply Y zoom/pan
-    const yCenter = (dataMin + dataMax) / 2 - _view.yPan * dataRange;
-    const yHalf = (dataRange * 1.15) / (2 * _view.yZoom);
+    const yCenter = (dataMin + dataMax) / 2 - state.view.yPan * dataRange;
+    const yHalf = (dataRange * 1.15) / (2 * state.view.yZoom);
     const yMin = yCenter - yHalf;
     const yMax = yCenter + yHalf;
 

@@ -370,6 +370,27 @@ select {
     mask-image: url('../resources/expand.svg');
 }
 
+.icon-mask-fullscreen {
+    width: 1em;
+    height: 1em;
+    -webkit-mask-image: url('../resources/fullscreen.svg');
+    mask-image: url('../resources/fullscreen.svg');
+}
+
+.icon-mask-restore {
+    width: 1em;
+    height: 1em;
+    -webkit-mask-image: url('../resources/restore.svg');
+    mask-image: url('../resources/restore.svg');
+}
+
+.icon-mask-circle {
+    width: 1em;
+    height: 1em;
+    -webkit-mask-image: url('../resources/circle.svg');
+    mask-image: url('../resources/circle.svg');
+}
+
 .icon-mask-distribution {
     width: 1em;
     height: 1em;

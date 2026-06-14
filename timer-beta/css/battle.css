@@ -478,6 +478,28 @@
     margin: 0;
 }
 
+#graph-overlay .graph-controls-secondary {
+    justify-content: flex-end;
+    margin-left: auto;
+}
+
+#graph-overlay .graph-controls-secondary-group {
+    flex: 0 0 auto;
+}
+
+#graph-overlay #graph-controls .graph-controls-secondary button {
+    flex: 0 0 auto;
+    width: 30px;
+    height: 30px;
+    font-size: 12px;
+    border-radius: var(--radius-md);
+}
+
+#graph-overlay .graph-controls-fullscreen-sep,
+#graph-overlay #btn-graph-fullscreen {
+    display: none;
+}
+
 body.camera-background-active #cube-panel.camera-background-hosting-timer.battle-preview-active .collapsible-body,
 body.camera-background-active #cube-panel.camera-background-hosting-timer.battle-preview-active.collapsed .collapsible-body {
     flex-direction: column;
