@@ -72,6 +72,7 @@ const GOOGLE_DRIVE_AUTO_EXPORT_DISCONNECTED_MESSAGE = 'Google Drive auto export 
 const CHANGELOG_LAST_SEEN_STORAGE_KEY = 'changelogLastSeenEntryId';
 const THEME_EDITOR_MODE_SIMPLE = 'simple';
 const THEME_EDITOR_MODE_FULL = 'full';
+const MULTI_PHASE_ACTIVE_BODY_CLASS = 'multi-phase-active';
 const SIMPLE_THEME_COLOR_SECTIONS = Object.freeze([
     Object.freeze({
         id: 'simple-core',
@@ -5959,6 +5960,7 @@ async function init() {
         refreshUI();
     });
     ensureAutoExportSolveSequenceFloor();
+    syncMultiPhaseBodyClass();
 
     settings.on('change', (key, _value, signalType = 'modify') => {
         const isSessionContextChange = signalType === 'session';
@@ -5985,8 +5987,14 @@ async function init() {
             renderSolvesTable();
             scheduleViewportLayoutSync();
         }
-        if (key === 'multiPhaseCount' && getConfiguredPhaseCount() <= 1) {
-            renderPhaseSplitDisplay([]);
+        if (key === 'multiPhaseCount') {
+            const configuredPhaseCount = getConfiguredPhaseCount();
+            syncMultiPhaseBodyClass(configuredPhaseCount);
+            if (configuredPhaseCount <= 1) {
+                renderPhaseSplitDisplay([]);
+            } else {
+                syncPhaseSplitDisplayFromSolves();
+            }
         }
         if (key === 'timeEntryMode') {
             clearPenaltyShortcutAlert();
@@ -6016,6 +6024,13 @@ async function init() {
     });
     settings.on('reset', () => {
         invalidatePhaseSourceTimeColumnWidthCache();
+        const configuredPhaseCount = getConfiguredPhaseCount();
+        syncMultiPhaseBodyClass(configuredPhaseCount);
+        if (configuredPhaseCount <= 1) {
+            renderPhaseSplitDisplay([]);
+        } else {
+            syncPhaseSplitDisplayFromSolves();
+        }
         syncSolvesPanelWidthPreferenceFromSettings();
         renderSolvesTable();
         clearPenaltyShortcutAlert();
@@ -9957,6 +9972,10 @@ function getConfiguredPhaseCount() {
     return normalizePhaseCount(settings.get('multiPhaseCount'), DEFAULTS.multiPhaseCount);
 }
 
+function syncMultiPhaseBodyClass(phaseCount = getConfiguredPhaseCount()) {
+    document.body.classList.toggle(MULTI_PHASE_ACTIVE_BODY_CLASS, phaseCount > 1);
+}
+
 function getMaxSolvePhaseCount(solves = sessionManager.getFilteredSolves()) {
     if (!Array.isArray(solves)) return 0;
 
@@ -10248,6 +10267,7 @@ function renderPhaseMeanChips(solves) {
 function isDesktopPhaseSplitSurfaceForcedVisible(displayEl) {
     return Boolean(displayEl)
         && displayEl.classList.contains('phase-splits-display-desktop')
+        && getConfiguredPhaseCount() > 1
         && document.body.classList.contains('camera-background-live')
         && !mobileViewportQuery.matches;
 }
@@ -10301,6 +10321,10 @@ function syncPhaseSplitDisplayPosition() {
 function syncPhaseSplitDisplayFromSolves(solves = sessionManager.getFilteredSolves()) {
     const state = timer.getState();
     if (state !== 'idle' && state !== 'stopped') return;
+    if (getConfiguredPhaseCount() <= 1) {
+        renderPhaseSplitDisplay([]);
+        return;
+    }
 
     const lastSolve = Array.isArray(solves) ? solves[solves.length - 1] : null;
     const lastSplits = getSolvePhaseSplits(lastSolve);
@@ -14441,7 +14465,6 @@ function initSettingsPanel() {
         multiPhaseCountSelect.value = String(getConfiguredPhaseCount());
         multiPhaseCountSelect.onchange = () => {
             settings.set('multiPhaseCount', multiPhaseCountSelect.value);
-            renderPhaseSplitDisplay([]);
             multiPhaseCountSelect.blur();
         };
     }

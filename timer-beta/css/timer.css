@@ -936,17 +936,17 @@ body.solving .phase-splits-display.phase-splits-live.is-visible {
     line-height: 1.5;
 }
 
-body.camera-background-live:not(.mobile-viewport) .phase-splits-display-desktop {
+body.camera-background-live.multi-phase-active:not(.mobile-viewport) .phase-splits-display-desktop {
     isolation: isolate;
     opacity: 1;
     visibility: visible;
 }
 
-body.camera-background-live:not(.mobile-viewport) .phase-splits-display-desktop[hidden] {
+body.camera-background-live.multi-phase-active:not(.mobile-viewport) .phase-splits-display-desktop[hidden] {
     display: flex !important;
 }
 
-body.camera-background-live:not(.mobile-viewport) .phase-splits-display-desktop::before {
+body.camera-background-live.multi-phase-active:not(.mobile-viewport) .phase-splits-display-desktop::before {
     content: '';
     position: absolute;
     inset: -8px -14px;
@@ -962,8 +962,8 @@ body.camera-background-live:not(.mobile-viewport) .phase-splits-display-desktop:
     z-index: -1;
 }
 
-body.camera-background-live:not(.mobile-viewport) .phase-splits-display-desktop:not(.is-visible) > *,
-body.solving.camera-background-live:not(.mobile-viewport) .phase-splits-display-desktop:not(.phase-splits-live) > * {
+body.camera-background-live.multi-phase-active:not(.mobile-viewport) .phase-splits-display-desktop:not(.is-visible) > *,
+body.solving.camera-background-live.multi-phase-active:not(.mobile-viewport) .phase-splits-display-desktop:not(.phase-splits-live) > * {
     opacity: 0;
     visibility: hidden;
 }
