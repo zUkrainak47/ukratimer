@@ -1,5 +1,5 @@
-import { load, remove, save } from './storage.js?v=2026061501';
-import { EventEmitter, formatTime, generateId } from './utils.js?v=2026061501';
+import { load, remove, save } from './storage.js?v=2026061601';
+import { EventEmitter, formatTime, generateId } from './utils.js?v=2026061601';
 
 const STORAGE_KEYS = Object.freeze({
     accountId: 'battleAccountId',
