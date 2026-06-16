@@ -22,6 +22,10 @@ const PADDING = {
     get bottom() { return _isSafari && window.innerWidth < 500 ? 35 : 22; },
 };
 const touchPrimaryQuery = window.matchMedia('(hover: none) and (pointer: coarse)');
+const GRAPH_TOOLTIP_SURFACE_FALLBACK = 'rgba(28, 33, 40, 0.96)';
+const GRAPH_NEW_BEST_TOOLTIP_SURFACE = 'rgba(0, 0, 0, 0.98)';
+const GRAPH_NEW_BEST_TOOLTIP_TEXT = '#ffffff';
+const GRAPH_NEW_BEST_TOOLTIP_BORDER = '#e3b341';
 
 function isTouchLikePointer(pointerType) {
     return pointerType === 'touch' || pointerType === 'pen';
@@ -32,6 +36,7 @@ function shouldUseTouchGraphInteraction(pointerType = null) {
     if (isTouchLikePointer(pointerType)) return true;
     return touchPrimaryQuery.matches;
 }
+
 function getColors() {
     const styles = getComputedStyle(document.documentElement);
     const readVar = (name, fallback) => styles.getPropertyValue(name).trim() || fallback;
@@ -47,6 +52,7 @@ function getColors() {
         textPrimary: readVar('--text-primary', '#e6edf3'),
         accent: readVar('--accent', '#58a6ff'),
         bg: readVar('--bg-primary', '#0d1117'),
+        tooltipSurface: readVar('--tooltip-surface', GRAPH_TOOLTIP_SURFACE_FALLBACK),
     };
 }
 
@@ -1174,7 +1180,14 @@ function render() {
         const solve = _solves[activeIndex];
         const hasComment = !!solve?.comment?.trim();
         const isNewBestSingle = _isNewBest(activeIndex);
-        const highlightColor = isNewBestSingle ? '#e3b341' : hasComment ? COLORS.accent : null;
+        const tooltipSurface = isNewBestSingle ? GRAPH_NEW_BEST_TOOLTIP_SURFACE : COLORS.tooltipSurface;
+        const tooltipTextColor = isNewBestSingle ? GRAPH_NEW_BEST_TOOLTIP_TEXT : COLORS.textPrimary;
+        const tooltipBorderColor = isNewBestSingle
+            ? GRAPH_NEW_BEST_TOOLTIP_BORDER
+            : (hasComment ? COLORS.accent : COLORS.axis);
+        const tooltipTitleColor = isNewBestSingle
+            ? GRAPH_NEW_BEST_TOOLTIP_BORDER
+            : (hasComment ? COLORS.accent : tooltipTextColor);
         const showTapHint = _touchFocusedIndex >= 0 && _hoveredIndex < 0;
 
         ctx.font = '11px JetBrains Mono, monospace';
@@ -1204,24 +1217,26 @@ function render() {
         if (boxY < 0) boxY = 4;
         if (boxY + boxH > h) boxY = h - boxH - 4;
 
-        ctx.fillStyle = 'rgba(22, 27, 34, 0.95)';
+        ctx.fillStyle = tooltipSurface;
         roundedRectPath(ctx, boxX, boxY, boxW, boxH, 4);
         ctx.fill();
-        ctx.strokeStyle = highlightColor || COLORS.axis;
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = tooltipBorderColor;
+        ctx.lineWidth = isNewBestSingle || hasComment ? 2 : 1;
         ctx.stroke();
 
         ctx.textAlign = 'left';
         lines.forEach((line, idx) => {
-            ctx.font = idx === 0 && highlightColor ? '600 11px JetBrains Mono, monospace' : '11px JetBrains Mono, monospace';
-            ctx.fillStyle = idx === 0 && highlightColor ? highlightColor : COLORS.textPrimary;
+            ctx.font = idx === 0 && (isNewBestSingle || hasComment)
+                ? '600 11px JetBrains Mono, monospace'
+                : '11px JetBrains Mono, monospace';
+            ctx.fillStyle = idx === 0 ? tooltipTitleColor : tooltipTextColor;
             ctx.fillText(line, boxX + 6, boxY + 14 + idx * lineHeight);
         });
 
         if (showTapHint) {
             ctx.font = '600 12px Inter, sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillStyle = COLORS.text;
+            ctx.fillStyle = isNewBestSingle ? tooltipTextColor : COLORS.text;
             ctx.fillText('▸', boxX + boxW - 8, boxY + (boxH / 2) + 4);
         }
 
