@@ -37,6 +37,10 @@
     --scramble-preview-panel-aspect-ratio: 2;
 }
 
+#cube-canvas-container.fto-preview-layout {
+    --scramble-preview-panel-aspect-ratio: 2;
+}
+
 #cube-canvas-container:hover {
     background: var(--surface-hover);
 }

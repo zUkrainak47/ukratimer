@@ -5,7 +5,7 @@ import { settings, DEFAULTS, THEME_OPTIONS, THEME_COLOR_SECTIONS, THEME_DEFAULT_
 import { buildRollingBestFlags, buildRollingStatValues, getAverageTrimCount, parseGraphStatType, parseRollingStatType, rollingStatAt, StatsCache } from './stats.js?v=2026061601';
 import { formatTime, formatSolveTime, formatSolveTimeWithSplits, formatTimerDisplayTime, getEffectiveTime, getSolvePhaseSplits, normalizePhaseCount, formatDate, formatReadableDate, formatDateTime, parseCustomStatsFilter, parseTimeInputToMs, truncateTimeDisplay } from './utils.js?v=2026061601';
 import { initModal, showSolveDetail, showAverageDetail, showTextDetail, closeModal, closeMoveSessionMenus, customConfirm, customConfirmChoice, customPrompt, getModalSelectionContext, setModalStatNavigator, setModalCloseHandler, setModalStatButtons, armModalGhostClickGuard } from './modal.js?v=2026061601';
-import { applyMegaminxScramble, applyPyraminxScramble, applyScramble, applySquare1Scramble, applySkewbScramble, applyClockScramble, clearCubeDisplay, drawMegaminxFacePreview, drawSquare1, drawClock, initCubeDisplay, updateCubeDisplay, updateMegaminxDisplay, updatePyraminxDisplay, updateSquare1Display, updateSkewbDisplay, updateClockDisplay } from './cube-display.js?v=2026061601';
+import { applyFtoScramble, applyMegaminxScramble, applyPyraminxScramble, applyScramble, applySquare1Scramble, applySkewbScramble, applyClockScramble, clearCubeDisplay, drawFtoHalfPreview, drawMegaminxFacePreview, drawSquare1, drawClock, initCubeDisplay, updateCubeDisplay, updateFtoDisplay, updateMegaminxDisplay, updatePyraminxDisplay, updateSquare1Display, updateSkewbDisplay, updateClockDisplay } from './cube-display.js?v=2026061601';
 import { initGraph, updateGraph, updateGraphData, setLineVisibility, getLineVisibility, applyAction, graphEvents, getGraphLineDefinitions, setGraphViewMode } from './graph.js?v=2026061601';
 import { closeTimeDistributionModal, initTimeDistributionModal, isTimeDistributionModalOpen, refreshTimeDistributionData, refreshTimeDistributionTheme, showTimeDistributionModal } from './distribution.js?v=2026061601';
 import { closeDailyStreakModal, initDailyStreakModal, isDailyStreakModalOpen, refreshDailyStreakModal, showDailyStreakModal } from './daily-streak-modal.js?v=2026061601';
@@ -106,6 +106,7 @@ const SIMPLE_THEME_SHARED_SECTION_IDS = new Set([
     'scramble-preview-megaminx',
     'scramble-preview-square1',
     'scramble-preview-clock',
+    'scramble-preview-fto',
 ]);
 const THEME_BACKGROUND_IMAGE_SECTION_ID = 'background-image';
 const BATTLE_PENDING_SOLVE_SCRAMBLE_RETRY_BASE_MS = 1000;
@@ -1422,6 +1423,7 @@ const PYRAMINX_PREVIEW_SCRAMBLE_TYPES = new Set(['pyram', 'pyrl4e']);
 const SKEWB_PREVIEW_SCRAMBLE_TYPES = new Set(['skewb']);
 const SQUARE1_PREVIEW_SCRAMBLE_TYPES = new Set(['sq1']);
 const CLOCK_PREVIEW_SCRAMBLE_TYPES = new Set(['clock']);
+const FTO_PREVIEW_SCRAMBLE_TYPES = new Set(['fto']);
 const SCRAMBLE_PREVIEW_TYPES = new Set([
     ...CUBE_PREVIEW_SCRAMBLE_TYPES,
     ...MEGAMINX_PREVIEW_SCRAMBLE_TYPES,
@@ -1429,6 +1431,7 @@ const SCRAMBLE_PREVIEW_TYPES = new Set([
     ...SKEWB_PREVIEW_SCRAMBLE_TYPES,
     ...SQUARE1_PREVIEW_SCRAMBLE_TYPES,
     ...CLOCK_PREVIEW_SCRAMBLE_TYPES,
+    ...FTO_PREVIEW_SCRAMBLE_TYPES,
 ]);
 const PYRAMINX_PREVIEW_BUTTON_FACE_INDEX = 1;
 const SCRAMBLE_PREVIEW_BUTTON_PLACEHOLDER_SIZE = 3;
@@ -5115,6 +5118,10 @@ function supportsClockPreview(type = getCurrentScrambleType()) {
     return CLOCK_PREVIEW_SCRAMBLE_TYPES.has(type);
 }
 
+function supportsFtoPreview(type = getCurrentScrambleType()) {
+    return FTO_PREVIEW_SCRAMBLE_TYPES.has(type);
+}
+
 function supportsScramblePreview(type = getCurrentScrambleType()) {
     return SCRAMBLE_PREVIEW_TYPES.has(type);
 }
@@ -5191,6 +5198,7 @@ function syncScramblePreviewCanvasLayout(type = getCurrentScrambleType()) {
     const useSkewbLayout = supportsSkewbPreview(type);
     const useSquare1Layout = supportsSquare1Preview(type);
     const useClockLayout = supportsClockPreview(type);
+    const useFtoLayout = supportsFtoPreview(type);
 
     const panelCanvasContainer = getEl('cube-canvas-container');
     panelCanvasContainer?.classList.toggle('megaminx-preview-layout', useMegaminxLayout);
@@ -5198,6 +5206,7 @@ function syncScramblePreviewCanvasLayout(type = getCurrentScrambleType()) {
     panelCanvasContainer?.classList.toggle('skewb-preview-layout', useSkewbLayout);
     panelCanvasContainer?.classList.toggle('square1-preview-layout', useSquare1Layout);
     panelCanvasContainer?.classList.toggle('clock-preview-layout', useClockLayout);
+    panelCanvasContainer?.classList.toggle('fto-preview-layout', useFtoLayout);
 
     const modalCanvasContainer = getScramblePreviewModalCanvasContainer();
     modalCanvasContainer?.classList.toggle('megaminx-preview-layout', useMegaminxLayout);
@@ -5205,12 +5214,14 @@ function syncScramblePreviewCanvasLayout(type = getCurrentScrambleType()) {
     modalCanvasContainer?.classList.toggle('skewb-preview-layout', useSkewbLayout);
     modalCanvasContainer?.classList.toggle('square1-preview-layout', useSquare1Layout);
     modalCanvasContainer?.classList.toggle('clock-preview-layout', useClockLayout);
+    modalCanvasContainer?.classList.toggle('fto-preview-layout', useFtoLayout);
 
     const promptCanvasContainer = getEl('prompt-scramble-preview-container');
     promptCanvasContainer?.classList.toggle('megaminx-preview-layout', useMegaminxLayout);
     promptCanvasContainer?.classList.toggle('pyraminx-preview-layout', usePyraminxLayout);
     promptCanvasContainer?.classList.toggle('skewb-preview-layout', useSkewbLayout);
     promptCanvasContainer?.classList.toggle('square1-preview-layout', useSquare1Layout);
+    promptCanvasContainer?.classList.toggle('fto-preview-layout', useFtoLayout);
 
     scheduleScramblePreviewModalSizeSync();
 }
@@ -5617,6 +5628,15 @@ function _updateScramblePreviewButtonFace(scramble, type) {
         return;
     }
 
+    if (supportsFtoPreview(type)) {
+        const canvas = getScramblePreviewButtonCanvas();
+        if (!(canvas instanceof HTMLCanvasElement)) return;
+        if (!prepareScramblePreviewButtonCanvas(canvas)) return;
+
+        drawFtoHalfPreview(canvas, applyFtoScramble(scramble));
+        return;
+    }
+
     const previewScramble = mapScrambleForPreview(scramble, type);
     const cube = applyScramble(
         previewScramble,
@@ -5683,6 +5703,14 @@ function renderScramblePreviewDisplays(scramble, type = getCurrentScrambleType()
         if (mainCanvas) updateClockDisplay(mainCanvas, normalizedScramble);
         if (scramblePreviewModalCanvas) updateClockDisplay(scramblePreviewModalCanvas, normalizedScramble);
         if (promptCanvas && promptCanvas.offsetParent !== null) updateClockDisplay(promptCanvas, normalizedScramble);
+        updateScramblePreviewButtonFace(normalizedScramble, type);
+        return;
+    }
+
+    if (supportsFtoPreview(type)) {
+        if (mainCanvas) updateFtoDisplay(mainCanvas, normalizedScramble);
+        if (scramblePreviewModalCanvas) updateFtoDisplay(scramblePreviewModalCanvas, normalizedScramble);
+        if (promptCanvas && promptCanvas.offsetParent !== null) updateFtoDisplay(promptCanvas, normalizedScramble);
         updateScramblePreviewButtonFace(normalizedScramble, type);
         return;
     }

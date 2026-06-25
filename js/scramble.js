@@ -64,6 +64,7 @@ export const SCRAMBLE_TYPE_OPTIONS = Object.freeze([
     { id: 'skewb', menuLabel: 'Skewb', buttonLabel: 'Skewb', generator: 'cubing', eventId: 'skewb' },
     { id: 'sq1', menuLabel: 'Square-1', buttonLabel: 'Sq-1', generator: 'cubing', eventId: 'sq1' },
     { id: 'clock', menuLabel: 'Clock', buttonLabel: 'Clock', generator: 'cubing', eventId: 'clock' },
+    { id: 'fto', menuLabel: 'FTO', buttonLabel: 'FTO', generator: 'cubing', eventId: 'fto' },
     { id: 'll', menuLabel: 'OLL', buttonLabel: 'OLL', generator: 'scrambow' },
     { id: 'cmll', menuLabel: 'CMLL', buttonLabel: 'CMLL', generator: 'scrambow' },
     { id: 'pll', menuLabel: 'PLL', buttonLabel: 'PLL', generator: 'scrambow' },

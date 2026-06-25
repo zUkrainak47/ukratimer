@@ -1,6 +1,6 @@
 /**
  * Canvas scramble preview renderers.
- * Supports NxN cube nets, Square-1, a flat pyraminx preview, a two-star megaminx net, and skewb.
+ * Supports NxN cube nets, Square-1, a flat pyraminx preview, a two-star megaminx net, skewb, and FTO.
  */
 
 // Face indices: U=0, R=1, F=2, D=3, L=4, B=5
@@ -146,6 +146,135 @@ const DEFAULT_SQUARE1_COLORS = Object.freeze({
     L: '#0000ff',
     R: '#00ff00',
 });
+const FTO_FACE_NAMES = Object.freeze(['U', 'F', 'BR', 'BL', 'D', 'B', 'R', 'L']);
+const FTO_FACE_INDEX = Object.freeze({
+    U: 0,
+    F: 1,
+    BR: 2,
+    BL: 3,
+    D: 4,
+    B: 5,
+    R: 6,
+    L: 7,
+});
+const DEFAULT_FTO_COLORS = Object.freeze([
+    '#ffffff',
+    '#00dd00',
+    '#bbbbbb',
+    '#ffaa00',
+    '#ffff00',
+    '#0000ff',
+    '#ff0000',
+    '#880088',
+]);
+const FTO_FACE_STICKER_COUNT = 9;
+const FTO_ORBIT_C4RNER = 0;
+const FTO_ORBIT_CENTERS = 1;
+const FTO_ORBIT_EDGES = 2;
+const FTO_ORBIT_ORIENTATION_COUNTS = Object.freeze([4, 1, 2]);
+// Cubing's FTO sticker order is rotated per face compared with this unfolded net.
+const FTO_FACELET_MAP_U = Object.freeze([8, 3, 0, 5, 1, 7, 2, 4, 6]);
+const FTO_FACELET_MAP_FD = Object.freeze([2, 1, 0, 4, 3, 6, 5, 7, 8]);
+const FTO_FACELET_MAP_LBR = Object.freeze([1, 5, 4, 2, 6, 7, 0, 3, 8]);
+const FTO_FACELET_MAP_BL = Object.freeze([8, 6, 4, 0, 5, 3, 1, 2, 7]);
+const FTO_FACELET_MAP_B = Object.freeze([6, 2, 0, 4, 1, 7, 3, 5, 8]);
+const FTO_FACELET_MAP_R = Object.freeze([7, 3, 8, 2, 0, 1, 6, 5, 4]);
+const FTO_FULL_LAYOUT_FACES = Object.freeze([
+    Object.freeze({ face: FTO_FACE_INDEX.U, label: 'U', vertices: Object.freeze([Object.freeze([0, 0]), Object.freeze([2, 0]), Object.freeze([1, 1])]), faceletMap: FTO_FACELET_MAP_U }),
+    Object.freeze({ face: FTO_FACE_INDEX.L, label: 'L', vertices: Object.freeze([Object.freeze([0, 0]), Object.freeze([1, 1]), Object.freeze([0, 2])]), faceletMap: FTO_FACELET_MAP_LBR }),
+    Object.freeze({ face: FTO_FACE_INDEX.R, label: 'R', vertices: Object.freeze([Object.freeze([2, 0]), Object.freeze([2, 2]), Object.freeze([1, 1])]), faceletMap: FTO_FACELET_MAP_R }),
+    Object.freeze({ face: FTO_FACE_INDEX.F, label: 'F', vertices: Object.freeze([Object.freeze([1, 1]), Object.freeze([0, 2]), Object.freeze([2, 2])]), faceletMap: FTO_FACELET_MAP_FD }),
+    Object.freeze({ face: FTO_FACE_INDEX.B, label: 'B', vertices: Object.freeze([Object.freeze([2, 0]), Object.freeze([4, 0]), Object.freeze([3, 1])]), faceletMap: FTO_FACELET_MAP_B }),
+    Object.freeze({ face: FTO_FACE_INDEX.BR, label: 'BR', vertices: Object.freeze([Object.freeze([2, 0]), Object.freeze([3, 1]), Object.freeze([2, 2])]), faceletMap: FTO_FACELET_MAP_LBR }),
+    Object.freeze({ face: FTO_FACE_INDEX.BL, label: 'BL', vertices: Object.freeze([Object.freeze([4, 0]), Object.freeze([4, 2]), Object.freeze([3, 1])]), faceletMap: FTO_FACELET_MAP_BL }),
+    Object.freeze({ face: FTO_FACE_INDEX.D, label: 'D', vertices: Object.freeze([Object.freeze([3, 1]), Object.freeze([2, 2]), Object.freeze([4, 2])]), faceletMap: FTO_FACELET_MAP_FD }),
+]);
+const FTO_HALF_LAYOUT_FACES = Object.freeze(
+    FTO_FULL_LAYOUT_FACES.filter((face) => ['U', 'L', 'R', 'F'].includes(face.label)),
+);
+const FTO_FULL_LAYOUT_BOUNDS = Object.freeze({ minX: 0, maxX: 4, minY: 0, maxY: 2 });
+const FTO_HALF_LAYOUT_BOUNDS = Object.freeze({ minX: 0, maxX: 2, minY: 0, maxY: 2 });
+const FTO_FACELET_STICKERS = freezeFtoStickerDefinitions([
+    [FTO_ORBIT_C4RNER, 5, 0], [FTO_ORBIT_CENTERS, 23, 0], [FTO_ORBIT_EDGES, 6, 0],
+    [FTO_ORBIT_EDGES, 8, 0], [FTO_ORBIT_CENTERS, 20, 0], [FTO_ORBIT_CENTERS, 22, 0],
+    [FTO_ORBIT_C4RNER, 1, 0], [FTO_ORBIT_EDGES, 11, 0], [FTO_ORBIT_C4RNER, 3, 0],
+    [FTO_ORBIT_C4RNER, 0, 3], [FTO_ORBIT_EDGES, 10, 0], [FTO_ORBIT_C4RNER, 1, 2],
+    [FTO_ORBIT_CENTERS, 14, 0], [FTO_ORBIT_CENTERS, 0, 0], [FTO_ORBIT_EDGES, 1, 0],
+    [FTO_ORBIT_EDGES, 0, 0], [FTO_ORBIT_CENTERS, 1, 0], [FTO_ORBIT_C4RNER, 2, 1],
+    [FTO_ORBIT_EDGES, 5, 0], [FTO_ORBIT_C4RNER, 5, 2], [FTO_ORBIT_CENTERS, 2, 0],
+    [FTO_ORBIT_CENTERS, 4, 0], [FTO_ORBIT_C4RNER, 4, 1], [FTO_ORBIT_EDGES, 2, 0],
+    [FTO_ORBIT_CENTERS, 15, 0], [FTO_ORBIT_EDGES, 4, 0], [FTO_ORBIT_C4RNER, 2, 3],
+    [FTO_ORBIT_CENTERS, 19, 0], [FTO_ORBIT_EDGES, 3, 0], [FTO_ORBIT_CENTERS, 16, 0],
+    [FTO_ORBIT_EDGES, 9, 0], [FTO_ORBIT_C4RNER, 0, 1], [FTO_ORBIT_CENTERS, 3, 0],
+    [FTO_ORBIT_EDGES, 7, 0], [FTO_ORBIT_C4RNER, 4, 3], [FTO_ORBIT_C4RNER, 3, 2],
+    [FTO_ORBIT_C4RNER, 2, 0], [FTO_ORBIT_EDGES, 5, 1], [FTO_ORBIT_C4RNER, 4, 0],
+    [FTO_ORBIT_CENTERS, 6, 0], [FTO_ORBIT_CENTERS, 8, 0], [FTO_ORBIT_EDGES, 1, 1],
+    [FTO_ORBIT_EDGES, 3, 1], [FTO_ORBIT_CENTERS, 17, 0], [FTO_ORBIT_C4RNER, 0, 0],
+    [FTO_ORBIT_C4RNER, 3, 3], [FTO_ORBIT_CENTERS, 12, 0], [FTO_ORBIT_EDGES, 8, 1],
+    [FTO_ORBIT_EDGES, 9, 1], [FTO_ORBIT_CENTERS, 10, 0], [FTO_ORBIT_CENTERS, 13, 0],
+    [FTO_ORBIT_C4RNER, 5, 1], [FTO_ORBIT_EDGES, 2, 1], [FTO_ORBIT_C4RNER, 4, 2],
+    [FTO_ORBIT_CENTERS, 11, 0], [FTO_ORBIT_EDGES, 6, 1], [FTO_ORBIT_CENTERS, 5, 0],
+    [FTO_ORBIT_EDGES, 4, 1], [FTO_ORBIT_C4RNER, 1, 1], [FTO_ORBIT_CENTERS, 7, 0],
+    [FTO_ORBIT_EDGES, 0, 1], [FTO_ORBIT_C4RNER, 5, 3], [FTO_ORBIT_C4RNER, 2, 2],
+    [FTO_ORBIT_EDGES, 10, 1], [FTO_ORBIT_C4RNER, 3, 1], [FTO_ORBIT_CENTERS, 18, 0],
+    [FTO_ORBIT_CENTERS, 9, 0], [FTO_ORBIT_C4RNER, 1, 3], [FTO_ORBIT_EDGES, 11, 1],
+    [FTO_ORBIT_CENTERS, 21, 0], [FTO_ORBIT_EDGES, 7, 1], [FTO_ORBIT_C4RNER, 0, 2],
+]);
+const FTO_FACELET_INDEX_BY_STICKER = new Map(
+    FTO_FACELET_STICKERS.map((sticker, index) => [createFtoStickerKey(sticker), index]),
+);
+const FTO_SOLVED_FACELET_COLORS = Object.freeze(
+    FTO_FACELET_STICKERS.map((_, index) => Math.floor(index / FTO_FACE_STICKER_COUNT)),
+);
+const FTO_CUBING_MOVE_DATA = freezeFtoMoveData({
+    U: [[[0, 5, 2, 1, 4, 3], [0, 0, 0, 0, 0, 0]], [[0, 1, 2, 3, 4, 12, 6, 10, 8, 9, 18, 11, 21, 13, 14, 15, 16, 17, 7, 19, 23, 5, 20, 22], new Array(24).fill(0)], [[0, 1, 2, 3, 4, 5, 8, 7, 11, 9, 10, 6], new Array(12).fill(0)]],
+    '2U': [[[0, 1, 2, 3, 4, 5], [0, 0, 0, 0, 0, 0]], [[2, 1, 19, 3, 4, 5, 6, 7, 8, 11, 10, 13, 12, 9, 14, 15, 16, 17, 18, 0, 20, 21, 22, 23], new Array(24).fill(0)], [[2, 1, 7, 3, 9, 5, 6, 0, 8, 10, 4, 11], new Array(12).fill(0)]],
+    F: [[[2, 0, 1, 3, 4, 5], [2, 3, 3, 0, 0, 0]], [[14, 0, 2, 3, 4, 5, 7, 9, 8, 6, 10, 21, 12, 13, 1, 15, 16, 11, 18, 19, 20, 17, 22, 23], new Array(24).fill(0)], [[10, 0, 2, 3, 4, 5, 6, 7, 8, 9, 1, 11], new Array(12).fill(0)]],
+    '2F': [[[0, 1, 2, 3, 4, 5], [0, 0, 0, 0, 0, 0]], [[0, 1, 2, 4, 20, 18, 6, 7, 5, 9, 10, 11, 12, 13, 14, 15, 16, 17, 8, 19, 3, 21, 22, 23], new Array(24).fill(0)], [[0, 1, 2, 4, 11, 6, 7, 5, 8, 9, 10, 3], new Array(12).fill(0)]],
+    BR: [[[0, 1, 4, 3, 5, 2], [0, 0, 2, 0, 3, 3]], [[0, 1, 4, 3, 15, 6, 13, 7, 10, 9, 11, 8, 12, 5, 14, 2, 16, 17, 18, 19, 20, 21, 22, 23], new Array(24).fill(0)], [[0, 1, 4, 3, 5, 2, 6, 7, 8, 9, 10, 11], new Array(12).fill(0)]],
+    '2BR': [[[0, 1, 2, 3, 4, 5], [0, 0, 0, 0, 0, 0]], [[0, 16, 2, 3, 4, 5, 6, 17, 8, 9, 10, 11, 7, 13, 14, 15, 23, 12, 18, 19, 20, 21, 22, 1], new Array(24).fill(0)], [[3, 9, 2, 8, 4, 5, 1, 7, 0, 6, 10, 11], new Array(12).fill(0)]],
+    BL: [[[3, 1, 2, 4, 0, 5], [3, 0, 0, 3, 2, 0]], [[0, 1, 2, 19, 4, 5, 6, 7, 9, 12, 10, 11, 8, 17, 14, 15, 3, 18, 13, 16, 20, 21, 22, 23], new Array(24).fill(0)], [[0, 1, 2, 7, 4, 5, 6, 9, 8, 3, 10, 11], new Array(12).fill(0)]],
+    '2BL': [[[0, 1, 2, 3, 4, 5], [0, 0, 0, 0, 0, 0]], [[0, 1, 2, 3, 4, 5, 21, 7, 8, 9, 6, 11, 12, 13, 22, 14, 16, 17, 18, 19, 20, 10, 15, 23], new Array(24).fill(0)], [[0, 11, 1, 3, 4, 10, 6, 7, 5, 9, 8, 2], new Array(12).fill(0)]],
+    D: [[[4, 1, 0, 3, 2, 5], [0, 0, 0, 0, 0, 0]], [[0, 3, 2, 15, 14, 5, 17, 7, 6, 9, 10, 11, 12, 13, 16, 1, 4, 8, 18, 19, 20, 21, 22, 23], new Array(24).fill(0)], [[0, 3, 2, 5, 4, 1, 6, 7, 8, 9, 10, 11], new Array(12).fill(0)]],
+    '2D': [[[0, 1, 2, 3, 4, 5], [0, 0, 0, 0, 0, 0]], [[19, 1, 0, 3, 4, 5, 6, 7, 8, 13, 10, 9, 12, 11, 14, 15, 16, 17, 18, 2, 20, 21, 22, 23], new Array(24).fill(0)], [[7, 1, 0, 3, 10, 5, 6, 2, 8, 4, 9, 11], new Array(12).fill(0)]],
+    B: [[[0, 1, 2, 5, 3, 4], [0, 0, 0, 2, 3, 3]], [[0, 1, 16, 3, 4, 5, 6, 7, 8, 9, 13, 11, 10, 12, 14, 19, 22, 17, 18, 23, 20, 21, 2, 15], new Array(24).fill(0)], [[0, 1, 9, 3, 4, 5, 6, 7, 2, 8, 10, 11], new Array(12).fill(0)]],
+    '2B': [[[0, 1, 2, 3, 4, 5], [0, 0, 0, 0, 0, 0]], [[0, 1, 2, 20, 3, 8, 6, 7, 18, 9, 10, 11, 12, 13, 14, 15, 16, 17, 5, 19, 4, 21, 22, 23], new Array(24).fill(0)], [[0, 1, 2, 11, 3, 7, 5, 6, 8, 9, 10, 4], new Array(12).fill(0)]],
+    R: [[[0, 2, 5, 3, 4, 1], [0, 3, 3, 0, 0, 2]], [[4, 2, 20, 3, 23, 7, 6, 11, 8, 9, 10, 5, 12, 13, 14, 15, 16, 17, 18, 19, 1, 21, 22, 0], new Array(24).fill(0)], [[4, 1, 2, 3, 6, 5, 0, 7, 8, 9, 10, 11], new Array(12).fill(0)]],
+    '2R': [[[0, 1, 2, 3, 4, 5], [0, 0, 0, 0, 0, 0]], [[0, 1, 2, 3, 4, 5, 10, 7, 8, 9, 21, 11, 12, 13, 15, 22, 16, 17, 18, 19, 20, 6, 14, 23], new Array(24).fill(0)], [[0, 2, 11, 3, 4, 8, 6, 7, 10, 9, 5, 1], new Array(12).fill(0)]],
+    L: [[[1, 3, 2, 0, 4, 5], [3, 2, 0, 3, 0, 0]], [[22, 1, 2, 0, 4, 5, 6, 7, 8, 21, 10, 11, 12, 13, 20, 15, 16, 17, 9, 14, 19, 18, 3, 23], new Array(24).fill(0)], [[0, 1, 2, 3, 4, 5, 6, 10, 8, 9, 11, 7], new Array(12).fill(0)]],
+    '2L': [[[0, 1, 2, 3, 4, 5], [0, 0, 0, 0, 0, 0]], [[0, 23, 2, 3, 4, 5, 6, 12, 8, 9, 10, 11, 17, 13, 14, 15, 1, 7, 18, 19, 20, 21, 22, 16], new Array(24).fill(0)], [[8, 6, 2, 0, 4, 5, 9, 7, 3, 1, 10, 11], new Array(12).fill(0)]],
+    u: [[[0, 5, 2, 1, 4, 3], [0, 0, 0, 0, 0, 0]], [[2, 1, 19, 3, 4, 12, 6, 10, 8, 11, 18, 13, 21, 9, 14, 15, 16, 17, 7, 0, 23, 5, 20, 22], new Array(24).fill(0)], [[2, 1, 7, 3, 9, 5, 8, 0, 11, 10, 4, 6], new Array(12).fill(0)]],
+    '2u': [[[0, 5, 2, 1, 4, 3], [0, 0, 0, 0, 0, 0]], [[2, 1, 19, 3, 4, 12, 6, 10, 8, 11, 18, 13, 21, 9, 14, 15, 16, 17, 7, 0, 23, 5, 20, 22], new Array(24).fill(0)], [[2, 1, 7, 3, 9, 5, 8, 0, 11, 10, 4, 6], new Array(12).fill(0)]],
+    f: [[[2, 0, 1, 3, 4, 5], [2, 3, 3, 0, 0, 0]], [[14, 0, 2, 4, 20, 18, 7, 9, 5, 6, 10, 21, 12, 13, 1, 15, 16, 11, 8, 19, 3, 17, 22, 23], new Array(24).fill(0)], [[10, 0, 2, 4, 11, 6, 7, 5, 8, 9, 1, 3], new Array(12).fill(0)]],
+    '2f': [[[2, 0, 1, 3, 4, 5], [2, 3, 3, 0, 0, 0]], [[14, 0, 2, 4, 20, 18, 7, 9, 5, 6, 10, 21, 12, 13, 1, 15, 16, 11, 8, 19, 3, 17, 22, 23], new Array(24).fill(0)], [[10, 0, 2, 4, 11, 6, 7, 5, 8, 9, 1, 3], new Array(12).fill(0)]],
+    br: [[[0, 1, 4, 3, 5, 2], [0, 0, 2, 0, 3, 3]], [[0, 16, 4, 3, 15, 6, 13, 17, 10, 9, 11, 8, 7, 5, 14, 2, 23, 12, 18, 19, 20, 21, 22, 1], new Array(24).fill(0)], [[3, 9, 4, 8, 5, 2, 1, 7, 0, 6, 10, 11], new Array(12).fill(0)]],
+    '2br': [[[0, 1, 4, 3, 5, 2], [0, 0, 2, 0, 3, 3]], [[0, 16, 4, 3, 15, 6, 13, 17, 10, 9, 11, 8, 7, 5, 14, 2, 23, 12, 18, 19, 20, 21, 22, 1], new Array(24).fill(0)], [[3, 9, 4, 8, 5, 2, 1, 7, 0, 6, 10, 11], new Array(12).fill(0)]],
+    bl: [[[3, 1, 2, 4, 0, 5], [3, 0, 0, 3, 2, 0]], [[0, 1, 2, 19, 4, 5, 21, 7, 9, 12, 6, 11, 8, 17, 22, 14, 3, 18, 13, 16, 20, 10, 15, 23], new Array(24).fill(0)], [[0, 11, 1, 7, 4, 10, 6, 9, 5, 3, 8, 2], new Array(12).fill(0)]],
+    '2bl': [[[3, 1, 2, 4, 0, 5], [3, 0, 0, 3, 2, 0]], [[0, 1, 2, 19, 4, 5, 21, 7, 9, 12, 6, 11, 8, 17, 22, 14, 3, 18, 13, 16, 20, 10, 15, 23], new Array(24).fill(0)], [[0, 11, 1, 7, 4, 10, 6, 9, 5, 3, 8, 2], new Array(12).fill(0)]],
+    d: [[[4, 1, 0, 3, 2, 5], [0, 0, 0, 0, 0, 0]], [[19, 3, 0, 15, 14, 5, 17, 7, 6, 13, 10, 9, 12, 11, 16, 1, 4, 8, 18, 2, 20, 21, 22, 23], new Array(24).fill(0)], [[7, 3, 0, 5, 10, 1, 6, 2, 8, 4, 9, 11], new Array(12).fill(0)]],
+    '2d': [[[4, 1, 0, 3, 2, 5], [0, 0, 0, 0, 0, 0]], [[19, 3, 0, 15, 14, 5, 17, 7, 6, 13, 10, 9, 12, 11, 16, 1, 4, 8, 18, 2, 20, 21, 22, 23], new Array(24).fill(0)], [[7, 3, 0, 5, 10, 1, 6, 2, 8, 4, 9, 11], new Array(12).fill(0)]],
+    b: [[[0, 1, 2, 5, 3, 4], [0, 0, 0, 2, 3, 3]], [[0, 1, 16, 20, 3, 8, 6, 7, 18, 9, 13, 11, 10, 12, 14, 19, 22, 17, 5, 23, 4, 21, 2, 15], new Array(24).fill(0)], [[0, 1, 9, 11, 3, 7, 5, 6, 2, 8, 10, 4], new Array(12).fill(0)]],
+    '2b': [[[0, 1, 2, 5, 3, 4], [0, 0, 0, 2, 3, 3]], [[0, 1, 16, 20, 3, 8, 6, 7, 18, 9, 13, 11, 10, 12, 14, 19, 22, 17, 5, 23, 4, 21, 2, 15], new Array(24).fill(0)], [[0, 1, 9, 11, 3, 7, 5, 6, 2, 8, 10, 4], new Array(12).fill(0)]],
+    r: [[[0, 2, 5, 3, 4, 1], [0, 3, 3, 0, 0, 2]], [[4, 2, 20, 3, 23, 7, 10, 11, 8, 9, 21, 5, 12, 13, 15, 22, 16, 17, 18, 19, 1, 6, 14, 0], new Array(24).fill(0)], [[4, 2, 11, 3, 6, 8, 0, 7, 10, 9, 5, 1], new Array(12).fill(0)]],
+    '2r': [[[0, 2, 5, 3, 4, 1], [0, 3, 3, 0, 0, 2]], [[4, 2, 20, 3, 23, 7, 10, 11, 8, 9, 21, 5, 12, 13, 15, 22, 16, 17, 18, 19, 1, 6, 14, 0], new Array(24).fill(0)], [[4, 2, 11, 3, 6, 8, 0, 7, 10, 9, 5, 1], new Array(12).fill(0)]],
+    l: [[[1, 3, 2, 0, 4, 5], [3, 2, 0, 3, 0, 0]], [[22, 23, 2, 0, 4, 5, 6, 12, 8, 21, 10, 11, 17, 13, 20, 15, 1, 7, 9, 14, 19, 18, 3, 16], new Array(24).fill(0)], [[8, 6, 2, 0, 4, 5, 9, 10, 3, 1, 11, 7], new Array(12).fill(0)]],
+    '2l': [[[1, 3, 2, 0, 4, 5], [3, 2, 0, 3, 0, 0]], [[22, 23, 2, 0, 4, 5, 6, 12, 8, 21, 10, 11, 17, 13, 20, 15, 1, 7, 9, 14, 19, 18, 3, 16], new Array(24).fill(0)], [[8, 6, 2, 0, 4, 5, 9, 10, 3, 1, 11, 7], new Array(12).fill(0)]],
+    Uv: [[[2, 5, 4, 1, 0, 3], [0, 0, 0, 0, 0, 0]], [[2, 15, 19, 1, 16, 12, 8, 10, 17, 11, 18, 13, 21, 9, 4, 3, 14, 6, 7, 0, 23, 5, 20, 22], new Array(24).fill(0)], [[2, 5, 7, 1, 9, 3, 8, 0, 11, 10, 4, 6], new Array(12).fill(0)]],
+    Fv: [[[2, 0, 1, 4, 5, 3], [2, 3, 3, 1, 1, 2]], [[14, 0, 22, 4, 20, 18, 7, 9, 5, 6, 12, 21, 13, 10, 1, 23, 2, 11, 8, 15, 3, 17, 16, 19], new Array(24).fill(0)], [[10, 0, 8, 4, 11, 6, 7, 5, 9, 2, 1, 3], new Array(12).fill(0)]],
+    BRv: [[[3, 0, 4, 1, 5, 2], [1, 1, 2, 2, 3, 3]], [[3, 16, 4, 22, 15, 6, 13, 17, 10, 18, 11, 8, 7, 5, 19, 2, 23, 12, 21, 20, 14, 9, 0, 1], new Array(24).fill(0)], [[3, 9, 4, 8, 5, 2, 1, 11, 0, 6, 7, 10], new Array(12).fill(0)]],
+    BLv: [[[3, 5, 1, 4, 0, 2], [3, 2, 1, 3, 2, 1]], [[23, 20, 1, 19, 0, 11, 21, 5, 9, 12, 6, 7, 8, 17, 22, 14, 3, 18, 13, 16, 2, 10, 15, 4], new Array(24).fill(0)], [[6, 11, 1, 7, 0, 10, 4, 9, 5, 3, 8, 2], new Array(12).fill(0)]],
+    Dv: [[[4, 3, 0, 5, 2, 1], [0, 0, 0, 0, 0, 0]], [[19, 3, 0, 15, 14, 21, 17, 18, 6, 13, 7, 9, 5, 11, 16, 1, 4, 8, 10, 2, 22, 12, 23, 20], new Array(24).fill(0)], [[7, 3, 0, 5, 10, 1, 11, 2, 6, 4, 9, 8], new Array(12).fill(0)]],
+    Bv: [[[1, 2, 0, 5, 3, 4], [1, 1, 2, 2, 3, 3]], [[1, 14, 16, 20, 3, 8, 9, 6, 18, 7, 13, 17, 10, 12, 0, 19, 22, 21, 5, 23, 4, 11, 2, 15], new Array(24).fill(0)], [[1, 10, 9, 11, 3, 7, 5, 6, 2, 8, 0, 4], new Array(12).fill(0)]],
+    Rv: [[[4, 2, 5, 0, 3, 1], [2, 3, 3, 1, 1, 2]], [[4, 2, 20, 16, 23, 7, 10, 11, 12, 8, 21, 5, 9, 18, 15, 22, 19, 13, 17, 3, 1, 6, 14, 0], new Array(24).fill(0)], [[4, 2, 11, 9, 6, 8, 0, 3, 10, 7, 5, 1], new Array(12).fill(0)]],
+    Lv: [[[1, 3, 5, 0, 2, 4], [3, 2, 1, 3, 2, 1]], [[22, 23, 15, 0, 2, 13, 5, 12, 11, 21, 8, 10, 17, 6, 20, 4, 1, 7, 9, 14, 19, 18, 3, 16], new Array(24).fill(0)], [[8, 6, 5, 0, 2, 4, 9, 10, 3, 1, 11, 7], new Array(12).fill(0)]],
+    T: [[[2, 1, 5, 0, 4, 3], [1, 1, 2, 2, 3, 3]], [[7, 5, 12, 6, 10, 22, 2, 20, 15, 1, 19, 23, 3, 16, 11, 13, 8, 4, 14, 17, 21, 0, 9, 18], new Array(24).fill(0)], [[6, 4, 9, 5, 8, 2, 11, 1, 7, 3, 0, 10], new Array(12).fill(1)]],
+});
+const FTO_MOVE_FACELET_PERMUTATIONS = Object.freeze(
+    Object.fromEntries(Object.entries(FTO_CUBING_MOVE_DATA).map(([family, moveData]) => [
+        family,
+        createFtoMoveFaceletPermutation(moveData),
+    ])),
+);
 const SQUARE1_PIECE_LAYOUTS = Object.freeze([
     Object.freeze({ type: 'edge', faces: Object.freeze(['U', 'B']) }),
     Object.freeze({ type: 'corner', faces: Object.freeze(['U', 'B', 'R']) }),
@@ -254,6 +383,24 @@ function getSkewbPreviewTheme(styles = getPreviewThemeStyles()) {
             readPreviewThemeColor(styles, '--preview-skewb-blue', DEFAULT_CUBE_COLORS[5]),
         ],
         outline: readPreviewThemeColor(styles, '--preview-skewb-outline', '#000000'),
+    };
+}
+
+function getFtoPreviewTheme(styles = getPreviewThemeStyles()) {
+    return {
+        colors: [
+            readPreviewThemeColor(styles, '--preview-fto-up', DEFAULT_FTO_COLORS[FTO_FACE_INDEX.U]),
+            readPreviewThemeColor(styles, '--preview-fto-front', DEFAULT_FTO_COLORS[FTO_FACE_INDEX.F]),
+            readPreviewThemeColor(styles, '--preview-fto-back-right', DEFAULT_FTO_COLORS[FTO_FACE_INDEX.BR]),
+            readPreviewThemeColor(styles, '--preview-fto-back-left', DEFAULT_FTO_COLORS[FTO_FACE_INDEX.BL]),
+            readPreviewThemeColor(styles, '--preview-fto-down', DEFAULT_FTO_COLORS[FTO_FACE_INDEX.D]),
+            readPreviewThemeColor(styles, '--preview-fto-back', DEFAULT_FTO_COLORS[FTO_FACE_INDEX.B]),
+            readPreviewThemeColor(styles, '--preview-fto-right', DEFAULT_FTO_COLORS[FTO_FACE_INDEX.R]),
+            readPreviewThemeColor(styles, '--preview-fto-left', DEFAULT_FTO_COLORS[FTO_FACE_INDEX.L]),
+        ],
+        outline: readPreviewThemeColor(styles, '--preview-fto-outline', '#000000'),
+        labelFill: readPreviewThemeColor(styles, '--text-primary', '#e6edf3'),
+        labelStroke: readPreviewThemeColor(styles, '--bg-primary', '#0d1117'),
     };
 }
 
@@ -1191,6 +1338,244 @@ export function applySkewbScramble(scramble) {
     return skewbStateToFaces(state);
 }
 
+function freezeFtoStickerDefinitions(stickers) {
+    return Object.freeze(stickers.map((sticker) => Object.freeze(sticker)));
+}
+
+function freezeFtoMoveData(data) {
+    return Object.freeze(Object.fromEntries(
+        Object.entries(data).map(([family, orbits]) => [
+            family,
+            Object.freeze(orbits.map(([permutation, orientationDelta]) => Object.freeze({
+                permutation: Object.freeze(permutation),
+                orientationDelta: Object.freeze(orientationDelta),
+            }))),
+        ]),
+    ));
+}
+
+function createFtoStickerKey(sticker) {
+    return `${sticker[0]}:${sticker[1]}:${sticker[2]}`;
+}
+
+function createFtoMoveFaceletPermutation(moveData) {
+    return Object.freeze(FTO_FACELET_STICKERS.map((sticker, targetIndex) => {
+        const [orbit, piece, orientation] = sticker;
+        const orbitMove = moveData[orbit];
+        const orientationCount = FTO_ORBIT_ORIENTATION_COUNTS[orbit] || 1;
+        const sourcePiece = orbitMove?.permutation[piece] ?? piece;
+        const orientationDelta = orbitMove?.orientationDelta[piece] ?? 0;
+        const sourceOrientation = positiveModulo(orientation - orientationDelta, orientationCount);
+        const sourceIndex = FTO_FACELET_INDEX_BY_STICKER.get(createFtoStickerKey([
+            orbit,
+            sourcePiece,
+            sourceOrientation,
+        ]));
+
+        return Number.isInteger(sourceIndex) ? sourceIndex : targetIndex;
+    }));
+}
+
+function createSolvedFtoFaceletColors() {
+    return [...FTO_SOLVED_FACELET_COLORS];
+}
+
+function applyFtoFaceletPermutation(state, permutation) {
+    return permutation.map((sourceIndex) => state[sourceIndex]);
+}
+
+function ftoFaceletColorsToFaces(faceletColors) {
+    return FTO_FACE_NAMES.map((_, faceIndex) => {
+        const start = faceIndex * FTO_FACE_STICKER_COUNT;
+        return faceletColors.slice(start, start + FTO_FACE_STICKER_COUNT);
+    });
+}
+
+function normalizeFtoMoveFamily(family) {
+    const value = String(family ?? '');
+    const prefix = value.startsWith('2') ? '2' : '';
+    const body = prefix ? value.slice(1) : value;
+    const isVertexRotation = body.endsWith('v');
+    const base = isVertexRotation ? body.slice(0, -1) : body;
+
+    if (!base) return null;
+
+    if (isVertexRotation) {
+        if (base !== base.toUpperCase()) return null;
+        const candidate = `${prefix}${base}v`;
+        return FTO_MOVE_FACELET_PERMUTATIONS[candidate] ? candidate : null;
+    }
+
+    if (/^b[rl]$/i.test(base)) {
+        const normalizedBase = base === base.toUpperCase() ? base : base.toLowerCase();
+        const candidate = `${prefix}${normalizedBase}`;
+        return FTO_MOVE_FACELET_PERMUTATIONS[candidate] ? candidate : null;
+    }
+
+    if (base.length === 1) {
+        const normalizedBase = base === 't' ? 'T' : base;
+        const candidate = `${prefix}${normalizedBase}`;
+        return FTO_MOVE_FACELET_PERMUTATIONS[candidate] ? candidate : null;
+    }
+
+    return null;
+}
+
+function parseFtoMoveToken(token) {
+    const normalized = String(token ?? '')
+        .trim()
+        .replace(/[`´‘’′]/g, "'");
+    const match = normalized.match(/^((?:2)?(?:BR|BL|Br|Bl|bR|bL|br|bl|[UFDBRLufdbrlTt])v?)(2|')?$/);
+    if (!match) return null;
+
+    const family = normalizeFtoMoveFamily(match[1]);
+    if (!family) return null;
+
+    const order = family === 'T' ? 4 : 3;
+    const modifier = match[2] || '';
+
+    return {
+        family,
+        turns: modifier === "'" ? order - 1 : (modifier === '2' ? 2 : 1),
+    };
+}
+
+export function applyFtoScramble(scramble) {
+    let state = createSolvedFtoFaceletColors();
+
+    if (scramble) {
+        String(scramble)
+            .trim()
+            .split(/\s+/)
+            .forEach((token) => {
+                const move = parseFtoMoveToken(token);
+                if (!move) return;
+
+                const permutation = FTO_MOVE_FACELET_PERMUTATIONS[move.family];
+                if (!permutation) return;
+
+                for (let turn = 0; turn < move.turns; turn += 1) {
+                    state = applyFtoFaceletPermutation(state, permutation);
+                }
+            });
+    }
+
+    return ftoFaceletColorsToFaces(state);
+}
+
+function transformFtoLayoutPoint(point, scale, offsetX, offsetY) {
+    return [
+        offsetX + (point[0] * scale),
+        offsetY + (point[1] * scale),
+    ];
+}
+
+function drawFtoFaceStickers(ctx, fto, faceMeta, scale, offsetX, offsetY, theme, metrics) {
+    const face = fto?.[faceMeta.face];
+    const vertices = faceMeta.vertices.map((point) => transformFtoLayoutPoint(point, scale, offsetX, offsetY));
+    const [a, b, c] = vertices;
+
+    PYRAMINX_TRIANGLE_DEFINITIONS.forEach((triangle, stickerIndex) => {
+        const stickerPoints = createInsetPolygon(
+            triangle.map(([u, v]) => interpolateTrianglePoint(a, b, c, u, v)),
+            metrics.stickerInset,
+        );
+        const faceletIndex = faceMeta.faceletMap[stickerIndex] ?? stickerIndex;
+        const colorIndex = Number.isInteger(face?.[faceletIndex]) ? face[faceletIndex] : faceMeta.face;
+
+        ctx.fillStyle = theme.colors[colorIndex] || theme.colors[faceMeta.face] || theme.colors[0];
+        tracePolygon(ctx, stickerPoints);
+        ctx.fill();
+
+        ctx.strokeStyle = theme.outline;
+        ctx.lineWidth = metrics.stickerOutlineWidth;
+        ctx.stroke();
+    });
+}
+
+function drawFtoFaceBoundary(ctx, faceMeta, scale, offsetX, offsetY, theme, lineWidth) {
+    const vertices = faceMeta.vertices.map((point) => transformFtoLayoutPoint(point, scale, offsetX, offsetY));
+
+    ctx.strokeStyle = theme.outline;
+    ctx.lineWidth = lineWidth;
+    tracePolygon(ctx, vertices);
+    ctx.stroke();
+}
+
+function drawFtoFaceLabel(ctx, faceMeta, scale, offsetX, offsetY, theme, fontSize) {
+    const vertices = faceMeta.vertices.map((point) => transformFtoLayoutPoint(point, scale, offsetX, offsetY));
+    const center = averagePoints(vertices);
+
+    ctx.font = `700 ${fontSize}px Arial, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = theme.labelStroke;
+    ctx.lineWidth = Math.max(2, fontSize * 0.18);
+    ctx.strokeText(faceMeta.label, center[0], center[1]);
+    ctx.fillStyle = theme.labelFill;
+    ctx.fillText(faceMeta.label, center[0], center[1]);
+}
+
+function drawFtoLayout(canvas, fto, layoutFaces, bounds, { showLabels = true, compact = false } = {}) {
+    const ctx = canvas.getContext('2d');
+    const { width: w, height: h } = getCanvasLogicalSize(canvas);
+    const theme = getFtoPreviewTheme();
+
+    ctx.clearRect(0, 0, w, h);
+
+    if (!Array.isArray(fto) || fto.length < FTO_FACE_NAMES.length) {
+        return;
+    }
+
+    const margin = Math.max(compact ? 0.75 : 4, Math.min(w, h) * (compact ? 0.05 : 0.035));
+    const layoutWidth = bounds.maxX - bounds.minX;
+    const layoutHeight = bounds.maxY - bounds.minY;
+    const scale = Math.max(0, Math.min(
+        (w - (margin * 2)) / layoutWidth,
+        (h - (margin * 2)) / layoutHeight,
+    ));
+    const offsetX = ((w - (layoutWidth * scale)) / 2) - (bounds.minX * scale);
+    const offsetY = ((h - (layoutHeight * scale)) / 2) - (bounds.minY * scale);
+    const metrics = {
+        stickerInset: Math.max(compact ? 0.12 : 0.28, Math.min(compact ? 0.55 : 1, scale * 0.008)),
+        stickerOutlineWidth: Math.max(0.35, Math.min(compact ? 0.75 : 1, scale * 0.008)),
+    };
+    const boundaryWidth = Math.max(compact ? 1 : 1.7, Math.min(compact ? 2.3 : 4, scale * 0.032));
+    const labelFontSize = Math.max(10, Math.min(19, scale * 0.17));
+
+    ctx.save();
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+
+    layoutFaces.forEach((faceMeta) => {
+        drawFtoFaceStickers(ctx, fto, faceMeta, scale, offsetX, offsetY, theme, metrics);
+    });
+
+    layoutFaces.forEach((faceMeta) => {
+        drawFtoFaceBoundary(ctx, faceMeta, scale, offsetX, offsetY, theme, boundaryWidth);
+    });
+
+    if (showLabels) {
+        layoutFaces.forEach((faceMeta) => {
+            drawFtoFaceLabel(ctx, faceMeta, scale, offsetX, offsetY, theme, labelFontSize);
+        });
+    }
+
+    ctx.restore();
+}
+
+export function drawFto(canvas, fto) {
+    drawFtoLayout(canvas, fto, FTO_FULL_LAYOUT_FACES, FTO_FULL_LAYOUT_BOUNDS, { showLabels: true });
+}
+
+export function drawFtoHalfPreview(canvas, fto) {
+    drawFtoLayout(canvas, fto, FTO_HALF_LAYOUT_FACES, FTO_HALF_LAYOUT_BOUNDS, {
+        showLabels: false,
+        compact: true,
+    });
+}
+
 // ──── Skewb isometric renderer ────
 
 const SKEWB_ISO_ANGLE = Math.PI / 6;
@@ -2113,6 +2498,11 @@ function redrawLastDisplay(canvas) {
         return;
     }
 
+    if (_lastDisplay.puzzle === 'fto') {
+        drawFto(canvas, _lastDisplay.state);
+        return;
+    }
+
     drawCube(canvas, _lastDisplay.state);
 }
 
@@ -2212,6 +2602,20 @@ export function updateMegaminxDisplay(canvas, scramble) {
     _lastDisplay = {
         puzzle: 'megaminx',
         state: applyMegaminxScramble(scramble),
+    };
+    if (!didSync) return;
+
+    const ctx = canvas.getContext('2d');
+    const pixelRatio = getCanvasPixelRatio();
+    ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    redrawLastDisplay(canvas);
+}
+
+export function updateFtoDisplay(canvas, scramble) {
+    const didSync = syncCanvasToDisplaySize(canvas);
+    _lastDisplay = {
+        puzzle: 'fto',
+        state: applyFtoScramble(scramble),
     };
     if (!didSync) return;
 

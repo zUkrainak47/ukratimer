@@ -17,6 +17,13 @@ function freezeChangelogEntry(entry) {
 
 export const CHANGELOG_ENTRIES = Object.freeze([
     {
+        id: '2026-06-25-fto',
+        date: '2026-06-25',
+        title: 'FTO',
+        summary: 'Added FTO scrambles following WCA announcement of the event going official.'
+    },
+
+    {
         id: '2026-06-06-multi-phase_',
         date: '2026-06-06',
         title: 'Daily Activity Calendar & Multiphase',

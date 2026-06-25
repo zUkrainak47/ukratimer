@@ -1519,6 +1519,10 @@
     --scramble-preview-modal-aspect-ratio: 2.02;
 }
 
+#scramble-preview-modal-canvas-container.fto-preview-layout {
+    --scramble-preview-modal-aspect-ratio: 2;
+}
+
 #scramble-preview-modal-canvas {
     width: 100%;
     height: 100%;

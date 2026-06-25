@@ -108,6 +108,15 @@
   --preview-skewb-orange: #ffa503;
   --preview-skewb-blue: #0000ff;
   --preview-skewb-outline: rgba(0, 0, 0, 0.4);
+  --preview-fto-up: #ffffff;
+  --preview-fto-left: #880088;
+  --preview-fto-front: #00dd00;
+  --preview-fto-right: #ff0000;
+  --preview-fto-back: #0000ff;
+  --preview-fto-back-right: #bbbbbb;
+  --preview-fto-down: #ffff00;
+  --preview-fto-back-left: #ffaa00;
+  --preview-fto-outline: #000000;
   --preview-pyraminx-yellow: #ffff05;
   --preview-pyraminx-green: #33cd32;
   --preview-pyraminx-red: #ff0000;
