@@ -61,6 +61,13 @@ const BATTLE_STATUS_PROGRESS_RANK = Object.freeze({
     [BattlePresenceStatus.SOLVED]: 3,
 });
 
+function normalizeBattleStatus(value, fallback = BattlePresenceStatus.READY) {
+    const normalized = String(value ?? '').trim().toUpperCase();
+    return Object.prototype.hasOwnProperty.call(BattlePresenceStatus, normalized)
+        ? BattlePresenceStatus[normalized]
+        : fallback;
+}
+
 function normalizeNickname(value) {
     return String(value ?? '')
         .replace(/\s+/g, ' ')
@@ -88,7 +95,7 @@ function getNonNegativeRoundedNumber(value, fallback = null) {
 }
 
 function getBattleStatusProgressRank(status) {
-    return BATTLE_STATUS_PROGRESS_RANK[String(status ?? '').trim().toUpperCase()] ?? 0;
+    return BATTLE_STATUS_PROGRESS_RANK[normalizeBattleStatus(status)] ?? 0;
 }
 
 function isBattleStatusRegression(nextStatus, currentStatus) {
@@ -323,7 +330,7 @@ function mapRoomInfo(roomInfo) {
                 meanTimeMs: getNonNegativeRoundedNumber(player?.meanTimeMs),
                 meanTimeSum: getNonNegativeRoundedNumber(player?.meanTimeSum),
                 meanTimeCount: getNonNegativeRoundedNumber(player?.meanTimeCount),
-                status: String(player?.status ?? BattlePresenceStatus.READY),
+                status: normalizeBattleStatus(player?.status),
                 connected: player?.connected !== false,
             }))
             : [],
@@ -502,7 +509,8 @@ export function buildBattleRows(roomState, localAccountId = '') {
         const currentSolve = playerSolves.get(roomState.currentRoundId) || null;
         const previousSolve = playerSolves.get(roomState.lastRoundId) || null;
         const shownSolve = currentSolve || previousSolve;
-        const shouldDimSolve = hasCurrentSolve && player.status !== BattlePresenceStatus.SOLVED && !currentSolve && previousSolve;
+        const status = normalizeBattleStatus(player.status);
+        const shouldDimSolve = hasCurrentSolve && status !== BattlePresenceStatus.SOLVED && !currentSolve && previousSolve;
         const solveCount = getNonNegativeRoundedNumber(player.solveCount) ?? solveList.length;
         const winCount = Math.max(0, Math.round(Number(player.wins) || 0));
         const isDisconnected = player.connected === false;
@@ -515,8 +523,8 @@ export function buildBattleRows(roomState, localAccountId = '') {
             wins: winCount,
             winRateText: `${winCount}/${solveCount}`,
             meanTimeText: getBattlePlayerMeanTimeText(player, solveList),
-            status: player.status,
-            statusLabel: BATTLE_STATUS_LABELS[player.status] || player.status,
+            status,
+            statusLabel: BATTLE_STATUS_LABELS[status],
             solve: shownSolve,
             solveText: formatBattleSolve(shownSolve),
             dimSolve: shouldDimSolve,
@@ -730,7 +738,7 @@ class BattleManager extends EventEmitter {
     }
 
     _getStatusRoundId(status = null) {
-        const normalizedStatus = String(status ?? '').trim().toUpperCase();
+        const normalizedStatus = normalizeBattleStatus(status);
         if (this._pendingSolveUpload && normalizedStatus === BattlePresenceStatus.SOLVING) {
             return Number(this._pendingSolveUpload.solveId) || 0;
         }
@@ -1023,8 +1031,8 @@ class BattleManager extends EventEmitter {
     }
 
     async submitStatus(status) {
-        const normalizedStatus = String(status ?? '').trim().toUpperCase();
-        if (!BattlePresenceStatus[normalizedStatus]) return;
+        const normalizedStatus = normalizeBattleStatus(status, null);
+        if (!normalizedStatus) return;
         this._lastLocalStatus = normalizedStatus;
         const localPlayer = this._roomState.players.find((player) => player.accountId === this._accountId) || null;
         if (isBattleStatusRegression(normalizedStatus, localPlayer?.status)

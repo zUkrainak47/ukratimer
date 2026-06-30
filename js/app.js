@@ -2457,7 +2457,7 @@ function renderBattleRows(targetId, rows = [], emptyMessage = 'Join a room to st
             <td class="battle-table-mean">${escapeHtml(row.meanTimeText || '-')}</td>
             <td class="battle-table-elo">${row.elo}</td>
             <td class="battle-table-win">${escapeHtml(row.winRateText || '0/0')}</td>
-            <td class="battle-table-status"><span class="battle-status-pill" data-battle-status="${row.status}">${row.statusLabel}</span></td>
+            <td class="battle-table-status"><span class="battle-status-pill" data-battle-status="${escapeHtml(row.status)}">${escapeHtml(row.statusLabel)}</span></td>
             <td class="battle-table-time ${row.dimSolve ? 'is-muted-time' : ''}">${row.solveText}</td>
         </tr>
     `).join('');
