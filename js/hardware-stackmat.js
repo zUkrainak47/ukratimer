@@ -1,4 +1,4 @@
-import { EventEmitter } from './utils.js?v=2026062501';
+import { EventEmitter } from './utils.js?v=2026063001';
 
 const THRESHOLD_SCHMITT = 0.2;
 const THRESHOLD_EDGE = 0.7;
