@@ -1191,6 +1191,16 @@
     border-color: var(--text-tertiary);
 }
 
+.btn-icon-small:disabled,
+.btn-icon-small:disabled:hover,
+.btn-icon-small:disabled:active {
+    color: var(--text-muted);
+    border-color: var(--text-muted);
+    cursor: not-allowed;
+    opacity: 0.5;
+    transform: none;
+}
+
 .btn-icon-small:active {
     transform: scale(0.95);
 }

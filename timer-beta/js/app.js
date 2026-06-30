@@ -13018,6 +13018,12 @@ function renderSolvesTable(solves, stats) {
 }
 
 // ──── Session Controls ────
+function syncSessionActionButtons() {
+    const searchLocked = Boolean(isSearchActive);
+    const deleteButton = document.getElementById('btn-delete-session');
+    if (deleteButton) deleteButton.disabled = searchLocked;
+}
+
 function initSessionControls() {
     getSessionSelects().forEach((select) => {
         select.onchange = async (e) => {
@@ -13040,11 +13046,14 @@ function initSessionControls() {
     };
 
     document.getElementById('btn-delete-session').onclick = async () => {
+        if (isSearchActive) return;
         if (await customConfirm('Delete this session and all its solves?')) {
             await sessionManager.deleteSession(sessionManager.getActiveSessionId());
             refreshSessionList();
         }
     };
+
+    syncSessionActionButtons();
 }
 
 function initBattleControls() {
@@ -13742,6 +13751,8 @@ function syncSearchMenuVisibility({ focusInput = false } = {}) {
     const searchMenuEl = document.getElementById('stats-search-menu');
     const sessionInfoEl = document.getElementById('session-info');
     if (!summaryEl || !searchMenuEl || !sessionInfoEl) return;
+
+    syncSessionActionButtons();
 
     if (isSearchActive) {
         summaryEl.hidden = true;
