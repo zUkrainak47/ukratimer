@@ -8852,11 +8852,14 @@ function initKeyboardShortcuts() {
                 break;
             case 'Backspace':
             case 'Delete':
-                if (!isSolveModalActive && !timerPanelShortcutAllowed) return;
                 if (isSolveModalActive) {
                     const btn = document.getElementById('modal-btn-delete');
                     if (btn && btn.offsetParent !== null) btn.click();
+                } else if (selectedSolveIds.size > 0 && isMobilePanelShortcutAllowed('stats')) {
+                    e.preventDefault();
+                    void deleteSelectedSolves();
                 } else {
+                    if (!timerPanelShortcutAllowed) return;
                     const session = sessionManager.getActiveSession();
                     if (session && session.solves.length > 0) {
                         const targetId = session.solves[session.solves.length - 1].id;
@@ -13929,6 +13932,86 @@ function syncSearchBulkMoveOptions() {
     syncCustomSelectMenu('search-bulk-move-select');
 }
 
+async function deleteSelectedSolves() {
+    if (selectedSolveIds.size === 0) return false;
+    if (bulkActionProgressState.active) return true;
+
+    if (!(await customConfirm(`Delete ${selectedSolveIds.size} selected solves?`))) return true;
+
+    const solveIds = Array.from(selectedSolveIds);
+    setBulkActionProgressState({
+        visible: true,
+        active: true,
+        status: 'running',
+        action: 'delete',
+        phase: 'starting',
+        percent: 0,
+        selectedCount: solveIds.length,
+        completed: 0,
+        total: solveIds.length,
+        targetSessionName: '',
+    });
+    await waitForNextPaint();
+    window._isBulkAction = true;
+
+    try {
+        const deletedCount = await sessionManager.bulkDeleteSolves(solveIds, {
+            onProgress: (snapshot) => {
+                setBulkActionProgressState({
+                    visible: true,
+                    active: snapshot.phase !== 'complete',
+                    status: snapshot.phase === 'complete' ? 'complete' : 'running',
+                    action: snapshot.action,
+                    phase: snapshot.phase,
+                    percent: snapshot.percent,
+                    selectedCount: snapshot.selectedCount,
+                    completed: snapshot.completed,
+                    total: snapshot.total,
+                    targetSessionName: snapshot.targetSessionName || '',
+                });
+            },
+        });
+
+        setBulkActionProgressState({
+            visible: true,
+            active: false,
+            status: 'complete',
+            action: 'delete',
+            phase: 'complete',
+            percent: 100,
+            selectedCount: deletedCount,
+            completed: deletedCount,
+            total: deletedCount,
+            targetSessionName: '',
+        });
+    } catch (error) {
+        setBulkActionProgressState({
+            visible: true,
+            active: false,
+            status: 'error',
+            action: 'delete',
+            phase: 'complete',
+            percent: 100,
+            selectedCount: solveIds.length,
+            completed: 0,
+            total: solveIds.length,
+            targetSessionName: '',
+        });
+        hideBulkActionProgress({ delayMs: 2200 });
+        console.error('Bulk delete failed:', error);
+        return true;
+    } finally {
+        window._isBulkAction = false;
+    }
+
+    clearSelectedSolveState();
+    updateSearchBulkActionUI();
+    rebuildStatsCache();
+    refreshUI();
+    hideBulkActionProgress({ delayMs: 1200 });
+    return true;
+}
+
 function initSearchMenu() {
     const searchInput = document.getElementById('stats-search-input');
     const indexMin = document.getElementById('search-filter-index-min');
@@ -14007,85 +14090,7 @@ function initSearchMenu() {
     const deleteBtn = document.getElementById('btn-search-bulk-delete');
     if (deleteBtn) {
         deleteBtn.onclick = async () => {
-            if (bulkActionProgressState.active || selectedSolveIds.size === 0) return;
-            if (await customConfirm(`Delete ${selectedSolveIds.size} selected solves?`)) {
-                const solveIds = Array.from(selectedSolveIds);
-                setBulkActionProgressState({
-                    visible: true,
-                    active: true,
-                    status: 'running',
-                    action: 'delete',
-                    phase: 'starting',
-                    percent: 0,
-                    selectedCount: solveIds.length,
-                    completed: 0,
-                    total: solveIds.length,
-                    targetSessionName: '',
-                });
-                await waitForNextPaint();
-                window._isBulkAction = true;
-
-                try {
-                    const deletedCount = await sessionManager.bulkDeleteSolves(solveIds, {
-                        onProgress: (snapshot) => {
-                            setBulkActionProgressState({
-                                visible: true,
-                                active: snapshot.phase !== 'complete',
-                                status: snapshot.phase === 'complete' ? 'complete' : 'running',
-                                action: snapshot.action,
-                                phase: snapshot.phase,
-                                percent: snapshot.percent,
-                                selectedCount: snapshot.selectedCount,
-                                completed: snapshot.completed,
-                                total: snapshot.total,
-                                targetSessionName: snapshot.targetSessionName || '',
-                            });
-                        },
-                    });
-
-                    setBulkActionProgressState({
-                        visible: true,
-                        active: false,
-                        status: 'complete',
-                        action: 'delete',
-                        phase: 'complete',
-                        percent: 100,
-                        selectedCount: deletedCount,
-                        completed: deletedCount,
-                        total: deletedCount,
-                        targetSessionName: '',
-                    });
-                } catch (error) {
-                    setBulkActionProgressState({
-                        visible: true,
-                        active: false,
-                        status: 'error',
-                        action: 'delete',
-                        phase: 'complete',
-                        percent: 100,
-                        selectedCount: solveIds.length,
-                        completed: 0,
-                        total: solveIds.length,
-                        targetSessionName: '',
-                    });
-                    hideBulkActionProgress({ delayMs: 2200 });
-                    console.error('Bulk delete failed:', error);
-                    return;
-                } finally {
-                    window._isBulkAction = false;
-                }
-
-                selectedSolveIds.clear();
-                lastSelectedSolveIndex = -1;
-                lastSelectedSolveId = null;
-                selectionAnchorSolveIndex = -1;
-                selectionAnchorSolveId = null;
-                activeRangeSelectedSolveIds.clear();
-                updateSearchBulkActionUI();
-                rebuildStatsCache();
-                refreshUI();
-                hideBulkActionProgress({ delayMs: 1200 });
-            }
+            await deleteSelectedSolves();
         };
     }
 
