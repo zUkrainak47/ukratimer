@@ -7734,8 +7734,10 @@ function initScrambleControls() {
             commitEdit();
         }
         if (e.key === 'Escape') {
+            e.preventDefault();
             textEl.style.display = 'block';
             inputEl.style.display = 'none';
+            renderScramblePreviewDisplays(currentScramble);
             inputEl.blur();
             scheduleViewportLayoutSync();
         }
@@ -7752,7 +7754,7 @@ function initScrambleControls() {
         if (textEl.classList.contains('loading')) return;
         closeScrambleTypeMenus();
         const s = getPrevScramble();
-        if (s) updateScrambleUI(s);
+        if (s !== null) updateScrambleUI(s);
     });
 
     nextBtn.addEventListener('click', () => {
