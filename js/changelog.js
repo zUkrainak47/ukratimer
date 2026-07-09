@@ -17,6 +17,13 @@ function freezeChangelogEntry(entry) {
 
 export const CHANGELOG_ENTRIES = Object.freeze([
     {
+        id: '2026-07-09-calendar',
+        date: '2026-07-09',
+        title: 'Daily Activity Calendar colors',
+        summary: 'Colors in the Daily Activity heatmap can now be based on: total time, mean time, or best time.'
+    },
+
+    {
         id: '2026-06-25-fto',
         date: '2026-06-25',
         title: 'FTO',
