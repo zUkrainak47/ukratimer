@@ -935,19 +935,30 @@
                 aria-label="Daily solves calendar"></div>
             </div>
           </div>
-          <div id="daily-streak-legend" class="daily-streak-legend" aria-label="Daily solving time legend">
-            <span>Less</span>
-            <span class="daily-streak-legend-cell daily-streak-level-0" data-daily-streak-legend-level="0"
-              aria-hidden="true"></span>
-            <span class="daily-streak-legend-cell daily-streak-level-1" data-daily-streak-legend-level="1"
-              aria-hidden="true"></span>
-            <span class="daily-streak-legend-cell daily-streak-level-2" data-daily-streak-legend-level="2"
-              aria-hidden="true"></span>
-            <span class="daily-streak-legend-cell daily-streak-level-3" data-daily-streak-legend-level="3"
-              aria-hidden="true"></span>
-            <span class="daily-streak-legend-cell daily-streak-level-4" data-daily-streak-legend-level="4"
-              aria-hidden="true"></span>
-            <span>More</span>
+          <div class="daily-streak-calendar-footer" data-no-timer-start>
+            <label class="daily-streak-heatmap-metric-field" for="daily-streak-heatmap-metric">
+              <span>Color by</span>
+              <select id="daily-streak-heatmap-metric" class="daily-streak-filter-select"
+                aria-label="Daily streak calendar color basis">
+                <option value="totalTime">Total time</option>
+                <option value="bestTime">Best time</option>
+                <option value="meanTime">Mean time</option>
+              </select>
+            </label>
+            <div id="daily-streak-legend" class="daily-streak-legend" aria-label="Daily total time legend">
+              <span data-daily-streak-legend-label="less">Less</span>
+              <span class="daily-streak-legend-cell daily-streak-level-0" data-daily-streak-legend-level="0"
+                aria-hidden="true"></span>
+              <span class="daily-streak-legend-cell daily-streak-level-1" data-daily-streak-legend-level="1"
+                aria-hidden="true"></span>
+              <span class="daily-streak-legend-cell daily-streak-level-2" data-daily-streak-legend-level="2"
+                aria-hidden="true"></span>
+              <span class="daily-streak-legend-cell daily-streak-level-3" data-daily-streak-legend-level="3"
+                aria-hidden="true"></span>
+              <span class="daily-streak-legend-cell daily-streak-level-4" data-daily-streak-legend-level="4"
+                aria-hidden="true"></span>
+              <span data-daily-streak-legend-label="more">More</span>
+            </div>
           </div>
           <div id="daily-streak-tooltip" class="daily-streak-tooltip" hidden></div>
         </div>

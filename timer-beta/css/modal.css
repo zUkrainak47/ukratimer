@@ -1247,9 +1247,35 @@
     align-items: center;
     justify-content: flex-end;
     gap: 5px;
-    margin-top: 12px;
     color: var(--text-tertiary);
     font-size: var(--text-xs);
+}
+
+.daily-streak-calendar-footer {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.daily-streak-heatmap-metric-field {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    color: var(--text-tertiary);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.daily-streak-heatmap-metric-field .daily-streak-filter-select {
+    width: auto;
+    min-width: 132px;
+    min-height: 30px;
+    padding-inline: 8px;
+    text-transform: none;
 }
 
 .daily-streak-tooltip {
@@ -1424,6 +1450,17 @@
         padding: 12px;
     }
 
+    .daily-streak-calendar-footer {
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .daily-streak-legend {
+        align-self: auto;
+        margin-left: auto;
+    }
+
     .daily-streak-detail {
         padding: 12px;
     }
@@ -1441,6 +1478,23 @@
 
     .daily-streak-detail-grid>div:last-child {
         min-width: max-content;
+    }
+}
+
+@media (max-width: 420px) {
+    .daily-streak-heatmap-metric-field>span {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    .daily-streak-heatmap-metric-field .daily-streak-filter-select {
+        min-width: 120px;
     }
 }
 

@@ -17,6 +17,34 @@ const WEEKDAY_LABELS = Object.freeze(['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 
 const ALL_FILTER_VALUE = 'all';
 const FILTER_MODE_SCRAMBLE_TYPE = 'scrambleType';
 const FILTER_MODE_SESSION = 'session';
+const HEATMAP_METRIC_TOTAL_TIME = 'totalTime';
+const HEATMAP_METRIC_BEST_TIME = 'bestTime';
+const HEATMAP_METRIC_MEAN_TIME = 'meanTime';
+const HEATMAP_METRIC_SETTING = 'dailyStreakHeatmapMetric';
+const HEATMAP_METRICS = Object.freeze({
+    [HEATMAP_METRIC_TOTAL_TIME]: Object.freeze({
+        label: 'Total time',
+        lessLabel: 'Less',
+        moreLabel: 'More',
+        levelQualifiers: Object.freeze(['lower', 'moderate', 'higher', 'highest']),
+    }),
+    [HEATMAP_METRIC_BEST_TIME]: Object.freeze({
+        label: 'Best time',
+        lessLabel: 'Slower',
+        moreLabel: 'Faster',
+        levelQualifiers: Object.freeze(['highest', 'higher', 'lower', 'lowest']),
+        invertScale: true,
+        colorActiveDays: true,
+    }),
+    [HEATMAP_METRIC_MEAN_TIME]: Object.freeze({
+        label: 'Mean time',
+        lessLabel: 'Slower',
+        moreLabel: 'Faster',
+        levelQualifiers: Object.freeze(['highest', 'higher', 'lower', 'lowest']),
+        invertScale: true,
+        colorActiveDays: true,
+    }),
+});
 const HYDRATION_RETRY_YIELD_MS = 0;
 const HEATMAP_GREEN_STOPS = Object.freeze([
     Object.freeze({ r: 2, g: 58, b: 22 }),
@@ -56,6 +84,7 @@ let _emptyState = null;
 let _filterModeSelect = null;
 let _filterValueLabel = null;
 let _filterValueSelect = null;
+let _heatmapMetricSelect = null;
 let _mouseDownTarget = null;
 let _mouseUpTarget = null;
 let _initialized = false;
@@ -78,14 +107,11 @@ function createEmptyState() {
         filterMode: FILTER_MODE_SCRAMBLE_TYPE,
         scrambleTypeFilter: ALL_FILTER_VALUE,
         sessionFilter: ALL_FILTER_VALUE,
+        heatmapMetric: normalizeHeatmapMetric(settings.get(HEATMAP_METRIC_SETTING)),
         availableScrambleTypes: [],
         availableSessions: [],
         hasAnySolves: false,
-        heatmapTimeScale: {
-            min: 0,
-            max: 0,
-            count: 0,
-        },
+        heatmapValues: [],
         totalSolves: 0,
         activeDays: 0,
         goalDays: 0,
@@ -193,6 +219,14 @@ function buildFilterContext(solves) {
 
 function normalizeFilterMode(mode) {
     return mode === FILTER_MODE_SESSION ? FILTER_MODE_SESSION : FILTER_MODE_SCRAMBLE_TYPE;
+}
+
+function normalizeHeatmapMetric(metric) {
+    return HEATMAP_METRICS[metric] ? metric : HEATMAP_METRIC_TOTAL_TIME;
+}
+
+function getHeatmapMetric() {
+    return HEATMAP_METRICS[normalizeHeatmapMetric(_state.heatmapMetric)];
 }
 
 function getResolvedFilters(context) {
@@ -304,43 +338,44 @@ function getHeatmapColor(ratio) {
 
 function shouldUseSummaryForHeatmap(summary, goal) {
     if (!summary) return false;
+    if (getHeatmapMetric().colorActiveDays) return summary.count > 0;
     return goal > 0 ? Boolean(summary.goalMet) : summary.count > 0;
 }
 
-function getVisibleTotalTimeScale(daySummaries, firstDayKey, todayKey, goal) {
-    let min = Number.POSITIVE_INFINITY;
-    let max = 0;
-    let count = 0;
+function getSummaryHeatmapValue(summary) {
+    const value = summary?.[normalizeHeatmapMetric(_state.heatmapMetric)];
+    return Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+function getVisibleHeatmapValues(daySummaries, firstDayKey, todayKey, goal) {
+    const values = [];
     let cursorKey = firstDayKey;
 
     while (cursorKey <= todayKey) {
         const summary = daySummaries.get(cursorKey);
-        if (shouldUseSummaryForHeatmap(summary, goal)) {
-            const totalTime = Number.isFinite(summary.totalTime) && summary.totalTime > 0 ? summary.totalTime : 0;
-            min = Math.min(min, totalTime);
-            max = Math.max(max, totalTime);
-            count += 1;
+        const value = getSummaryHeatmapValue(summary);
+        if (shouldUseSummaryForHeatmap(summary, goal) && value != null) {
+            values.push(value);
         }
         cursorKey = shiftDayKey(cursorKey, 1);
     }
 
-    return {
-        min: count > 0 ? min : 0,
-        max: count > 0 ? max : 0,
-        count,
-    };
+    return values.sort((left, right) => left - right);
 }
 
 function getSummaryHeatmapRatio(summary) {
-    if (!summary || !_state.heatmapTimeScale.count) return 0;
-    if (_state.heatmapTimeScale.max <= _state.heatmapTimeScale.min) return HEATMAP_SINGLE_VALUE_RATIO;
+    const value = getSummaryHeatmapValue(summary);
+    if (value == null) return 0;
+    const values = _state.heatmapValues;
+    if (!values.length) return 0;
+    if (values.length === 1) return HEATMAP_SINGLE_VALUE_RATIO;
 
-    const totalTime = Number.isFinite(summary.totalTime) && summary.totalTime > 0 ? summary.totalTime : 0;
-    return clamp(
-        (totalTime - _state.heatmapTimeScale.min) / (_state.heatmapTimeScale.max - _state.heatmapTimeScale.min),
-        0,
-        1,
-    );
+    const firstIndex = values.indexOf(value);
+    const lastIndex = values.lastIndexOf(value);
+    if (firstIndex < 0 || lastIndex < 0) return HEATMAP_SINGLE_VALUE_RATIO;
+
+    const ratio = (firstIndex + lastIndex) / (2 * (values.length - 1));
+    return getHeatmapMetric().invertScale ? 1 - ratio : ratio;
 }
 
 function getHeatmapLevel(ratio) {
@@ -379,7 +414,8 @@ function buildCalendarState() {
     const streakState = computeDailyStreakState(filteredSolves, goal);
     const daySummaries = buildDaySummaries(filteredSolves, goal);
     const { firstDayKey } = getVisibleRange(todayKey);
-    const heatmapTimeScale = getVisibleTotalTimeScale(daySummaries, firstDayKey, todayKey, goal);
+    const heatmapMetric = normalizeHeatmapMetric(_state.heatmapMetric);
+    const heatmapValues = getVisibleHeatmapValues(daySummaries, firstDayKey, todayKey, goal);
     let totalSolves = 0;
     let activeDays = 0;
     let goalDays = 0;
@@ -403,10 +439,11 @@ function buildCalendarState() {
         filterMode: filters.filterMode,
         scrambleTypeFilter: filters.scrambleTypeFilter,
         sessionFilter: filters.sessionFilter,
+        heatmapMetric,
         availableScrambleTypes: filterContext.availableScrambleTypes,
         availableSessions: filterContext.sessions,
         hasAnySolves: allSolves.length > 0,
-        heatmapTimeScale,
+        heatmapValues,
         totalSolves,
         activeDays,
         goalDays,
@@ -563,6 +600,11 @@ function renderFilterControls() {
     setSelectOptions(_filterValueSelect, valueOptions, selectedValue);
 }
 
+function renderHeatmapMetricControl() {
+    if (!_heatmapMetricSelect) return;
+    _heatmapMetricSelect.value = normalizeHeatmapMetric(_state.heatmapMetric);
+}
+
 function renderOverview() {
     if (!_subtitle || !_overview || !_legend) return;
 
@@ -600,17 +642,22 @@ function renderOverview() {
 
 function getLegendLabel(level) {
     if (level <= 0) return 'No solves';
-    const prefix = _state.goal > 0 ? 'Goal met' : 'Active day';
-    if (level === 1) return `${prefix}, lower total solving time`;
-    if (level === 2) return `${prefix}, moderate total solving time`;
-    if (level === 3) return `${prefix}, higher total solving time`;
-    return `${prefix}, highest total solving time`;
+    const metric = getHeatmapMetric();
+    const prefix = _state.goal > 0 && !metric.colorActiveDays ? 'Goal met' : 'Active day';
+    const qualifier = metric.levelQualifiers[level - 1]
+        || metric.levelQualifiers[metric.levelQualifiers.length - 1];
+    return `${prefix}, ${qualifier} ${metric.label.toLowerCase()}`;
 }
 
 function renderLegend() {
     if (!_legend) return;
 
-    _legend.setAttribute('aria-label', 'Daily solving time legend');
+    const metric = getHeatmapMetric();
+    _legend.setAttribute('aria-label', `Daily ${metric.label.toLowerCase()} legend`);
+    const lessLabel = _legend.querySelector('[data-daily-streak-legend-label="less"]');
+    const moreLabel = _legend.querySelector('[data-daily-streak-legend-label="more"]');
+    if (lessLabel) lessLabel.textContent = metric.lessLabel;
+    if (moreLabel) moreLabel.textContent = metric.moreLabel;
     _legend.querySelectorAll('[data-daily-streak-legend-level]').forEach((item) => {
         const level = Number(item.dataset.dailyStreakLegendLevel || 0);
         item.setAttribute('aria-label', getLegendLabel(level));
@@ -667,7 +714,9 @@ function renderCalendarGrid() {
             const summary = _state.daySummaries.get(dayKey);
             const solveCount = summary?.count || 0;
             const isPastOrToday = dayKey <= _state.todayKey;
-            const isHeatmapDay = isPastOrToday && shouldUseSummaryForHeatmap(summary, _state.goal);
+            const isHeatmapDay = isPastOrToday
+                && shouldUseSummaryForHeatmap(summary, _state.goal)
+                && getSummaryHeatmapValue(summary) != null;
             const isGoalMetDay = _state.goal > 0 && isPastOrToday && Boolean(summary?.goalMet);
             const isMissedGoalDay = _state.goal > 0 && isPastOrToday && solveCount > 0 && !isGoalMetDay;
             const heatmapRatio = isHeatmapDay ? getSummaryHeatmapRatio(summary) : 0;
@@ -806,6 +855,7 @@ function renderDailyStreakModal() {
 
     _state = buildCalendarState();
     renderFilterControls();
+    renderHeatmapMetricControl();
     renderOverview();
     renderWeekdayLabels();
     renderMonthLabels();
@@ -930,6 +980,14 @@ function handleFilterChange(event) {
     renderDailyStreakModal();
 }
 
+function handleHeatmapMetricChange() {
+    const heatmapMetric = normalizeHeatmapMetric(_heatmapMetricSelect?.value);
+    _state.heatmapMetric = heatmapMetric;
+    settings.set(HEATMAP_METRIC_SETTING, heatmapMetric);
+    hideTooltip();
+    renderDailyStreakModal();
+}
+
 function scrollCalendarToToday() {
     if (!_calendarScroll) return;
     window.requestAnimationFrame(() => {
@@ -1016,6 +1074,7 @@ export async function showDailyStreakModal({ preserveHistoryState = false } = {}
     if (!preserveHistoryState) requestDailyStreakHistoryState();
     blurActiveElement();
     _state.selectedDayKey = toDayKey(Date.now());
+    _state.heatmapMetric = normalizeHeatmapMetric(settings.get(HEATMAP_METRIC_SETTING));
     _state.isOpen = true;
     _overlay.classList.add('active');
     _overlay.setAttribute('aria-hidden', 'false');
@@ -1075,12 +1134,14 @@ export function initDailyStreakModal({ requestHistoryState = null, dismissHistor
     _filterModeSelect = document.getElementById('daily-streak-filter-mode');
     _filterValueLabel = document.getElementById('daily-streak-filter-value-label');
     _filterValueSelect = document.getElementById('daily-streak-filter-value');
+    _heatmapMetricSelect = document.getElementById('daily-streak-heatmap-metric');
 
     if (!_overlay || !_grid) return;
 
     _closeButton?.addEventListener('click', closeDailyStreakModal);
     _filterModeSelect?.addEventListener('change', handleFilterChange);
     _filterValueSelect?.addEventListener('change', handleFilterChange);
+    _heatmapMetricSelect?.addEventListener('change', handleHeatmapMetricChange);
 
     sessionManager.on('sessionChanged', refreshDailyStreakModal);
     sessionManager.on('sessionUpdated', refreshDailyStreakModal);
