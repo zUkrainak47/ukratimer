@@ -554,6 +554,7 @@ const DEFAULTS = {
     largeScrambleText: false,
     pillSize: 'medium',       // 'small', 'medium', 'large', 'hidden'
     dailyStreakGoal: 0,
+    dailyStreakHeatmapMetric: 'totalTime',
     statsFilter: 'all',     // 'all', 'today', 'week', 'month', 'custom'
     customFilterDuration: '', // e.g. '3d', '2h', '100', '100 solves'
     summaryStatsPreset: 'basic', // 'basic', 'extended', 'full', 'custom'
