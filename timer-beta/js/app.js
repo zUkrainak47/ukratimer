@@ -1316,6 +1316,7 @@ let trainerStatsScope = 'session';
 let trainerStatsSelectedCaseId = null;
 let trainerStatsRenderRequestId = 0;
 let trainerCasesInitialSelection = [];
+let trainerCasesSelectionInitialized = false;
 let trainerCasesCloseConfirmationPending = false;
 let scramblePreviewModalCanvas = null;
 let scramblePreviewModalSizeFrame = 0;
@@ -6105,6 +6106,9 @@ function setTrainerCasesActiveTab(tabId) {
     if (trainerCasesActiveTab === 'stats') {
         void renderTrainerStats();
     } else {
+        if (!trainerCasesSelectionInitialized) {
+            renderTrainerCaseGrid();
+        }
         window.requestAnimationFrame(() => {
             syncTrainerCasesScrollbarWidth();
             renderTrainerCasePreviews();
@@ -6127,6 +6131,7 @@ function getTrainerCasesModalDraftSelection() {
 }
 
 function isTrainerCasesSelectionDirty() {
+    if (!trainerCasesSelectionInitialized) return false;
     const initialSelection = new Set(trainerCasesInitialSelection);
     const draftSelection = getTrainerCasesModalDraftSelection();
     return draftSelection.length !== initialSelection.size
@@ -6151,14 +6156,18 @@ function syncTrainerCaseGroupToggles() {
     });
 }
 
-function syncTrainerCasesModalCount() {
+function syncTrainerCasesModalCount(selectedCount = getTrainerCasesModalDraftSelection().length) {
     const config = getActiveCaseTrainerConfig();
-    const selectedCount = getTrainerCasesModalDraftSelection().length;
     const countEl = getEl('trainer-cases-count');
     const saveButton = getEl('trainer-cases-save');
 
     if (countEl) countEl.textContent = `${selectedCount} of ${config.cases.length} selected`;
-    if (saveButton) saveButton.disabled = selectedCount === 0;
+    if (saveButton) {
+        saveButton.disabled = selectedCount === 0;
+        saveButton.textContent = getSelectedScrambleType() === config.scrambleType
+            ? 'Save cases'
+            : `Save & switch to ${config.label}`;
+    }
     syncTrainerCaseGroupToggles();
 }
 
@@ -6245,6 +6254,7 @@ function renderTrainerCaseGrid() {
         config.cases.forEach((trainerCase) => fragment.appendChild(createCaseOption(trainerCase)));
     }
     gridEl.replaceChildren(fragment);
+    trainerCasesSelectionInitialized = true;
     syncTrainerCasesModalSelection();
 }
 
@@ -6266,25 +6276,26 @@ function syncTrainerCasesScrollbarWidth() {
     });
 }
 
-function openTrainerCasesModal(trainerId, returnFocusEl = null) {
+function openTrainerCasesModal(trainerId, returnFocusEl = null, { initialTab = 'cases' } = {}) {
     if (!trainerCasesOverlayEl || !CASE_TRAINER_CONFIGS[trainerId]) return;
     activeCaseTrainerId = trainerId;
     trainerCasesReturnFocusEl = returnFocusEl instanceof HTMLElement ? returnFocusEl : null;
     const config = getActiveCaseTrainerConfig();
     trainerCasesInitialSelection = [...config.getSelection()];
-    trainerCasesActiveTab = 'cases';
+    trainerCasesSelectionInitialized = false;
+    getEl('trainer-cases-grid')?.replaceChildren();
+    syncTrainerCasesModalCount(trainerCasesInitialSelection.length);
+    trainerCasesActiveTab = initialTab === 'stats' ? 'stats' : 'cases';
     trainerStatsSelectedCaseId = null;
     closeTrainerStatsDetailModal({ restoreFocus: false });
     trainerStatsRenderRequestId += 1;
     getEl('trainer-cases-title').textContent = `${config.label} Trainer`;
-    renderTrainerCaseGrid();
-    setTrainerCasesActiveTab('cases');
+    setTrainerCasesActiveTab(trainerCasesActiveTab);
     trainerCasesOverlayEl.classList.add('active');
     trainerCasesOverlayEl.setAttribute('aria-hidden', 'false');
     window.requestAnimationFrame(() => {
         if (!isTrainerCasesModalOpen()) return;
         syncTrainerCasesScrollbarWidth();
-        renderTrainerCasePreviews();
         getEl('trainer-cases-close')?.focus({ preventScroll: true });
     });
 }
@@ -6337,10 +6348,18 @@ function initTrainerCasesModal() {
     trainerCasesOverlayEl = getEl('trainer-cases-overlay');
     trainerStatsDetailLayerEl = getEl('trainer-stats-detail-layer');
     const gridEl = getEl('trainer-cases-grid');
+    const trainerStatsButton = getEl('btn-trainer-stats');
     if (!trainerCasesOverlayEl || !gridEl) return;
 
     window.addEventListener('resize', syncTrainerCasesScrollbarWidth);
-    gridEl.addEventListener('change', syncTrainerCasesModalCount);
+    trainerStatsButton?.addEventListener('click', () => {
+        const trainerId = trainerStatsButton.dataset.trainerId;
+        if (!trainerId || !CASE_TRAINER_CONFIGS[trainerId]) return;
+        closeScrambleTypeMenus();
+        hideShortcutTooltip();
+        openTrainerCasesModal(trainerId, trainerStatsButton, { initialTab: 'stats' });
+    });
+    gridEl.addEventListener('change', () => syncTrainerCasesModalCount());
     gridEl.addEventListener('click', (event) => {
         const toggleEl = event.target.closest('.trainer-case-group-toggle');
         if (!toggleEl || !gridEl.contains(toggleEl)) return;
@@ -7896,6 +7915,25 @@ function syncScrambleTypeMenus(type = getSelectedScrambleType()) {
     const battleCreateScrambleTypeSelect = getEl('battle-create-scramble-type');
     const buttonLabel = getScrambleTypeButtonLabel(activeType);
     const buttonDescription = getScrambleTypeButtonDescription(activeType);
+    const trainerEntry = Object.entries(CASE_TRAINER_CONFIGS)
+        .find(([, config]) => config.scrambleType === activeType) || null;
+    const trainerStatsButton = getEl('btn-trainer-stats');
+    const sessionInfo = getEl('session-info');
+
+    if (trainerStatsButton) {
+        const isVisible = Boolean(trainerEntry) && !battleManager.isJoined() && !isBattleEnvironmentActive;
+        trainerStatsButton.hidden = !isVisible;
+        sessionInfo?.classList.toggle('trainer-stats-available', isVisible);
+        if (trainerEntry) {
+            const [trainerId, config] = trainerEntry;
+            trainerStatsButton.dataset.trainerId = trainerId;
+            trainerStatsButton.setAttribute('aria-label', `Open ${config.label} trainer stats`);
+            const labelEl = trainerStatsButton.querySelector('.trainer-stats-launch-label');
+            if (labelEl) labelEl.textContent = `${config.label} stats`;
+        } else {
+            delete trainerStatsButton.dataset.trainerId;
+        }
+    }
 
     document.querySelectorAll('.scramble-type-menu').forEach((menuEl) => {
         const visibleSubsetPuzzleId = menuEl.dataset.subsetPuzzleId || '';
@@ -11004,6 +11042,7 @@ function renderPhaseMeanChips(solves) {
     const configuredColumns = getConfiguredSolvesTableStatTokens();
     const statCount = configuredColumns.length;
     const solveCountEl = document.getElementById('solve-count');
+    const trainerStatsButton = document.getElementById('btn-trainer-stats');
     const sessionMeanEl = document.getElementById('session-mean');
 
     sessionInfoEl.querySelectorAll('[data-phase-mean-chip]').forEach((chip) => chip.remove());
@@ -11011,6 +11050,7 @@ function renderPhaseMeanChips(solves) {
 
     if (phaseColumnCount === 0) {
         solveCountEl?.style.removeProperty('grid-column');
+        trainerStatsButton?.style.removeProperty('grid-column');
         sessionMeanEl?.style.removeProperty('grid-column');
         syncSessionInfoPlacement();
         return;
@@ -11021,6 +11061,7 @@ function renderPhaseMeanChips(solves) {
     const meanInfoStart = solveInfoSpan + 1;
     const phaseStartColumn = 3 + statCount;
     solveCountEl?.style.setProperty('grid-column', `1 / span ${solveInfoSpan}`);
+    trainerStatsButton?.style.setProperty('grid-column', `1 / span ${solveInfoSpan}`);
     sessionMeanEl?.style.setProperty('grid-column', `${meanInfoStart} / span ${meanInfoSpan}`);
 
     const means = getPhaseMeanValues(solves, phaseColumnCount);

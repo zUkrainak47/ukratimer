@@ -243,7 +243,8 @@
     min-width: 0;
 }
 
-#session-info span {
+#session-info > span,
+#session-info .trainer-stats-chip {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -255,6 +256,41 @@
     padding: 3px 10px;
     font-weight: 500;
     letter-spacing: 0.5px;
+}
+
+#session-info .trainer-stats-chip {
+    gap: 5px;
+    min-width: 0;
+    color: inherit;
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+#session-info .trainer-stats-chip[hidden] {
+    display: none !important;
+}
+
+#session-info.trainer-stats-available #solve-count {
+    display: none;
+}
+
+#session-info .trainer-stats-chip:hover {
+    background: var(--surface-hover);
+    border-color: var(--text-tertiary);
+    color: var(--text-primary);
+}
+
+#session-info .trainer-stats-chip:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+#session-info .trainer-stats-chip svg {
+    flex: 0 0 auto;
 }
 
 #session-info.session-info-action #solve-count,
@@ -299,7 +335,8 @@
     display: none;
 }
 
-#session-info.has-phase-means span {
+#session-info.has-phase-means > span,
+#session-info.has-phase-means .trainer-stats-chip {
     box-sizing: border-box;
     min-width: 0;
     width: auto;
@@ -317,7 +354,12 @@
     border-bottom-left-radius: var(--radius-md);
 }
 
-#session-info.has-phase-means span:last-child {
+#session-info.has-phase-means .trainer-stats-chip {
+    border-top-left-radius: var(--radius-md);
+    border-bottom-left-radius: var(--radius-md);
+}
+
+#session-info.has-phase-means > span:last-child {
     border-top-right-radius: var(--radius-md);
     border-bottom-right-radius: var(--radius-md);
     margin-right: 1px;
@@ -1455,7 +1497,8 @@
         padding: 0;
     }
 
-    #session-info span {
+    #session-info > span,
+    #session-info .trainer-stats-chip {
         flex: 1;
         justify-content: center;
         text-align: center;
@@ -1487,7 +1530,12 @@
         border-bottom-left-radius: 12px;
     }
 
-    #session-info.has-phase-means span:last-child {
+    #session-info.has-phase-means .trainer-stats-chip {
+        border-top-left-radius: 12px;
+        border-bottom-left-radius: 12px;
+    }
+
+    #session-info.has-phase-means > span:last-child {
         border-top-right-radius: 12px;
         border-bottom-right-radius: 12px;
     }
