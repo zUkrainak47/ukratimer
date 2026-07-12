@@ -1,5 +1,5 @@
 import { timer, State as TimerState } from './timer.js?v=2026070902';
-import { SCRAMBLE_TYPE_OPTIONS, generateScrambleBatchForType, generateScrambleForType, getScramble, getCurrentScramble, getCurrentScrambleType, getPrevScramble, getNextScramble, getSelectedScrambleType, setCurrentScramble, setScrambleType, getOllCaseSelection, setOllCaseSelection, getPllCaseSelection, setPllCaseSelection, isCurrentScrambleManual, hasPrevScramble, isViewingPreviousScramble, preloadScrambleEngines, needsCubingWarmup, runCubingWarmup } from './scramble.js?v=2026070902';
+import { SCRAMBLE_TYPE_OPTIONS, generateScrambleBatchForType, generateScrambleForType, getScramble, getCurrentScramble, getCurrentScrambleType, getCurrentTrainerCase, getPrevScramble, getNextScramble, getSelectedScrambleType, setCurrentScramble, setScrambleType, getOllCaseSelection, setOllCaseSelection, getPllCaseSelection, setPllCaseSelection, isCurrentScrambleManual, hasPrevScramble, isViewingPreviousScramble, preloadScrambleEngines, needsCubingWarmup, runCubingWarmup } from './scramble.js?v=2026070902';
 import { PLL_CASES, PLL_CASE_IDS } from './pll-cases.js?v=2026070902';
 import { OLL_CASES, OLL_CASE_IDS } from './oll-cases.js?v=2026070902';
 import { sessionManager } from './session.js?v=2026070902';
@@ -1307,8 +1307,16 @@ let themeCustomizationOverlayEl = null;
 let scramblePreviewOverlayEl = null;
 let changelogOverlayEl = null;
 let trainerCasesOverlayEl = null;
+let trainerStatsDetailLayerEl = null;
 let activeCaseTrainerId = 'oll';
 let trainerCasesReturnFocusEl = null;
+let trainerStatsDetailReturnFocusEl = null;
+let trainerCasesActiveTab = 'cases';
+let trainerStatsScope = 'session';
+let trainerStatsSelectedCaseId = null;
+let trainerStatsRenderRequestId = 0;
+let trainerCasesInitialSelection = [];
+let trainerCasesCloseConfirmationPending = false;
 let scramblePreviewModalCanvas = null;
 let scramblePreviewModalSizeFrame = 0;
 let scramblePreviewThemeRefreshTimeout = 0;
@@ -4190,9 +4198,11 @@ async function commitSolve(elapsed, penalty = null, { isManual = false, phaseSpl
     syncStatsCacheWithFilteredSolves();
     const previousStats = statsCache.getStats();
     _skipSolveAddedRefresh = true;
+    const trainerCase = getCurrentTrainerCase();
     const solve = sessionManager.addSolve(elapsed, currentScramble, isManual, penalty, {
         phaseSplits,
         phaseCount,
+        trainerCase,
     });
     _skipSolveAddedRefresh = false;
     if (!Array.isArray(phaseSplits) || phaseSplits.length < 2) {
@@ -5864,6 +5874,244 @@ const TRAINER_CASE_GROUP_ORDER = Object.freeze([
     'Dot Cases',
 ]);
 
+function getTrainerCaseStatsSummary(entries) {
+    const finiteTimes = entries
+        .map(({ solve }) => getEffectiveTime(solve))
+        .filter(Number.isFinite);
+    const mean = finiteTimes.length > 0
+        ? finiteTimes.reduce((sum, time) => sum + time, 0) / finiteTimes.length
+        : null;
+    const best = finiteTimes.length > 0
+        ? finiteTimes.reduce((currentBest, time) => Math.min(currentBest, time), Infinity)
+        : null;
+    return {
+        attempts: entries.length,
+        mean,
+        best,
+    };
+}
+
+function formatTrainerStatValue(value) {
+    return Number.isFinite(value) ? formatTime(value) : '—';
+}
+
+function syncTrainerStatsControls() {
+    ['session', 'all'].forEach((scope) => {
+        const button = getEl(`trainer-stats-scope-${scope}`);
+        const active = trainerStatsScope === scope;
+        button?.classList.toggle('active', active);
+        button?.setAttribute('aria-pressed', String(active));
+    });
+}
+
+async function collectTrainerStatsEntries(config) {
+    const sessions = trainerStatsScope === 'all'
+        ? await Promise.all(sessionManager.getSessions().map(({ id }) => sessionManager.ensureSessionSolvesLoaded(id)))
+        : [await sessionManager.ensureSessionSolvesLoaded(sessionManager.getActiveSessionId())];
+    const caseIdSet = new Set(config.caseIds);
+    const entriesByCase = new Map(config.caseIds.map((caseId) => [caseId, []]));
+
+    sessions.filter(Boolean).forEach((session) => {
+        session.solves.forEach((solve, solveIndex) => {
+            const metadata = solve?.trainerCase;
+            if (metadata?.trainerId !== activeCaseTrainerId) return;
+            const caseId = String(metadata.caseId ?? '').trim().toLowerCase();
+            if (!caseIdSet.has(caseId)) return;
+            entriesByCase.get(caseId).push({
+                solve,
+                solveIndex,
+                sessionId: session.id,
+            });
+        });
+    });
+
+    return entriesByCase;
+}
+
+function renderTrainerStatsCasePreviews() {
+    const config = getActiveCaseTrainerConfig();
+    const caseById = new Map(config.cases.map((trainerCase) => [trainerCase.id, trainerCase]));
+    document.querySelectorAll('#trainer-stats-grid canvas[data-case-id]').forEach((canvas) => {
+        const trainerCase = caseById.get(canvas.dataset.caseId);
+        if (trainerCase) updateLastLayerTopView(canvas, trainerCase.setup, {
+            greyNonYellow: config.greyNonYellow,
+        });
+    });
+    syncTrainerCasesScrollbarWidth();
+}
+
+function closeTrainerStatsDetailModal({ restoreFocus = true } = {}) {
+    trainerStatsSelectedCaseId = null;
+    trainerCasesOverlayEl?.classList.remove('secondary-active');
+    if (trainerStatsDetailLayerEl) {
+        trainerStatsDetailLayerEl.hidden = true;
+        trainerStatsDetailLayerEl.setAttribute('aria-hidden', 'true');
+    }
+    const returnFocusEl = trainerStatsDetailReturnFocusEl;
+    trainerStatsDetailReturnFocusEl = null;
+    window.requestAnimationFrame(renderTrainerStatsCasePreviews);
+    if (restoreFocus && returnFocusEl?.isConnected) {
+        window.requestAnimationFrame(() => returnFocusEl.focus({ preventScroll: true }));
+    }
+}
+
+function renderTrainerStatsDetail(caseId, entriesByCase, returnFocusEl = null) {
+    const config = getActiveCaseTrainerConfig();
+    const trainerCase = config.cases.find((entry) => entry.id === caseId);
+    if (!trainerCase) {
+        closeTrainerStatsDetailModal();
+        return;
+    }
+
+    trainerStatsSelectedCaseId = caseId;
+    if (returnFocusEl instanceof HTMLElement) trainerStatsDetailReturnFocusEl = returnFocusEl;
+    const entries = [...(entriesByCase.get(caseId) || [])]
+        .sort((left, right) => (right.solve.timestamp || 0) - (left.solve.timestamp || 0));
+    const summary = getTrainerCaseStatsSummary(entries);
+    const titleEl = getEl('trainer-stats-detail-title');
+    const summaryEl = getEl('trainer-stats-detail-summary');
+    const previewEl = getEl('trainer-stats-detail-preview');
+    const timesEl = getEl('trainer-stats-times');
+    if (titleEl) titleEl.textContent = `${trainerCase.name} Stats`;
+    if (summaryEl) {
+        summaryEl.textContent = `${summary.attempts} attempt${summary.attempts === 1 ? '' : 's'} · mean ${formatTrainerStatValue(summary.mean)} · best ${formatTrainerStatValue(summary.best)}`;
+    }
+    trainerCasesOverlayEl?.classList.add('secondary-active');
+    if (trainerStatsDetailLayerEl) {
+        trainerStatsDetailLayerEl.hidden = false;
+        trainerStatsDetailLayerEl.setAttribute('aria-hidden', 'false');
+    }
+    window.requestAnimationFrame(() => {
+        if (previewEl) updateLastLayerTopView(previewEl, trainerCase.setup, {
+            greyNonYellow: config.greyNonYellow,
+        });
+        getEl('trainer-stats-detail-close')?.focus({ preventScroll: true });
+    });
+    if (!timesEl) return;
+
+    if (entries.length === 0) {
+        const emptyEl = document.createElement('p');
+        emptyEl.className = 'trainer-stats-empty';
+        emptyEl.textContent = 'No recorded solves for this case yet.';
+        timesEl.replaceChildren(emptyEl);
+        return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    entries.forEach(({ solve, solveIndex, sessionId }) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'trainer-stat-time';
+        button.dataset.solveId = solve.id;
+        button.dataset.solveIndex = String(solveIndex);
+        button.dataset.sessionId = sessionId;
+
+        const timeEl = document.createElement('span');
+        timeEl.className = 'trainer-stat-time-value';
+        timeEl.textContent = formatSolveTime(solve);
+
+        button.appendChild(timeEl);
+        fragment.appendChild(button);
+    });
+    timesEl.replaceChildren(fragment);
+}
+
+async function renderTrainerStats() {
+    const config = getActiveCaseTrainerConfig();
+    const gridEl = getEl('trainer-stats-grid');
+    const statusEl = getEl('trainer-stats-status');
+    if (!gridEl) return;
+
+    const requestId = ++trainerStatsRenderRequestId;
+    syncTrainerStatsControls();
+    if (statusEl) statusEl.textContent = trainerStatsScope === 'all' ? 'Loading all sessions…' : '';
+
+    const entriesByCase = await collectTrainerStatsEntries(config);
+    if (requestId !== trainerStatsRenderRequestId || activeCaseTrainerId !== (config.scrambleType === 'll' ? 'oll' : 'pll')) return;
+
+    const totalAttempts = Array.from(entriesByCase.values()).reduce((sum, entries) => sum + entries.length, 0);
+    if (statusEl) {
+        statusEl.textContent = `${totalAttempts} included solve${totalAttempts === 1 ? '' : 's'}.`;
+    }
+
+    const fragment = document.createDocumentFragment();
+    config.cases.forEach((trainerCase) => {
+        const entries = entriesByCase.get(trainerCase.id) || [];
+        const summary = getTrainerCaseStatsSummary(entries);
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'trainer-stat-card';
+        card.classList.toggle('has-solves', summary.attempts > 0);
+        card.dataset.caseId = trainerCase.id;
+
+        const canvas = document.createElement('canvas');
+        canvas.className = 'trainer-stat-preview';
+        canvas.dataset.caseId = trainerCase.id;
+        canvas.setAttribute('aria-hidden', 'true');
+
+        const info = document.createElement('span');
+        info.className = 'trainer-stat-info';
+
+        const name = document.createElement('span');
+        name.className = 'trainer-stat-name';
+        name.textContent = trainerCase.name;
+
+        const attempts = document.createElement('span');
+        attempts.className = 'trainer-stat-attempts';
+        attempts.textContent = `${summary.attempts} solve${summary.attempts === 1 ? '' : 's'}`;
+
+        const mean = document.createElement('span');
+        mean.className = 'trainer-stat-metric';
+        mean.innerHTML = `mean <strong>${formatTrainerStatValue(summary.mean)}</strong>`;
+
+        const best = document.createElement('span');
+        best.className = 'trainer-stat-metric';
+        best.innerHTML = `best <strong>${formatTrainerStatValue(summary.best)}</strong>`;
+
+        info.append(name, attempts, mean, best);
+        card.append(canvas, info);
+        fragment.appendChild(card);
+    });
+    gridEl.replaceChildren(fragment);
+
+    if (trainerStatsSelectedCaseId) {
+        const selectedCard = gridEl.querySelector(`.trainer-stat-card[data-case-id="${trainerStatsSelectedCaseId}"]`);
+        renderTrainerStatsDetail(trainerStatsSelectedCaseId, entriesByCase, selectedCard);
+    } else {
+        closeTrainerStatsDetailModal({ restoreFocus: false });
+    }
+}
+
+function setTrainerCasesActiveTab(tabId) {
+    trainerCasesActiveTab = tabId === 'stats' ? 'stats' : 'cases';
+    ['cases', 'stats'].forEach((tab) => {
+        const active = tab === trainerCasesActiveTab;
+        const button = getEl(`trainer-cases-tab-${tab}`);
+        const panel = getEl(`trainer-cases-panel-${tab}`);
+        button?.classList.toggle('active', active);
+        button?.setAttribute('aria-selected', String(active));
+        panel?.classList.toggle('active', active);
+        if (panel) panel.hidden = !active;
+    });
+
+    const config = getActiveCaseTrainerConfig();
+    const summaryEl = getEl('trainer-cases-summary');
+    if (summaryEl) {
+        summaryEl.textContent = trainerCasesActiveTab === 'stats'
+            ? `Review performance for each ${config.label} case.`
+            : `Choose the cases that can appear when ${config.label} is selected.`;
+    }
+
+    if (trainerCasesActiveTab === 'stats') {
+        void renderTrainerStats();
+    } else {
+        window.requestAnimationFrame(() => {
+            syncTrainerCasesScrollbarWidth();
+            renderTrainerCasePreviews();
+        });
+    }
+}
+
 function getActiveCaseTrainerConfig() {
     return CASE_TRAINER_CONFIGS[activeCaseTrainerId] || CASE_TRAINER_CONFIGS.oll;
 }
@@ -5876,6 +6124,13 @@ function getTrainerCasesModalDraftSelection() {
     return Array.from(document.querySelectorAll('#trainer-cases-grid input[data-case-id]:checked'))
         .map((input) => input.dataset.caseId)
         .filter(Boolean);
+}
+
+function isTrainerCasesSelectionDirty() {
+    const initialSelection = new Set(trainerCasesInitialSelection);
+    const draftSelection = getTrainerCasesModalDraftSelection();
+    return draftSelection.length !== initialSelection.size
+        || draftSelection.some((caseId) => !initialSelection.has(caseId));
 }
 
 function syncTrainerCaseGroupToggles() {
@@ -6005,10 +6260,10 @@ function renderTrainerCasePreviews() {
 }
 
 function syncTrainerCasesScrollbarWidth() {
-    const gridEl = getEl('trainer-cases-grid');
-    if (!gridEl) return;
-    const scrollbarWidth = Math.max(0, gridEl.offsetWidth - gridEl.clientWidth);
-    gridEl.style.setProperty('--trainer-cases-scrollbar-width', `${scrollbarWidth}px`);
+    [getEl('trainer-cases-grid'), getEl('trainer-stats-overview')].filter(Boolean).forEach((scrollEl) => {
+        const scrollbarWidth = Math.max(0, scrollEl.offsetWidth - scrollEl.clientWidth);
+        scrollEl.style.setProperty('--trainer-cases-scrollbar-width', `${scrollbarWidth}px`);
+    });
 }
 
 function openTrainerCasesModal(trainerId, returnFocusEl = null) {
@@ -6016,9 +6271,14 @@ function openTrainerCasesModal(trainerId, returnFocusEl = null) {
     activeCaseTrainerId = trainerId;
     trainerCasesReturnFocusEl = returnFocusEl instanceof HTMLElement ? returnFocusEl : null;
     const config = getActiveCaseTrainerConfig();
-    getEl('trainer-cases-title').textContent = `${config.label} Cases`;
-    getEl('trainer-cases-summary').textContent = `Choose the cases that can appear when ${config.label} is selected.`;
+    trainerCasesInitialSelection = [...config.getSelection()];
+    trainerCasesActiveTab = 'cases';
+    trainerStatsSelectedCaseId = null;
+    closeTrainerStatsDetailModal({ restoreFocus: false });
+    trainerStatsRenderRequestId += 1;
+    getEl('trainer-cases-title').textContent = `${config.label} Trainer`;
     renderTrainerCaseGrid();
+    setTrainerCasesActiveTab('cases');
     trainerCasesOverlayEl.classList.add('active');
     trainerCasesOverlayEl.setAttribute('aria-hidden', 'false');
     window.requestAnimationFrame(() => {
@@ -6031,6 +6291,7 @@ function openTrainerCasesModal(trainerId, returnFocusEl = null) {
 
 function closeTrainerCasesModal() {
     if (!trainerCasesOverlayEl) return;
+    closeTrainerStatsDetailModal({ restoreFocus: false });
     const returnFocusEl = trainerCasesReturnFocusEl;
     trainerCasesReturnFocusEl = null;
     trainerCasesOverlayEl.classList.remove('active');
@@ -6042,8 +6303,39 @@ function closeTrainerCasesModal() {
     });
 }
 
+async function confirmTrainerCasesModalClose() {
+    if (!isTrainerCasesSelectionDirty()) return true;
+    if (trainerCasesCloseConfirmationPending) return false;
+
+    trainerCasesCloseConfirmationPending = true;
+    const returnFocusEl = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    try {
+        const shouldDiscard = await customConfirmChoice('Discard unsaved case selection changes?', {
+            cancelLabel: 'Keep editing',
+            okLabel: 'Discard changes',
+            okValue: true,
+            okClassName: 'btn-danger',
+            defaultAction: 'cancel',
+        });
+        if (shouldDiscard === true) return true;
+        if (returnFocusEl?.isConnected) {
+            window.requestAnimationFrame(() => returnFocusEl.focus({ preventScroll: true }));
+        }
+        return false;
+    } finally {
+        trainerCasesCloseConfirmationPending = false;
+    }
+}
+
+async function requestCloseTrainerCasesModal() {
+    if (!(await confirmTrainerCasesModalClose())) return false;
+    closeTrainerCasesModal();
+    return true;
+}
+
 function initTrainerCasesModal() {
     trainerCasesOverlayEl = getEl('trainer-cases-overlay');
+    trainerStatsDetailLayerEl = getEl('trainer-stats-detail-layer');
     const gridEl = getEl('trainer-cases-grid');
     if (!trainerCasesOverlayEl || !gridEl) return;
 
@@ -6068,8 +6360,62 @@ function initTrainerCasesModal() {
             getActiveCaseTrainerConfig().caseIds.filter((caseId) => !currentSelection.has(caseId)),
         );
     });
-    getEl('trainer-cases-close')?.addEventListener('click', closeTrainerCasesModal);
-    getEl('trainer-cases-cancel')?.addEventListener('click', closeTrainerCasesModal);
+    getEl('trainer-cases-close')?.addEventListener('click', () => void requestCloseTrainerCasesModal());
+    getEl('trainer-cases-cancel')?.addEventListener('click', () => void requestCloseTrainerCasesModal());
+    getEl('trainer-cases-tab-cases')?.addEventListener('click', () => setTrainerCasesActiveTab('cases'));
+    getEl('trainer-cases-tab-stats')?.addEventListener('click', () => setTrainerCasesActiveTab('stats'));
+    getEl('trainer-stats-scope-session')?.addEventListener('click', () => {
+        if (trainerStatsScope === 'session') return;
+        trainerStatsScope = 'session';
+        trainerStatsSelectedCaseId = null;
+        void renderTrainerStats();
+    });
+    getEl('trainer-stats-scope-all')?.addEventListener('click', () => {
+        if (trainerStatsScope === 'all') return;
+        trainerStatsScope = 'all';
+        trainerStatsSelectedCaseId = null;
+        void renderTrainerStats();
+    });
+    getEl('trainer-stats-grid')?.addEventListener('click', async (event) => {
+        const card = event.target.closest('.trainer-stat-card[data-case-id]');
+        if (!card) return;
+        const caseId = card.dataset.caseId;
+        const config = getActiveCaseTrainerConfig();
+        const trainerId = activeCaseTrainerId;
+        const entriesByCase = await collectTrainerStatsEntries(config);
+        if (!isTrainerCasesModalOpen() || trainerCasesActiveTab !== 'stats' || activeCaseTrainerId !== trainerId) return;
+        renderTrainerStatsDetail(caseId, entriesByCase, card);
+    });
+    getEl('trainer-stats-detail-close')?.addEventListener('click', closeTrainerStatsDetailModal);
+    getEl('trainer-stats-times')?.addEventListener('click', async (event) => {
+        const button = event.target.closest('.trainer-stat-time[data-solve-id]');
+        if (!button) return;
+        const session = sessionManager.getSessionById(button.dataset.sessionId);
+        const solveIndex = Number(button.dataset.solveIndex);
+        const solve = session?.solves?.[solveIndex];
+        if (!solve || solve.id !== button.dataset.solveId) return;
+        const config = getActiveCaseTrainerConfig();
+        const trainerCase = config.cases.find((entry) => entry.id === trainerStatsSelectedCaseId);
+        const returnContext = {
+            trainerId: activeCaseTrainerId,
+            caseId: trainerStatsSelectedCaseId,
+            scope: trainerStatsScope,
+            returnFocusEl: trainerCasesReturnFocusEl,
+        };
+        if (!(await confirmTrainerCasesModalClose())) return;
+        trainerCasesReturnFocusEl = null;
+        closeTrainerCasesModal();
+        setModalCloseHandler(() => {
+            trainerStatsScope = returnContext.scope;
+            openTrainerCasesModal(returnContext.trainerId, returnContext.returnFocusEl);
+            trainerStatsSelectedCaseId = returnContext.caseId;
+            setTrainerCasesActiveTab('stats');
+        });
+        showSolveDetail(solve, solveIndex, null, {
+            enableStatNavigation: false,
+            detailLabel: trainerCase?.name || config.label,
+        });
+    });
     getEl('trainer-cases-save')?.addEventListener('click', async () => {
         const config = getActiveCaseTrainerConfig();
         const selection = getTrainerCasesModalDraftSelection();
@@ -6085,27 +6431,56 @@ function initTrainerCasesModal() {
         }
     });
 
-    let pointerDownTarget = null;
-    trainerCasesOverlayEl.addEventListener('pointerdown', (event) => {
-        pointerDownTarget = event.target;
+    let trainerCasesMouseDownTarget = null;
+    let trainerCasesMouseUpTarget = null;
+    trainerCasesOverlayEl.addEventListener('mousedown', (event) => {
+        trainerCasesMouseDownTarget = event.target;
     });
-    trainerCasesOverlayEl.addEventListener('click', (event) => {
-        if (pointerDownTarget === trainerCasesOverlayEl && event.target === trainerCasesOverlayEl) {
-            closeTrainerCasesModal();
+    trainerCasesOverlayEl.addEventListener('mouseup', (event) => {
+        trainerCasesMouseUpTarget = event.target;
+    });
+    trainerCasesOverlayEl.addEventListener('click', () => {
+        if (trainerCasesMouseDownTarget === trainerCasesOverlayEl
+            && trainerCasesMouseUpTarget === trainerCasesOverlayEl) {
+            void requestCloseTrainerCasesModal();
         }
-        pointerDownTarget = null;
+        trainerCasesMouseDownTarget = null;
+        trainerCasesMouseUpTarget = null;
+    });
+    let trainerStatsDetailMouseDownTarget = null;
+    let trainerStatsDetailMouseUpTarget = null;
+    trainerStatsDetailLayerEl?.addEventListener('mousedown', (event) => {
+        trainerStatsDetailMouseDownTarget = event.target;
+    });
+    trainerStatsDetailLayerEl?.addEventListener('mouseup', (event) => {
+        trainerStatsDetailMouseUpTarget = event.target;
+    });
+    trainerStatsDetailLayerEl?.addEventListener('click', () => {
+        if (trainerStatsDetailMouseDownTarget === trainerStatsDetailLayerEl
+            && trainerStatsDetailMouseUpTarget === trainerStatsDetailLayerEl) {
+            closeTrainerStatsDetailModal();
+        }
+        trainerStatsDetailMouseDownTarget = null;
+        trainerStatsDetailMouseUpTarget = null;
     });
     document.addEventListener('keydown', (event) => {
         if (!isTrainerCasesModalOpen()) return;
         if (event.code === 'Escape') {
             event.preventDefault();
             event.stopImmediatePropagation();
-            closeTrainerCasesModal();
+            if (trainerStatsDetailLayerEl && !trainerStatsDetailLayerEl.hidden) {
+                closeTrainerStatsDetailModal();
+            } else {
+                void requestCloseTrainerCasesModal();
+            }
             return;
         }
         if (event.key !== 'Tab') return;
 
-        const focusableEls = Array.from(trainerCasesOverlayEl.querySelectorAll(
+        const focusRoot = trainerStatsDetailLayerEl && !trainerStatsDetailLayerEl.hidden
+            ? trainerStatsDetailLayerEl
+            : trainerCasesOverlayEl;
+        const focusableEls = Array.from(focusRoot.querySelectorAll(
             'button:not(:disabled), input:not(:disabled), [href], [tabindex]:not([tabindex="-1"])',
         )).filter((element) => element instanceof HTMLElement);
         if (focusableEls.length === 0) {
@@ -6115,7 +6490,7 @@ function initTrainerCasesModal() {
 
         const firstEl = focusableEls[0];
         const lastEl = focusableEls[focusableEls.length - 1];
-        if (!trainerCasesOverlayEl.contains(document.activeElement)) {
+        if (!focusRoot.contains(document.activeElement)) {
             event.preventDefault();
             firstEl.focus();
         } else if (event.shiftKey && document.activeElement === firstEl) {

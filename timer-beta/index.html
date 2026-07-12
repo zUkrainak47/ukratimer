@@ -1201,18 +1201,63 @@
       </div>
       <div class="modal-body trainer-cases-modal-body">
         <p id="trainer-cases-summary" class="trainer-cases-summary"></p>
-        <div id="trainer-cases-grid" class="trainer-cases-grid"></div>
-        <p id="trainer-cases-validation" class="trainer-cases-validation" role="status" aria-live="polite"></p>
-        <div class="trainer-cases-actions" aria-label="Case selection actions">
-          <div class="trainer-cases-bulk-actions">
-            <button id="trainer-cases-select-all" class="btn settings-action-btn" type="button">Select all</button>
-            <button id="trainer-cases-select-none" class="btn settings-action-btn" type="button">Select none</button>
-            <button id="trainer-cases-invert" class="btn settings-action-btn" type="button">Invert</button>
+        <div class="trainer-cases-tabs" role="tablist" aria-label="Trainer sections">
+          <button id="trainer-cases-tab-cases" class="trainer-cases-tab active" type="button" role="tab"
+            aria-selected="true" aria-controls="trainer-cases-panel-cases">Cases</button>
+          <button id="trainer-cases-tab-stats" class="trainer-cases-tab" type="button" role="tab"
+            aria-selected="false" aria-controls="trainer-cases-panel-stats">Stats</button>
+        </div>
+
+        <div id="trainer-cases-panel-cases" class="trainer-cases-tab-panel active" role="tabpanel"
+          aria-labelledby="trainer-cases-tab-cases">
+          <div id="trainer-cases-grid" class="trainer-cases-grid"></div>
+          <p id="trainer-cases-validation" class="trainer-cases-validation" role="status" aria-live="polite"></p>
+          <div class="trainer-cases-actions" aria-label="Case selection actions">
+            <div class="trainer-cases-bulk-actions">
+              <button id="trainer-cases-select-all" class="btn settings-action-btn" type="button">Select all</button>
+              <button id="trainer-cases-select-none" class="btn settings-action-btn" type="button">Select none</button>
+              <button id="trainer-cases-invert" class="btn settings-action-btn" type="button">Invert</button>
+            </div>
+            <div class="trainer-cases-confirm-actions">
+              <button id="trainer-cases-cancel" class="btn settings-action-btn" type="button">Cancel</button>
+              <button id="trainer-cases-save" class="btn btn-primary" type="button">Save cases</button>
+            </div>
           </div>
-          <div class="trainer-cases-confirm-actions">
-            <button id="trainer-cases-cancel" class="btn settings-action-btn" type="button">Cancel</button>
-            <button id="trainer-cases-save" class="btn btn-primary" type="button">Save cases</button>
+        </div>
+
+        <div id="trainer-cases-panel-stats" class="trainer-cases-tab-panel trainer-stats-panel" role="tabpanel"
+          aria-labelledby="trainer-cases-tab-stats" hidden>
+          <div class="trainer-stats-toolbar">
+            <div class="trainer-stats-scope" role="group" aria-label="Statistics scope">
+              <button id="trainer-stats-scope-session" class="trainer-stats-scope-btn active" type="button"
+                aria-pressed="true">This session</button>
+              <button id="trainer-stats-scope-all" class="trainer-stats-scope-btn" type="button"
+                aria-pressed="false">All sessions</button>
+            </div>
           </div>
+          <p id="trainer-stats-status" class="trainer-stats-status" role="status" aria-live="polite"></p>
+          <div id="trainer-stats-overview" class="trainer-stats-overview">
+            <div id="trainer-stats-grid" class="trainer-stats-grid"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="trainer-stats-detail-layer" class="modal-secondary-layer trainer-stats-detail-layer" aria-hidden="true"
+      hidden>
+      <div class="modal-box modal-secondary-box trainer-stats-detail-modal-box" role="dialog" aria-modal="true"
+        aria-labelledby="trainer-stats-detail-title">
+        <div class="modal-header">
+          <h2 id="trainer-stats-detail-title"></h2>
+          <button id="trainer-stats-detail-close" class="modal-close" type="button"
+            aria-label="Close case statistics">✕</button>
+        </div>
+        <div class="trainer-stats-detail-heading">
+          <canvas id="trainer-stats-detail-preview" class="trainer-stats-detail-preview" aria-hidden="true"></canvas>
+          <p id="trainer-stats-detail-summary"></p>
+        </div>
+        <div id="trainer-stats-detail" class="modal-body trainer-stats-detail">
+          <div id="trainer-stats-times" class="trainer-stats-times"></div>
         </div>
       </div>
     </div>
