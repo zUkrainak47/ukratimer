@@ -21,6 +21,8 @@ const BACKUP_LOCAL_STORAGE_KEYS = Object.freeze([
     'settings',
     'activeSessionId',
     'scrambleType',
+    'pllCaseSelection',
+    'ollCaseSelection',
 ]);
 const BACKUP_LOCAL_STORAGE_KEY_SET = new Set(BACKUP_LOCAL_STORAGE_KEYS);
 const IMPORT_PROGRESS_YIELD_INTERVAL = 10000;

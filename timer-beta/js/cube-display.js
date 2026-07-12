@@ -1727,6 +1727,146 @@ export function drawCube(canvas, cube) {
     }
 }
 
+function getLastLayerPreviewColor(theme, sticker, greyNonYellow = false) {
+    // Trainer diagrams conventionally show yellow on top, while algorithms
+    // are still applied to the regular U face in the cube model.
+    if (greyNonYellow && sticker !== U) return '#424242';
+    if (sticker === U) return theme.colors[D];
+    if (sticker === D) return theme.colors[U];
+    return theme.colors[sticker] || theme.colors[U];
+}
+
+function roundedRectPath(ctx, x, y, width, height, radius) {
+    const maxRadius = Math.min(width / 2, height / 2);
+    const safeRadius = Array.isArray(radius)
+        ? radius.map((cornerRadius) => Math.max(0, Math.min(cornerRadius, maxRadius)))
+        : Math.max(0, Math.min(radius, maxRadius));
+    ctx.beginPath();
+    ctx.roundRect(x, y, width, height, safeRadius);
+}
+
+function drawLastLayerStrip(ctx, theme, stickers, x, y, width, height, isHorizontal, outlineWidth, radius, greyNonYellow) {
+    const segmentLength = (isHorizontal ? width : height) / stickers.length;
+
+    ctx.save();
+    roundedRectPath(ctx, x, y, width, height, radius);
+    ctx.clip();
+
+    stickers.forEach((sticker, index) => {
+        ctx.fillStyle = getLastLayerPreviewColor(theme, sticker, greyNonYellow);
+        ctx.fillRect(
+            x + (isHorizontal ? index * segmentLength : 0),
+            y + (isHorizontal ? 0 : index * segmentLength),
+            isHorizontal ? segmentLength : width,
+            isHorizontal ? height : segmentLength,
+        );
+    });
+    ctx.restore();
+
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = outlineWidth;
+    ctx.lineJoin = 'round';
+    roundedRectPath(ctx, x, y, width, height, radius);
+    ctx.stroke();
+
+    for (let index = 1; index < stickers.length; index += 1) {
+        ctx.beginPath();
+        if (isHorizontal) {
+            const dividerX = x + (index * segmentLength);
+            ctx.moveTo(dividerX, y);
+            ctx.lineTo(dividerX, y + height);
+        } else {
+            const dividerY = y + (index * segmentLength);
+            ctx.moveTo(x, dividerY);
+            ctx.lineTo(x + width, dividerY);
+        }
+        ctx.stroke();
+    }
+}
+
+/** Draw a PLL/OLL-style U-face diagram with the adjacent side stickers. */
+export function drawLastLayerTopView(canvas, cube, { greyNonYellow = false } = {}) {
+    const ctx = canvas.getContext('2d');
+    const { width: w, height: h } = getCanvasLogicalSize(canvas);
+    const theme = getCubePreviewTheme();
+
+    ctx.clearRect(0, 0, w, h);
+    if (!Array.isArray(cube) || cube.length < 6 || cube.some((face) => !Array.isArray(face) || face.length < 9)) return;
+
+    const margin = Math.max(3, Math.min(w, h) * 0.055);
+    const available = Math.max(0, Math.min(w, h) - (margin * 2));
+    const cellSize = available / 3.58;
+    const faceSize = cellSize * 3;
+    const stripSize = cellSize * 0.29;
+    const totalSize = faceSize + (stripSize * 2);
+    const faceX = ((w - totalSize) / 2) + stripSize;
+    const faceY = ((h - totalSize) / 2) + stripSize;
+    const outlineWidth = Math.max(1.5, cellSize * 0.065);
+    const faceRadius = cellSize * 0.11;
+    const stripRadius = cellSize * 0.12;
+
+    ctx.save();
+    ctx.lineJoin = 'round';
+
+    const topIndices = [2, 1, 0];
+    const bottomIndices = [0, 1, 2];
+    const leftIndices = [0, 1, 2];
+    const rightIndices = [2, 1, 0];
+
+    // Draw the four continuous side bands first so the face border sits cleanly
+    // over their inner edges, like a conventional last-layer case diagram.
+    drawLastLayerStrip(ctx, theme, topIndices.map((index) => cube[B][index]),
+        faceX, faceY - stripSize, faceSize, stripSize, true, outlineWidth,
+        [stripRadius, stripRadius, 0, 0], greyNonYellow);
+    drawLastLayerStrip(ctx, theme, bottomIndices.map((index) => cube[F][index]),
+        faceX, faceY + faceSize, faceSize, stripSize, true, outlineWidth,
+        [0, 0, stripRadius, stripRadius], greyNonYellow);
+    drawLastLayerStrip(ctx, theme, leftIndices.map((index) => cube[L][index]),
+        faceX - stripSize, faceY, stripSize, faceSize, false, outlineWidth,
+        [stripRadius, 0, 0, stripRadius], greyNonYellow);
+    drawLastLayerStrip(ctx, theme, rightIndices.map((index) => cube[R][index]),
+        faceX + faceSize, faceY, stripSize, faceSize, false, outlineWidth,
+        [0, stripRadius, stripRadius, 0], greyNonYellow);
+
+    ctx.save();
+    roundedRectPath(ctx, faceX, faceY, faceSize, faceSize, faceRadius);
+    ctx.clip();
+    for (let row = 0; row < 3; row += 1) {
+        for (let col = 0; col < 3; col += 1) {
+            ctx.fillStyle = getLastLayerPreviewColor(theme, cube[U][(row * 3) + col], greyNonYellow);
+            ctx.fillRect(faceX + (col * cellSize), faceY + (row * cellSize), cellSize, cellSize);
+        }
+    }
+    ctx.restore();
+
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = outlineWidth;
+    roundedRectPath(ctx, faceX, faceY, faceSize, faceSize, faceRadius);
+    ctx.stroke();
+
+    for (let index = 1; index < 3; index += 1) {
+        const offset = index * cellSize;
+        ctx.beginPath();
+        ctx.moveTo(faceX + offset, faceY);
+        ctx.lineTo(faceX + offset, faceY + faceSize);
+        ctx.moveTo(faceX, faceY + offset);
+        ctx.lineTo(faceX + faceSize, faceY + offset);
+        ctx.stroke();
+    }
+
+    ctx.restore();
+}
+
+export function updateLastLayerTopView(canvas, scramble, options) {
+    const didSync = syncCanvasToDisplaySize(canvas);
+    if (!didSync) return;
+
+    const ctx = canvas.getContext('2d');
+    const pixelRatio = getCanvasPixelRatio();
+    ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    drawLastLayerTopView(canvas, applyScramble(scramble), options);
+}
+
 function tracePolygon(ctx, points) {
     if (!Array.isArray(points) || points.length === 0) return;
 

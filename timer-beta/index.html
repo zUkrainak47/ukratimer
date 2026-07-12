@@ -1165,15 +1165,54 @@
             </select>
           </label>
         </div>
+        <div id="scramble-generator-case-option" class="scramble-generator-case-option" hidden>
+          <div class="scramble-generator-case-option-label">
+            Use selected trainer cases
+            <small id="scramble-generator-case-option-count"></small>
+          </div>
+          <label class="toggle">
+            <input id="scramble-generator-use-selected-cases" type="checkbox" aria-label="Use selected trainer cases"
+              aria-describedby="scramble-generator-case-option-count">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
         <p id="scramble-generator-status" class="scramble-generator-status" role="status" aria-live="polite">
           Generate up to 100 scrambles at a time.
         </p>
         <textarea id="scramble-generator-output" class="scramble-generator-output" readonly spellcheck="false"
           placeholder="Generate scrambles to see them here."></textarea>
         <div class="scramble-generator-actions">
-          <button id="scramble-generator-generate" class="btn btn-primary" type="button">Generate</button>
           <button id="scramble-generator-copy" class="btn" type="button" disabled>Copy List</button>
           <button id="scramble-generator-download" class="btn" type="button" disabled>Download</button>
+          <button id="scramble-generator-generate" class="btn btn-primary" type="button">Generate</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="trainer-cases-overlay" class="modal-overlay" aria-hidden="true">
+    <div class="modal-box trainer-cases-modal-box" role="dialog" aria-modal="true" aria-labelledby="trainer-cases-title">
+      <div class="modal-header">
+        <div>
+          <h2 id="trainer-cases-title">Trainer Cases</h2>
+          <span id="trainer-cases-count" class="trainer-cases-count"></span>
+        </div>
+        <button id="trainer-cases-close" class="modal-close" type="button" aria-label="Close case selection">✕</button>
+      </div>
+      <div class="modal-body trainer-cases-modal-body">
+        <p id="trainer-cases-summary" class="trainer-cases-summary"></p>
+        <div id="trainer-cases-grid" class="trainer-cases-grid"></div>
+        <p id="trainer-cases-validation" class="trainer-cases-validation" role="status" aria-live="polite"></p>
+        <div class="trainer-cases-actions" aria-label="Case selection actions">
+          <div class="trainer-cases-bulk-actions">
+            <button id="trainer-cases-select-all" class="btn settings-action-btn" type="button">Select all</button>
+            <button id="trainer-cases-select-none" class="btn settings-action-btn" type="button">Select none</button>
+            <button id="trainer-cases-invert" class="btn settings-action-btn" type="button">Invert</button>
+          </div>
+          <div class="trainer-cases-confirm-actions">
+            <button id="trainer-cases-cancel" class="btn settings-action-btn" type="button">Cancel</button>
+            <button id="trainer-cases-save" class="btn btn-primary" type="button">Save cases</button>
+          </div>
         </div>
       </div>
     </div>

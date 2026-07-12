@@ -1,11 +1,13 @@
 import { timer, State as TimerState } from './timer.js?v=2026070902';
-import { SCRAMBLE_TYPE_OPTIONS, generateScrambleBatchForType, generateScrambleForType, getScramble, getCurrentScramble, getCurrentScrambleType, getPrevScramble, getNextScramble, getSelectedScrambleType, setCurrentScramble, setScrambleType, isCurrentScrambleManual, hasPrevScramble, isViewingPreviousScramble, preloadScrambleEngines, needsCubingWarmup, runCubingWarmup } from './scramble.js?v=2026070902';
+import { SCRAMBLE_TYPE_OPTIONS, generateScrambleBatchForType, generateScrambleForType, getScramble, getCurrentScramble, getCurrentScrambleType, getPrevScramble, getNextScramble, getSelectedScrambleType, setCurrentScramble, setScrambleType, getOllCaseSelection, setOllCaseSelection, getPllCaseSelection, setPllCaseSelection, isCurrentScrambleManual, hasPrevScramble, isViewingPreviousScramble, preloadScrambleEngines, needsCubingWarmup, runCubingWarmup } from './scramble.js?v=2026070902';
+import { PLL_CASES, PLL_CASE_IDS } from './pll-cases.js?v=2026070902';
+import { OLL_CASES, OLL_CASE_IDS } from './oll-cases.js?v=2026070902';
 import { sessionManager } from './session.js?v=2026070902';
 import { settings, DEFAULTS, THEME_OPTIONS, THEME_COLOR_SECTIONS, THEME_DEFAULT_ID, THEME_OLED_ID, THEME_CUSTOM_IDS, SETTING_SCOPE_GLOBAL, SETTING_SCOPE_SESSION, SESSION_SCOPABLE_SETTING_KEYS, AUTO_EXPORT_EVERY_100_SOLVES_NEVER, AUTO_EXPORT_EVERY_100_SOLVES_REMIND, AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE, AUTO_EXPORT_EVERY_100_SOLVES_FILE, composeThemeColor, decomposeThemeColor, getLinkedSessionScopeKeys, getThemePresetColors, isCustomThemeId, isInspectionTimeEnabled, normalizeAutoExportEvery100Solves } from './settings.js?v=2026070902';
 import { buildRollingBestFlags, buildRollingStatValues, getAverageTrimCount, parseGraphStatType, parseRollingStatType, rollingStatAt, StatsCache } from './stats.js?v=2026070902';
 import { formatTime, formatSolveTime, formatSolveTimeWithSplits, formatTimerDisplayTime, getEffectiveTime, getSolvePhaseSplits, normalizePhaseCount, formatDate, formatReadableDate, formatDateTime, parseCustomStatsFilter, parseTimeInputToMs, truncateTimeDisplay } from './utils.js?v=2026070902';
 import { initModal, showSolveDetail, showAverageDetail, showTextDetail, closeModal, closeMoveSessionMenus, customConfirm, customConfirmChoice, customPrompt, getModalSelectionContext, setModalStatNavigator, setModalCloseHandler, setModalStatButtons, armModalGhostClickGuard } from './modal.js?v=2026070902';
-import { applyFtoScramble, applyMegaminxScramble, applyPyraminxScramble, applyScramble, applySquare1Scramble, applySkewbScramble, applyClockScramble, clearCubeDisplay, drawFtoHalfPreview, drawMegaminxFacePreview, drawSquare1, drawClock, initCubeDisplay, updateCubeDisplay, updateFtoDisplay, updateMegaminxDisplay, updatePyraminxDisplay, updateSquare1Display, updateSkewbDisplay, updateClockDisplay } from './cube-display.js?v=2026070902';
+import { applyFtoScramble, applyMegaminxScramble, applyPyraminxScramble, applyScramble, applySquare1Scramble, applySkewbScramble, applyClockScramble, clearCubeDisplay, drawFtoHalfPreview, drawMegaminxFacePreview, drawSquare1, drawClock, initCubeDisplay, updateCubeDisplay, updateLastLayerTopView, updateFtoDisplay, updateMegaminxDisplay, updatePyraminxDisplay, updateSquare1Display, updateSkewbDisplay, updateClockDisplay } from './cube-display.js?v=2026070902';
 import { initGraph, updateGraph, updateGraphData, setLineVisibility, getLineVisibility, applyAction, graphEvents, getGraphLineDefinitions, setGraphViewMode } from './graph.js?v=2026070902';
 import { closeTimeDistributionModal, initTimeDistributionModal, isTimeDistributionModalOpen, refreshTimeDistributionData, refreshTimeDistributionTheme, showTimeDistributionModal } from './distribution.js?v=2026070902';
 import { closeDailyStreakModal, initDailyStreakModal, isDailyStreakModalOpen, refreshDailyStreakModal, showDailyStreakModal } from './daily-streak-modal.js?v=2026070902';
@@ -140,6 +142,7 @@ let scrambleGeneratorOverlayEl = null;
 let scrambleGeneratorAbortController = null;
 let scrambleGeneratorScrambles = [];
 let scrambleGeneratorGeneratedType = '';
+let scrambleGeneratorGeneratedCaseSelectionCount = null;
 let scrambleGeneratorOutputText = '';
 let scrambleGeneratorRequestId = 0;
 let battleDeferredSolveUiPreviousStats = null;
@@ -1296,13 +1299,16 @@ const ALT_SCRAMBLE_TYPE_SHORTCUTS = new Map([
     ['KeyC', 'clock'],
     ['KeyS', 'skewb'],
 ]);
-const blockingOverlayIds = ['modal-overlay', 'session-stats-overlay', 'distribution-overlay', 'daily-streak-overlay', 'scramble-preview-overlay', 'confirm-overlay', 'prompt-overlay', 'shortcuts-overlay', 'chart-image-overlay', 'changelog-overlay', 'theme-customization-overlay', 'battle-overlay', 'graph-overlay', 'battle-create-overlay', 'scramble-generator-overlay'];
+const blockingOverlayIds = ['modal-overlay', 'session-stats-overlay', 'distribution-overlay', 'daily-streak-overlay', 'scramble-preview-overlay', 'confirm-overlay', 'prompt-overlay', 'shortcuts-overlay', 'chart-image-overlay', 'changelog-overlay', 'theme-customization-overlay', 'battle-overlay', 'graph-overlay', 'battle-create-overlay', 'scramble-generator-overlay', 'trainer-cases-overlay'];
 const THEME_OPTION_LABELS = new Map(THEME_OPTIONS.map(({ value, label }) => [value, label]));
 let settingsOverlayEl = null;
 let shortcutsOverlayEl = null;
 let themeCustomizationOverlayEl = null;
 let scramblePreviewOverlayEl = null;
 let changelogOverlayEl = null;
+let trainerCasesOverlayEl = null;
+let activeCaseTrainerId = 'oll';
+let trainerCasesReturnFocusEl = null;
 let scramblePreviewModalCanvas = null;
 let scramblePreviewModalSizeFrame = 0;
 let scramblePreviewThemeRefreshTimeout = 0;
@@ -2318,7 +2324,7 @@ async function flushPendingBattleSolveUpload({ throwOnFailure = false } = {}) {
         let nextBattleScramble;
         if (battleManager.needsPendingSolveNextScramble()) {
             try {
-                nextBattleScramble = await generateScrambleForType(battleManager.getScrambleType());
+                nextBattleScramble = await generateScrambleForType(battleManager.getScrambleType(), { ignoreCaseSelection: true });
             } catch (error) {
                 console.error('Failed to generate next battle scramble:', error);
                 schedulePendingBattleSolveScrambleRetry();
@@ -5816,6 +5822,312 @@ function initScramblePreviewModal() {
     syncPreviewButtonFace();
 }
 
+const CASE_TRAINER_CONFIGS = Object.freeze({
+    oll: Object.freeze({
+        label: 'OLL',
+        scrambleType: 'll',
+        greyNonYellow: true,
+        groupByCategory: true,
+        hideCaseNames: true,
+        cases: OLL_CASES,
+        caseIds: OLL_CASE_IDS,
+        getSelection: getOllCaseSelection,
+        setSelection: setOllCaseSelection,
+    }),
+    pll: Object.freeze({
+        label: 'PLL',
+        scrambleType: 'pll',
+        greyNonYellow: false,
+        groupByCategory: false,
+        hideCaseNames: false,
+        cases: PLL_CASES,
+        caseIds: PLL_CASE_IDS,
+        getSelection: getPllCaseSelection,
+        setSelection: setPllCaseSelection,
+    }),
+});
+
+const TRAINER_CASE_GROUP_ORDER = Object.freeze([
+    'P Shapes',
+    'T Shapes',
+    'Line Shapes',
+    'Square Shapes',
+    'Fish Shapes',
+    'C Shapes',
+    'Knight Move Shapes',
+    'W Shapes',
+    'Awkward Shapes',
+    'All Corners Oriented',
+    'L Shapes',
+    'Lightning Shapes',
+    'OCLL',
+    'Dot Cases',
+]);
+
+function getActiveCaseTrainerConfig() {
+    return CASE_TRAINER_CONFIGS[activeCaseTrainerId] || CASE_TRAINER_CONFIGS.oll;
+}
+
+function isTrainerCasesModalOpen() {
+    return trainerCasesOverlayEl?.classList.contains('active') === true;
+}
+
+function getTrainerCasesModalDraftSelection() {
+    return Array.from(document.querySelectorAll('#trainer-cases-grid input[data-case-id]:checked'))
+        .map((input) => input.dataset.caseId)
+        .filter(Boolean);
+}
+
+function syncTrainerCaseGroupToggles() {
+    document.querySelectorAll('#trainer-cases-grid .trainer-case-group').forEach((groupEl) => {
+        const inputs = Array.from(groupEl.querySelectorAll('input[data-case-id]'));
+        const selectedCount = inputs.filter((input) => input.checked).length;
+        const allSelected = inputs.length > 0 && selectedCount === inputs.length;
+        const noneSelected = selectedCount === 0;
+        const toggleEl = groupEl.querySelector('.trainer-case-group-toggle');
+
+        groupEl.classList.toggle('is-all-selected', allSelected);
+        groupEl.classList.toggle('is-none-selected', noneSelected);
+        groupEl.classList.toggle('is-partially-selected', !allSelected && !noneSelected);
+        if (toggleEl) {
+            toggleEl.setAttribute('aria-pressed', allSelected ? 'true' : (noneSelected ? 'false' : 'mixed'));
+            toggleEl.setAttribute('aria-label', `${allSelected ? 'Disable' : 'Enable'} all ${groupEl.dataset.groupName} cases`);
+        }
+    });
+}
+
+function syncTrainerCasesModalCount() {
+    const config = getActiveCaseTrainerConfig();
+    const selectedCount = getTrainerCasesModalDraftSelection().length;
+    const countEl = getEl('trainer-cases-count');
+    const saveButton = getEl('trainer-cases-save');
+
+    if (countEl) countEl.textContent = `${selectedCount} of ${config.cases.length} selected`;
+    if (saveButton) saveButton.disabled = selectedCount === 0;
+    syncTrainerCaseGroupToggles();
+}
+
+function syncTrainerCasesModalSelection(selectedIds = getActiveCaseTrainerConfig().getSelection()) {
+    const selectedSet = new Set(selectedIds);
+    document.querySelectorAll('#trainer-cases-grid input[data-case-id]').forEach((input) => {
+        input.checked = selectedSet.has(input.dataset.caseId);
+    });
+    syncTrainerCasesModalCount();
+}
+
+function renderTrainerCaseGrid() {
+    const config = getActiveCaseTrainerConfig();
+    const gridEl = getEl('trainer-cases-grid');
+    if (!gridEl) return;
+
+    const createCaseOption = (trainerCase) => {
+        const optionEl = document.createElement('label');
+        optionEl.className = 'trainer-case-option';
+        if (config.hideCaseNames) optionEl.classList.add('trainer-case-option-preview-only');
+        optionEl.title = config.hideCaseNames ? trainerCase.name : (trainerCase.category || trainerCase.name);
+
+        const inputEl = document.createElement('input');
+        inputEl.type = 'checkbox';
+        inputEl.className = 'trainer-case-input';
+        inputEl.dataset.caseId = trainerCase.id;
+        inputEl.setAttribute('aria-label', trainerCase.name);
+
+        const canvasEl = document.createElement('canvas');
+        canvasEl.className = 'trainer-case-preview';
+        canvasEl.dataset.caseId = trainerCase.id;
+        canvasEl.setAttribute('aria-hidden', 'true');
+
+        optionEl.append(inputEl, canvasEl);
+        if (!config.hideCaseNames) {
+            const nameEl = document.createElement('span');
+            nameEl.className = 'trainer-case-name';
+            nameEl.textContent = trainerCase.name;
+            optionEl.appendChild(nameEl);
+        }
+        return optionEl;
+    };
+
+    const fragment = document.createDocumentFragment();
+    gridEl.classList.toggle('is-grouped', config.groupByCategory);
+    if (config.groupByCategory) {
+        const groupedCases = new Map();
+        config.cases.forEach((trainerCase) => {
+            const groupName = trainerCase.category || 'Other';
+            if (!groupedCases.has(groupName)) groupedCases.set(groupName, []);
+            groupedCases.get(groupName).push(trainerCase);
+        });
+
+        Array.from(groupedCases.entries())
+            .sort(([firstGroupName], [secondGroupName]) => {
+                const firstIndex = TRAINER_CASE_GROUP_ORDER.indexOf(firstGroupName);
+                const secondIndex = TRAINER_CASE_GROUP_ORDER.indexOf(secondGroupName);
+                const fallbackIndex = TRAINER_CASE_GROUP_ORDER.length;
+                return (firstIndex === -1 ? fallbackIndex : firstIndex)
+                    - (secondIndex === -1 ? fallbackIndex : secondIndex);
+            })
+            .forEach(([groupName, trainerCases]) => {
+                const groupEl = document.createElement('section');
+                groupEl.className = 'trainer-case-group';
+                groupEl.dataset.groupName = groupName;
+                groupEl.style.setProperty('--trainer-case-group-columns', Math.min(trainerCases.length, 6));
+
+                const toggleEl = document.createElement('button');
+                toggleEl.type = 'button';
+                toggleEl.className = 'trainer-case-group-toggle';
+
+                const titleEl = document.createElement('span');
+                titleEl.className = 'trainer-case-group-title';
+                titleEl.textContent = groupName;
+                toggleEl.appendChild(titleEl);
+
+                const groupGridEl = document.createElement('div');
+                groupGridEl.className = 'trainer-case-group-grid';
+                trainerCases.forEach((trainerCase) => groupGridEl.appendChild(createCaseOption(trainerCase)));
+                groupEl.append(toggleEl, groupGridEl);
+                fragment.appendChild(groupEl);
+            });
+    } else {
+        config.cases.forEach((trainerCase) => fragment.appendChild(createCaseOption(trainerCase)));
+    }
+    gridEl.replaceChildren(fragment);
+    syncTrainerCasesModalSelection();
+}
+
+function renderTrainerCasePreviews() {
+    const config = getActiveCaseTrainerConfig();
+    const caseById = new Map(config.cases.map((trainerCase) => [trainerCase.id, trainerCase]));
+    document.querySelectorAll('#trainer-cases-grid canvas[data-case-id]').forEach((canvas) => {
+        const trainerCase = caseById.get(canvas.dataset.caseId);
+        if (trainerCase) updateLastLayerTopView(canvas, trainerCase.setup, {
+            greyNonYellow: config.greyNonYellow,
+        });
+    });
+}
+
+function syncTrainerCasesScrollbarWidth() {
+    const gridEl = getEl('trainer-cases-grid');
+    if (!gridEl) return;
+    const scrollbarWidth = Math.max(0, gridEl.offsetWidth - gridEl.clientWidth);
+    gridEl.style.setProperty('--trainer-cases-scrollbar-width', `${scrollbarWidth}px`);
+}
+
+function openTrainerCasesModal(trainerId, returnFocusEl = null) {
+    if (!trainerCasesOverlayEl || !CASE_TRAINER_CONFIGS[trainerId]) return;
+    activeCaseTrainerId = trainerId;
+    trainerCasesReturnFocusEl = returnFocusEl instanceof HTMLElement ? returnFocusEl : null;
+    const config = getActiveCaseTrainerConfig();
+    getEl('trainer-cases-title').textContent = `${config.label} Cases`;
+    getEl('trainer-cases-summary').textContent = `Choose the cases that can appear when ${config.label} is selected.`;
+    renderTrainerCaseGrid();
+    trainerCasesOverlayEl.classList.add('active');
+    trainerCasesOverlayEl.setAttribute('aria-hidden', 'false');
+    window.requestAnimationFrame(() => {
+        if (!isTrainerCasesModalOpen()) return;
+        syncTrainerCasesScrollbarWidth();
+        renderTrainerCasePreviews();
+        getEl('trainer-cases-close')?.focus({ preventScroll: true });
+    });
+}
+
+function closeTrainerCasesModal() {
+    if (!trainerCasesOverlayEl) return;
+    const returnFocusEl = trainerCasesReturnFocusEl;
+    trainerCasesReturnFocusEl = null;
+    trainerCasesOverlayEl.classList.remove('active');
+    trainerCasesOverlayEl.setAttribute('aria-hidden', 'true');
+    window.requestAnimationFrame(() => {
+        if (!isTrainerCasesModalOpen() && returnFocusEl?.isConnected) {
+            returnFocusEl.focus({ preventScroll: true });
+        }
+    });
+}
+
+function initTrainerCasesModal() {
+    trainerCasesOverlayEl = getEl('trainer-cases-overlay');
+    const gridEl = getEl('trainer-cases-grid');
+    if (!trainerCasesOverlayEl || !gridEl) return;
+
+    window.addEventListener('resize', syncTrainerCasesScrollbarWidth);
+    gridEl.addEventListener('change', syncTrainerCasesModalCount);
+    gridEl.addEventListener('click', (event) => {
+        const toggleEl = event.target.closest('.trainer-case-group-toggle');
+        if (!toggleEl || !gridEl.contains(toggleEl)) return;
+        const groupEl = toggleEl.closest('.trainer-case-group');
+        const inputs = Array.from(groupEl?.querySelectorAll('input[data-case-id]') || []);
+        const shouldSelect = !inputs.every((input) => input.checked);
+        inputs.forEach((input) => { input.checked = shouldSelect; });
+        syncTrainerCasesModalCount();
+    });
+    getEl('trainer-cases-select-all')?.addEventListener('click', () => {
+        syncTrainerCasesModalSelection(getActiveCaseTrainerConfig().caseIds);
+    });
+    getEl('trainer-cases-select-none')?.addEventListener('click', () => syncTrainerCasesModalSelection([]));
+    getEl('trainer-cases-invert')?.addEventListener('click', () => {
+        const currentSelection = new Set(getTrainerCasesModalDraftSelection());
+        syncTrainerCasesModalSelection(
+            getActiveCaseTrainerConfig().caseIds.filter((caseId) => !currentSelection.has(caseId)),
+        );
+    });
+    getEl('trainer-cases-close')?.addEventListener('click', closeTrainerCasesModal);
+    getEl('trainer-cases-cancel')?.addEventListener('click', closeTrainerCasesModal);
+    getEl('trainer-cases-save')?.addEventListener('click', async () => {
+        const config = getActiveCaseTrainerConfig();
+        const selection = getTrainerCasesModalDraftSelection();
+        if (selection.length === 0) return;
+        config.setSelection(selection);
+        closeTrainerCasesModal();
+
+        await applyActiveSessionScrambleType(config.scrambleType, { loadScramble: false });
+        if (getSelectedScrambleType() === config.scrambleType
+            && !document.getElementById('scramble-text')?.classList.contains('loading')
+            && !battleManager.isJoined()) {
+            await reloadScrambleForSelectedType();
+        }
+    });
+
+    let pointerDownTarget = null;
+    trainerCasesOverlayEl.addEventListener('pointerdown', (event) => {
+        pointerDownTarget = event.target;
+    });
+    trainerCasesOverlayEl.addEventListener('click', (event) => {
+        if (pointerDownTarget === trainerCasesOverlayEl && event.target === trainerCasesOverlayEl) {
+            closeTrainerCasesModal();
+        }
+        pointerDownTarget = null;
+    });
+    document.addEventListener('keydown', (event) => {
+        if (!isTrainerCasesModalOpen()) return;
+        if (event.code === 'Escape') {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            closeTrainerCasesModal();
+            return;
+        }
+        if (event.key !== 'Tab') return;
+
+        const focusableEls = Array.from(trainerCasesOverlayEl.querySelectorAll(
+            'button:not(:disabled), input:not(:disabled), [href], [tabindex]:not([tabindex="-1"])',
+        )).filter((element) => element instanceof HTMLElement);
+        if (focusableEls.length === 0) {
+            event.preventDefault();
+            return;
+        }
+
+        const firstEl = focusableEls[0];
+        const lastEl = focusableEls[focusableEls.length - 1];
+        if (!trainerCasesOverlayEl.contains(document.activeElement)) {
+            event.preventDefault();
+            firstEl.focus();
+        } else if (event.shiftKey && document.activeElement === firstEl) {
+            event.preventDefault();
+            lastEl.focus();
+        } else if (!event.shiftKey && document.activeElement === lastEl) {
+            event.preventDefault();
+            firstEl.focus();
+        }
+    });
+}
+
 // ──── Bootstrap ────
 let storageUpgradeBlockedAlertShown = false;
 
@@ -5834,6 +6146,7 @@ async function init() {
     const sessionInitPromise = sessionManager.init();
     initCubeDisplay(document.getElementById('cube-canvas'));
     initScramblePreviewModal();
+    initTrainerCasesModal();
     populateScrambleTypeMenus();
     void preloadScrambleEngines();
     await sessionInitPromise;
@@ -6828,6 +7141,8 @@ function renderScrambleSubsetOptions(menuEl, puzzleId = '') {
     const fragment = document.createDocumentFragment();
 
     subsetOptions.forEach((option) => {
+        const trainerEntry = Object.entries(CASE_TRAINER_CONFIGS)
+            .find(([, config]) => config.scrambleType === option.id) || null;
         const optionButton = document.createElement('button');
         optionButton.type = 'button';
         optionButton.className = 'scramble-type-option scramble-type-subset-option';
@@ -6836,6 +7151,39 @@ function renderScrambleSubsetOptions(menuEl, puzzleId = '') {
         optionButton.setAttribute('role', 'menuitemradio');
         optionButton.setAttribute('aria-checked', 'false');
         optionButton.textContent = option.menuLabel;
+
+        if (puzzleId === '333' && trainerEntry) {
+            const [trainerId, config] = trainerEntry;
+            const rowEl = document.createElement('div');
+            rowEl.className = 'scramble-type-option-row';
+            rowEl.setAttribute('role', 'none');
+
+            const configureButton = document.createElement('button');
+            configureButton.type = 'button';
+            configureButton.className = 'scramble-type-option scramble-case-configure-option scramble-case-count-option';
+            configureButton.dataset.configureCases = trainerId;
+            configureButton.setAttribute('role', 'menuitem');
+            const selectedCount = config.getSelection().length;
+            configureButton.setAttribute(
+                'aria-label',
+                `Edit ${config.label} cases, ${selectedCount} of ${config.cases.length} selected`,
+            );
+            configureButton.title = `Edit ${config.label} cases`;
+
+            const countEl = document.createElement('span');
+            countEl.textContent = `${selectedCount}/${config.cases.length}`;
+
+            const indicatorEl = document.createElement('span');
+            indicatorEl.className = 'scramble-case-count-indicator';
+            indicatorEl.setAttribute('aria-hidden', 'true');
+            indicatorEl.textContent = '›';
+
+            configureButton.append(countEl, indicatorEl);
+            rowEl.append(optionButton, configureButton);
+            fragment.appendChild(rowEl);
+            return;
+        }
+
         fragment.appendChild(optionButton);
     });
 
@@ -6969,6 +7317,19 @@ function positionScrambleTypeMenu(menuEl, { ensureActiveVisible = false } = {}) 
         dropdownEl.style.setProperty('--scramble-type-dropdown-max-height', `${maxHeight}px`);
     } else {
         dropdownEl.style.removeProperty('--scramble-type-dropdown-max-height');
+    }
+
+    if (menuEl.id === 'scramble-type-menu-mobile') {
+        dropdownEl.style.setProperty('--scramble-type-mobile-offset-x', '0px');
+        const zenButtonEl = getEl('btn-zen');
+        const zenButtonRect = zenButtonEl?.getBoundingClientRect();
+        if (zenButtonRect?.width > 0) {
+            const unclampedDropdownRect = dropdownEl.getBoundingClientRect();
+            const offsetX = Math.min(0, Math.floor(zenButtonRect.right - unclampedDropdownRect.right));
+            dropdownEl.style.setProperty('--scramble-type-mobile-offset-x', `${offsetX}px`);
+        }
+    } else {
+        dropdownEl.style.removeProperty('--scramble-type-mobile-offset-x');
     }
 
     const activeOptionEl = panels.mainPanel.querySelector('.scramble-type-puzzle-option.active');
@@ -7629,6 +7990,16 @@ function initScrambleControls() {
         });
 
         dropdownEl?.addEventListener('click', async (event) => {
+            const configureCasesEl = event.target instanceof Element
+                ? event.target.closest('.scramble-case-configure-option')
+                : null;
+            if (configureCasesEl instanceof HTMLButtonElement && dropdownEl.contains(configureCasesEl)) {
+                const returnFocusEl = menuEl.querySelector('.scramble-type-btn');
+                closeScrambleTypeMenus();
+                openTrainerCasesModal(configureCasesEl.dataset.configureCases || 'oll', returnFocusEl);
+                return;
+            }
+
             const puzzleOptionEl = event.target instanceof Element
                 ? event.target.closest('.scramble-type-puzzle-option')
                 : null;
@@ -13095,7 +13466,7 @@ function initBattleControls() {
         beginBattleMode(scrambleType);
         const initialScramble = roomProbe?.exists
             ? roomProbe.roomInfo?.currentScramble
-            : await generateScrambleForType(scrambleType);
+            : await generateScrambleForType(scrambleType, { ignoreCaseSelection: true });
         await battleManager.joinRoom({
             nickname,
             roomId,
@@ -13355,6 +13726,9 @@ function initScrambleGeneratorControls() {
     const typeSelect = getEl('scramble-generator-type');
     const amountInput = getEl('scramble-generator-amount');
     const prefixSelect = getEl('scramble-generator-prefix');
+    const caseOptionEl = getEl('scramble-generator-case-option');
+    const caseOptionCountEl = getEl('scramble-generator-case-option-count');
+    const useSelectedCasesInput = getEl('scramble-generator-use-selected-cases');
     const statusEl = getEl('scramble-generator-status');
     const outputEl = getEl('scramble-generator-output');
     const generateButton = getEl('scramble-generator-generate');
@@ -13362,6 +13736,7 @@ function initScrambleGeneratorControls() {
     const downloadButton = getEl('scramble-generator-download');
 
     if (!scrambleGeneratorOverlayEl || !settingsOpenButton || !closeButton || !typeSelect || !amountInput || !prefixSelect
+        || !caseOptionEl || !caseOptionCountEl || !useSelectedCasesInput
         || !statusEl || !outputEl || !generateButton || !copyButton || !downloadButton) {
         return;
     }
@@ -13378,6 +13753,27 @@ function initScrambleGeneratorControls() {
         statusEl.classList.toggle('is-error', isError);
     };
 
+    const getCaseSelectionDetails = (type = typeSelect.value) => {
+        if (type === 'll') {
+            return { selectedCount: getOllCaseSelection().length, totalCount: OLL_CASE_IDS.length };
+        }
+        if (type === 'pll') {
+            return { selectedCount: getPllCaseSelection().length, totalCount: PLL_CASE_IDS.length };
+        }
+        return null;
+    };
+
+    const syncCaseOption = () => {
+        const details = getCaseSelectionDetails();
+        const hasCaseSubset = details && details.selectedCount < details.totalCount;
+        caseOptionEl.hidden = !hasCaseSubset;
+        if (!hasCaseSubset) {
+            useSelectedCasesInput.checked = false;
+            return;
+        }
+        caseOptionCountEl.textContent = `${details.selectedCount} of ${details.totalCount} cases selected`;
+    };
+
     const syncStatusFromOutput = () => {
         if (!scrambleGeneratorScrambles.length) {
             setStatus(getScrambleGeneratorIdleStatusText());
@@ -13386,7 +13782,10 @@ function initScrambleGeneratorControls() {
 
         const typeLabel = getScrambleGeneratorTypeLabel(scrambleGeneratorGeneratedType || typeSelect.value);
         const count = scrambleGeneratorScrambles.length;
-        setStatus(`Generated ${count} ${typeLabel} scramble${count === 1 ? '' : 's'}.`);
+        const caseSelectionText = Number.isInteger(scrambleGeneratorGeneratedCaseSelectionCount)
+            ? ` from ${scrambleGeneratorGeneratedCaseSelectionCount} selected case${scrambleGeneratorGeneratedCaseSelectionCount === 1 ? '' : 's'}`
+            : '';
+        setStatus(`Generated ${count} ${typeLabel} scramble${count === 1 ? '' : 's'}${caseSelectionText}.`);
     };
 
     const setActionFeedback = (button, label) => {
@@ -13418,6 +13817,7 @@ function initScrambleGeneratorControls() {
         typeSelect.disabled = isGenerating;
         amountInput.disabled = isGenerating;
         prefixSelect.disabled = isGenerating;
+        useSelectedCasesInput.disabled = isGenerating;
 
         generateButton.disabled = isGenerating || !hasValidAmount || !typeSelect.value;
         generateButton.textContent = isGenerating ? 'Generating...' : 'Generate';
@@ -13436,6 +13836,8 @@ function initScrambleGeneratorControls() {
         if (!prefixSelect.value) {
             prefixSelect.value = 'number-dot';
         }
+        useSelectedCasesInput.checked = false;
+        syncCaseOption();
 
         if (scrambleGeneratorScrambles.length) {
             syncOutputText();
@@ -13489,6 +13891,7 @@ function initScrambleGeneratorControls() {
     });
 
     typeSelect.addEventListener('change', () => {
+        syncCaseOption();
         syncActionState();
     });
 
@@ -13510,6 +13913,11 @@ function initScrambleGeneratorControls() {
         }
 
         const type = typeSelect.value || getSelectedScrambleType();
+        const caseSelectionDetails = getCaseSelectionDetails(type);
+        const useCaseSelection = Boolean(caseSelectionDetails
+            && caseSelectionDetails.selectedCount < caseSelectionDetails.totalCount
+            && useSelectedCasesInput.checked);
+        const selectedCaseCount = useCaseSelection ? caseSelectionDetails.selectedCount : null;
         cancelScrambleGeneratorRequest();
         scrambleGeneratorAbortController = new AbortController();
         const abortController = scrambleGeneratorAbortController;
@@ -13522,6 +13930,7 @@ function initScrambleGeneratorControls() {
         try {
             const scrambles = await generateScrambleBatchForType(type, amount, {
                 signal: abortController.signal,
+                useCaseSelection,
                 onProgress: ({ completed, total }) => {
                     if (requestId !== scrambleGeneratorRequestId) return;
                     setStatus(`Generating ${completed} / ${total} scramble${total === 1 ? '' : 's'}...`);
@@ -13532,6 +13941,7 @@ function initScrambleGeneratorControls() {
 
             scrambleGeneratorScrambles = scrambles;
             scrambleGeneratorGeneratedType = type;
+            scrambleGeneratorGeneratedCaseSelectionCount = selectedCaseCount;
             syncOutputText();
             syncStatusFromOutput();
         } catch (error) {
