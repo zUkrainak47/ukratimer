@@ -21,6 +21,7 @@ import { battleManager } from './battle.js?v=2026070902';
 import { CHANGELOG_ENTRIES, LATEST_CHANGELOG_ENTRY_ID } from './changelog.js?v=2026070902';
 
 let currentScramble = '';
+let scrambleUiRequestId = 0;
 let currentSortCol = null;
 let currentSortDir = null; // 'asc' or 'desc'
 let scrambleCopyTimeout = null;
@@ -1563,6 +1564,12 @@ function handlePopState(event) {
 
     if (isSessionStatsModalOpen()) {
         closeSessionStatsModal({ isPopState: true });
+        return;
+    }
+
+    if (isTrainerStatsDetailModalOpen()) {
+        closeTrainerStatsDetailModal();
+        if (!adoptHistoryInterceptionState()) pushHistoryState();
         return;
     }
 
@@ -6189,6 +6196,12 @@ function isTrainerCasesModalOpen() {
     return trainerCasesOverlayEl?.classList.contains('active') === true;
 }
 
+function isTrainerStatsDetailModalOpen() {
+    return isTrainerCasesModalOpen()
+        && trainerStatsDetailLayerEl != null
+        && !trainerStatsDetailLayerEl.hidden;
+}
+
 function getTrainerCasesModalDraftSelection() {
     return Array.from(document.querySelectorAll('#trainer-cases-grid input[data-case-id]:checked'))
         .map((input) => input.dataset.caseId)
@@ -6551,12 +6564,13 @@ function initTrainerCasesModal() {
         const selection = getTrainerCasesModalDraftSelection();
         if (selection.length === 0) return;
         config.setSelection(selection);
+        await applyActiveSessionScrambleType(config.scrambleType, {
+            loadScramble: false,
+            allowWhileLoading: true,
+        });
         closeTrainerCasesModal();
 
-        await applyActiveSessionScrambleType(config.scrambleType, { loadScramble: false });
-        if (getSelectedScrambleType() === config.scrambleType
-            && !document.getElementById('scramble-text')?.classList.contains('loading')
-            && !battleManager.isJoined()) {
+        if (getSelectedScrambleType() === config.scrambleType && !battleManager.isJoined()) {
             await reloadScrambleForSelectedType();
         }
     });
@@ -8095,8 +8109,11 @@ async function reloadScrambleForSelectedType() {
     await loadNewScramble();
 }
 
-async function applyActiveSessionScrambleType(nextType, { loadScramble = true } = {}) {
-    if (document.getElementById('scramble-text')?.classList.contains('loading')) return false;
+async function applyActiveSessionScrambleType(nextType, {
+    loadScramble = true,
+    allowWhileLoading = false,
+} = {}) {
+    if (!allowWhileLoading && document.getElementById('scramble-text')?.classList.contains('loading')) return false;
     if (battleManager.isJoined()) return false;
 
     const activeSessionId = sessionManager.getActiveSessionId();
@@ -8128,6 +8145,7 @@ async function syncScrambleTypeWithActiveSession({ loadScramble = false } = {}) 
 
 async function loadNewScramble() {
     const el = document.getElementById('scramble-text');
+    const requestId = ++scrambleUiRequestId;
     if (battleManager.isJoined()) {
         if (battleManager.hasPendingSolveUpload()) {
             renderMutedScrambleMessage('Uploading battle solve');
@@ -8149,15 +8167,19 @@ async function loadNewScramble() {
     }
 
     let loadingTimer = window.setTimeout(() => {
+        if (requestId !== scrambleUiRequestId) return;
         clearStructuredScrambleLayout(el);
         el.textContent = 'Generating...';
         el.classList.add('loading');
     }, 120);
 
     try {
-        currentScramble = await getScramble();
-        updateScrambleUI(currentScramble);
+        const nextScramble = await getScramble();
+        if (requestId !== scrambleUiRequestId || nextScramble == null) return '';
+        currentScramble = nextScramble;
+        updateScrambleUI(nextScramble);
     } catch (error) {
+        if (requestId !== scrambleUiRequestId) return '';
         console.error('Failed to load scramble:', error);
         clearStructuredScrambleLayout(el);
         el.textContent = 'Scrambler unavailable';
@@ -8320,8 +8342,10 @@ async function loadNextScramble({ preserveManualTimeFocus = false } = {}) {
     }
 
     closeScrambleTypeMenus();
+    const requestId = ++scrambleUiRequestId;
 
     const loadingTimer = window.setTimeout(() => {
+        if (requestId !== scrambleUiRequestId) return;
         clearStructuredScrambleLayout(textEl);
         textEl.textContent = 'Generating...';
         textEl.classList.add('loading');
@@ -8329,9 +8353,11 @@ async function loadNextScramble({ preserveManualTimeFocus = false } = {}) {
 
     try {
         const nextScramble = await getNextScramble();
+        if (requestId !== scrambleUiRequestId || nextScramble == null) return false;
         updateScrambleUI(nextScramble);
         return true;
     } catch (error) {
+        if (requestId !== scrambleUiRequestId) return false;
         console.error('Failed to load next scramble:', error);
         clearStructuredScrambleLayout(textEl);
         textEl.textContent = 'Scrambler unavailable';

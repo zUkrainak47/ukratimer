@@ -12,6 +12,7 @@ let _scrambowInitPromise = null;
 const _queueFillPromises = new Map();
 const _bootstrapQueueFillScheduled = new Set();
 const _queueFillScheduled = new Set();
+let _scrambleRequestRevision = 0;
 
 const LEGACY_SCRAMBLE_QUEUE_STORAGE_KEY = 'scrambleQueue333';
 const SCRAMBLE_QUEUES_STORAGE_KEY = 'scrambleQueues';
@@ -805,6 +806,7 @@ export function setScrambleType(type) {
     const nextType = sanitizeScrambleType(type);
     if (nextType === _scrambleType) return false;
 
+    _scrambleRequestRevision += 1;
     _scrambleType = nextType;
     persistScrambleType();
     resetScrambleHistory();
@@ -823,6 +825,7 @@ export function setPllCaseSelection(caseIds) {
     }
 
     _pllCaseSelection = nextSelection;
+    if (_scrambleType === 'pll') _scrambleRequestRevision += 1;
     _caseSelectionRevisions.pll += 1;
     save(PLL_CASE_SELECTION_STORAGE_KEY, _pllCaseSelection);
     getScrambleQueue('pll').length = 0;
@@ -843,6 +846,7 @@ export function setOllCaseSelection(caseIds) {
     }
 
     _ollCaseSelection = nextSelection;
+    if (_scrambleType === 'll') _scrambleRequestRevision += 1;
     _caseSelectionRevisions.ll += 1;
     save(OLL_CASE_SELECTION_STORAGE_KEY, _ollCaseSelection);
     getScrambleQueue('ll').length = 0;
@@ -853,7 +857,15 @@ export function setOllCaseSelection(caseIds) {
 
 export async function getScramble() {
     const type = _scrambleType;
-    const scramble = await generateNextScrambleForType(type);
+    const requestRevision = ++_scrambleRequestRevision;
+    let scramble;
+    try {
+        scramble = await generateNextScrambleForType(type);
+    } catch (error) {
+        if (requestRevision !== _scrambleRequestRevision || type !== _scrambleType) return null;
+        throw error;
+    }
+    if (requestRevision !== _scrambleRequestRevision || type !== _scrambleType) return null;
     pushNewScramble(scramble, type, false);
     return _currentScramble?.text ?? '';
 }
@@ -1035,6 +1047,7 @@ export function getCurrentScramble() {
 }
 
 export function setCurrentScramble(scrambleStr) {
+    _scrambleRequestRevision += 1;
     const nextText = String(scrambleStr ?? '');
     const active = getActiveScrambleEntry();
     const entryType = active?.type ?? _scrambleType;
