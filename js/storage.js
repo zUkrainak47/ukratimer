@@ -5,6 +5,12 @@ import {
     SUMMARY_STATS_SCOPE_SETTING_KEYS,
     normalizeSettingScopes,
 } from './setting-scopes.js?v=2026070902';
+import {
+    buildCsTimerTrainerCaseMetadata,
+    buildCsTimerTrainerSelections,
+    normalizeCsTimerTrainerSelections,
+    resolveCsTimerTrainerCaseMetadata,
+} from './cstimer-trainer-metadata.mjs?v=2026070902';
 
 const STORAGE_PREFIX = 'cubetimer_';
 const STORAGE_VERSION = 1;
@@ -21,8 +27,14 @@ const BACKUP_LOCAL_STORAGE_KEYS = Object.freeze([
     'settings',
     'activeSessionId',
     'scrambleType',
+    'pllCaseSelection',
+    'ollCaseSelection',
 ]);
 const BACKUP_LOCAL_STORAGE_KEY_SET = new Set(BACKUP_LOCAL_STORAGE_KEYS);
+const MERGE_PERSISTENT_BACKUP_KEYS = new Set([
+    'pllCaseSelection',
+    'ollCaseSelection',
+]);
 const IMPORT_PROGRESS_YIELD_INTERVAL = 10000;
 const LOCAL_ONLY_SETTING_KEYS = new Set(['zenMode']);
 const LOCAL_ONLY_SESSION_SETTING_KEYS = new Set(['zenMode']);
@@ -343,7 +355,19 @@ function _sanitizeSessionSettingsForTransport(sessionSettings) {
     return sanitized;
 }
 
-function _applyImportedBackupValues(data, { replaceMissing = false, autoExportSolveSequence = 0 } = {}) {
+export function getMissingBackupKeysForReplacement(providedKeys, preserveMissingKeys = null) {
+    const providedKeySet = providedKeys instanceof Set ? providedKeys : new Set(providedKeys || []);
+    return BACKUP_LOCAL_STORAGE_KEYS.filter((key) => (
+        !providedKeySet.has(key)
+        && !(preserveMissingKeys instanceof Set && preserveMissingKeys.has(key))
+    ));
+}
+
+function _applyImportedBackupValues(data, {
+    replaceMissing = false,
+    preserveMissingKeys = null,
+    autoExportSolveSequence = 0,
+} = {}) {
     const nextValues = new Map();
 
     for (const [key, value] of Object.entries(data || {})) {
@@ -360,13 +384,10 @@ function _applyImportedBackupValues(data, { replaceMissing = false, autoExportSo
     }
 
     if (replaceMissing) {
-        BACKUP_LOCAL_STORAGE_KEYS.forEach((key) => {
-            if (nextValues.has(key)) {
-                save(key, nextValues.get(key));
-            } else {
-                remove(key);
-            }
+        nextValues.forEach((value, key) => {
+            save(key, value);
         });
+        getMissingBackupKeysForReplacement(new Set(nextValues.keys()), preserveMissingKeys).forEach(remove);
         return;
     }
 
@@ -1414,6 +1435,7 @@ export async function importAll(data, { mode = IMPORT_MODE_REWRITE, onProgress =
     // selected scramble type). Cache/runtime keys stay device-local.
     _applyImportedBackupValues(importedBackupValues, {
         replaceMissing: true,
+        preserveMissingKeys: importMode === IMPORT_MODE_MERGE ? MERGE_PERSISTENT_BACKUP_KEYS : null,
         autoExportSolveSequence: finalSolves.length,
     });
 
@@ -1816,7 +1838,7 @@ export async function importSessionCsv(text, { mode = IMPORT_MODE_REWRITE, onPro
 // ──── csTimer Format Conversion ────
 
 const UKRA_TIMER_CSTIMER_META_KEY = 'ukraTimerMeta';
-const UKRA_TIMER_CSTIMER_META_VERSION = 1;
+const UKRA_TIMER_CSTIMER_META_VERSION = 3;
 const UKRA_TIMER_CSTIMER_SESSION_META_ID_KEY = 'ukraTimerSessionId';
 const CSTIMER_SCRAMBLE_TYPE_TO_INTERNAL = Object.freeze({
     '222so': '222',
@@ -2144,11 +2166,12 @@ function _parseUkraTimerCsTimerMeta(rawValue) {
     return parsed;
 }
 
-function _getUkraTimerCsTimerMetaPayload(settingsData, sessionsData = []) {
+function _getUkraTimerCsTimerMetaPayload(settingsData, sessionsData = [], trainerSelections = {}) {
     return JSON.stringify({
         version: UKRA_TIMER_CSTIMER_META_VERSION,
         settings: settingsData,
         sessions: sessionsData,
+        trainerSelections: normalizeCsTimerTrainerSelections(trainerSelections),
     });
 }
 
@@ -2760,6 +2783,7 @@ export async function importCsTimer(csData, { mode = IMPORT_MODE_REWRITE, onProg
         _stripCsTimerCompatibleSettingScopes(metadataSettings.settingScopes),
     );
     const metadataSessions = Array.isArray(metadata?.sessions) ? metadata.sessions : [];
+    const metadataTrainerSelections = normalizeCsTimerTrainerSelections(metadata?.trainerSelections);
     const metadataSessionResolver = _buildUkraTimerCsTimerMetadataSessionResolver(metadataSessions);
     const importedSessions = [];
 
@@ -2824,6 +2848,11 @@ export async function importCsTimer(csData, { mode = IMPORT_MODE_REWRITE, onProg
             || metadataSessionResolver.takeFallback({ slot: session.slot, name: session.name });
         const metadataScrambleType = _getMetadataSessionScrambleType(matchedMetadataSession);
 
+        session.trainerCasesBySolveIndex = resolveCsTimerTrainerCaseMetadata(
+            matchedMetadataSession?.trainerCases,
+            session.solves,
+        );
+
         if (!session.hasNativeScrambleType && metadataScrambleType) {
             session.scrambleType = metadataScrambleType;
         }
@@ -2887,7 +2916,8 @@ export async function importCsTimer(csData, { mode = IMPORT_MODE_REWRITE, onProg
         let hasTimestamp = false;
         parseCompleted += 1;
 
-        for (const entry of session.solves) {
+        for (let solveIndex = 0; solveIndex < session.solves.length; solveIndex += 1) {
+            const entry = session.solves[solveIndex];
             if (!Array.isArray(entry) || entry.length < 4) continue;
             const [penaltyAndTime, scramble, comment, timestampSec] = entry;
             if (!Array.isArray(penaltyAndTime) || penaltyAndTime.length < 2) continue;
@@ -2901,6 +2931,7 @@ export async function importCsTimer(csData, { mode = IMPORT_MODE_REWRITE, onProg
             });
 
             const timestamp = Number(timestampSec) * 1000;
+            const trainerCase = session.trainerCasesBySolveIndex.get(solveIndex) || null;
             if (Number.isFinite(timestamp) && timestamp >= 0 && !hasTimestamp) {
                 sessionCreatedAt = timestamp;
                 hasTimestamp = true;
@@ -2915,6 +2946,7 @@ export async function importCsTimer(csData, { mode = IMPORT_MODE_REWRITE, onProg
                 penalty,
                 timestamp: Number.isFinite(timestamp) && timestamp >= 0 ? timestamp : Date.now(),
                 comment: (comment && typeof comment === 'string') ? comment : '',
+                ...(trainerCase ? { trainerCase } : {}),
                 ...(phaseInfo.phaseSplits.length > 1
                     ? { phaseSplits: phaseInfo.phaseSplits, phaseCount: phaseInfo.phaseCount }
                     : {}),
@@ -3066,6 +3098,7 @@ export async function importCsTimer(csData, { mode = IMPORT_MODE_REWRITE, onProg
     save('activeSessionId', activeImportedSessionId);
     save('scrambleType', activeImportedScrambleType);
     save('settings', newSettings);
+    Object.entries(metadataTrainerSelections).forEach(([key, selection]) => save(key, selection));
 
     _reportImportProgress(onProgress, {
         source: 'cstimer',
@@ -3099,6 +3132,11 @@ export async function exportCsTimer() {
         ? storedSettingsData.settingScopes
         : {};
     const metadataSettings = _buildCsTimerMetadataSettings(storedSettingsData);
+    const metadataSessions = [];
+    const metadataTrainerSelections = buildCsTimerTrainerSelections({
+        ollCaseSelection: load('ollCaseSelection', []),
+        pllCaseSelection: load('pllCaseSelection', []),
+    });
     const activeCsScrambleType = _mapInternalScrambleTypeToCsTimer(activeSession?.scrambleType || '333');
 
     sessions.forEach((session, i) => {
@@ -3114,6 +3152,15 @@ export async function exportCsTimer() {
         const sessionSolves = (solvesBySessionId.get(session.id) || [])
             .slice()
             .sort((a, b) => a.timestamp - b.timestamp);
+        const trainerCases = buildCsTimerTrainerCaseMetadata(sessionSolves);
+
+        metadataSessions.push({
+            sessionId: session.id,
+            name: session.name || '',
+            scrambleType: session.scrambleType || '333',
+            settings: _getSessionScopedSettings(session.settings, settingScopes),
+            ...(trainerCases ? { trainerCases } : {}),
+        });
 
         csData[key] = sessionSolves.map(solve => {
             // Map penalty: null → 0, '+2' → 2000, 'DNF' → -1
@@ -3177,12 +3224,8 @@ export async function exportCsTimer() {
         } : {}),
         [UKRA_TIMER_CSTIMER_META_KEY]: _getUkraTimerCsTimerMetaPayload(
             metadataSettings,
-            sessions.map((session) => ({
-                sessionId: session.id,
-                name: session.name || '',
-                scrambleType: session.scrambleType || '333',
-                settings: _getSessionScopedSettings(session.settings, settingScopes),
-            })),
+            metadataSessions,
+            metadataTrainerSelections,
         ),
     };
 

@@ -771,6 +771,49 @@ export async function getAllData() {
     return { sessions, solves };
 }
 
+/**
+ * Read trainer solves without hydrating every session in SessionManager.
+ * The chunk cursor yields between chunks and only matching solves are retained.
+ * @param {'oll'|'pll'} trainerId
+ * @returns {Promise<object[]>}
+ */
+export function getTrainerCaseSolvesFromChunk(chunk, trainerId) {
+    const normalizedTrainerId = String(trainerId ?? '').trim().toLowerCase();
+    if (normalizedTrainerId !== 'oll' && normalizedTrainerId !== 'pll') return [];
+
+    const matchingSolves = (Array.isArray(chunk?.solves) ? chunk.solves : [])
+        .filter((solve) => solve?.trainerCase?.trainerId === normalizedTrainerId);
+    return _sanitizeChunkSolves(matchingSolves, chunk?.sessionId);
+}
+
+export async function getTrainerCaseSolves(trainerId) {
+    const normalizedTrainerId = String(trainerId ?? '').trim().toLowerCase();
+    if (normalizedTrainerId !== 'oll' && normalizedTrainerId !== 'pll') return [];
+
+    const db = await openDB();
+    const tx = db.transaction('solveChunks', 'readonly');
+    const solves = [];
+    const request = tx.objectStore('solveChunks').openCursor();
+
+    await new Promise((resolve, reject) => {
+        request.onsuccess = (event) => {
+            const cursor = event.target.result;
+            if (!cursor) {
+                resolve();
+                return;
+            }
+
+            const chunk = cursor.value;
+            solves.push(...getTrainerCaseSolvesFromChunk(chunk, normalizedTrainerId));
+            cursor.continue();
+        };
+        request.onerror = (event) => reject(event.target.error);
+    });
+
+    await _txComplete(tx);
+    return solves;
+}
+
 export async function getSolveDayEntries() {
     const db = await openDB();
     const tx = db.transaction('solveChunks', 'readonly');

@@ -1,5 +1,7 @@
 import { load, save } from './storage.js?v=2026070902';
 import { createSubsetScramble } from './subset-scramblers.js?v=2026070902';
+import { createPllCaseScramble, PLL_CASE_IDS, sanitizePllCaseSelection } from './pll-cases.js?v=2026070902';
+import { createOllCaseScramble, OLL_CASE_IDS, sanitizeOllCaseSelection } from './oll-cases.js?v=2026070902';
 
 let randomScrambleForEvent;
 let _cubingInitPromise = null;
@@ -10,14 +12,19 @@ let _scrambowInitPromise = null;
 const _queueFillPromises = new Map();
 const _bootstrapQueueFillScheduled = new Set();
 const _queueFillScheduled = new Set();
+let _scrambleRequestRevision = 0;
 
 const LEGACY_SCRAMBLE_QUEUE_STORAGE_KEY = 'scrambleQueue333';
 const SCRAMBLE_QUEUES_STORAGE_KEY = 'scrambleQueues';
 const SCRAMBLE_TYPE_STORAGE_KEY = 'scrambleType';
 const CUBING_WARMUP_STATE_STORAGE_KEY = 'cubingWarmupState';
+const PLL_CASE_SELECTION_STORAGE_KEY = 'pllCaseSelection';
+const OLL_CASE_SELECTION_STORAGE_KEY = 'ollCaseSelection';
 const SCRAMBLE_QUEUE_TARGET = 6;
 const SCRAMBLE_QUEUE_MAX = 12;
 const SUBSET_REDRAW_LIMIT = 24;
+const PLL_CASE_ID_SET = new Set(PLL_CASE_IDS);
+const OLL_CASE_ID_SET = new Set(OLL_CASE_IDS);
 const CUBING_SCRAMBLE_MODULE_SRC = 'https://cdn.cubing.net/v0/js/cubing/scramble';
 const SCRAMBOW_SCRIPT_SRC = 'https://unpkg.com/scrambow@1.8.1/dist/scrambow.js';
 const SUBSET_BOOTSTRAP_QUEUE_FILL_DELAY_MS = 280;
@@ -65,9 +72,9 @@ export const SCRAMBLE_TYPE_OPTIONS = Object.freeze([
     { id: 'sq1', menuLabel: 'Square-1', buttonLabel: 'Sq-1', generator: 'cubing', eventId: 'sq1' },
     { id: 'clock', menuLabel: 'Clock', buttonLabel: 'Clock', generator: 'cubing', eventId: 'clock' },
     { id: 'fto', menuLabel: 'FTO', buttonLabel: 'FTO', generator: 'cubing', eventId: 'fto' },
-    { id: 'll', menuLabel: 'OLL', buttonLabel: 'OLL', generator: 'scrambow' },
+    { id: 'll', menuLabel: 'OLL', buttonLabel: 'OLL', generator: 'trainer' },
     { id: 'cmll', menuLabel: 'CMLL', buttonLabel: 'CMLL', generator: 'scrambow' },
-    { id: 'pll', menuLabel: 'PLL', buttonLabel: 'PLL', generator: 'scrambow' },
+    { id: 'pll', menuLabel: 'PLL', buttonLabel: 'PLL', generator: 'trainer' },
     { id: 'zbll', menuLabel: 'ZBLL', buttonLabel: 'ZBLL', generator: 'scrambow' },
     { id: 'lsll', menuLabel: 'LSLL', buttonLabel: 'LSLL', generator: 'scrambow' },
     { id: '222cll', menuLabel: 'CLL', buttonLabel: 'CLL', generator: 'custom' },
@@ -114,6 +121,9 @@ const _scrambowInstances = new Map();
 const _legacy333ScrambleQueue = sanitizeScrambleQueue(load(LEGACY_SCRAMBLE_QUEUE_STORAGE_KEY, []));
 const _scrambleQueues = sanitizeScrambleQueues(load(SCRAMBLE_QUEUES_STORAGE_KEY, null), _legacy333ScrambleQueue);
 let _scrambleType = sanitizeScrambleType(load(SCRAMBLE_TYPE_STORAGE_KEY, '333'));
+let _pllCaseSelection = sanitizePllCaseSelection(load(PLL_CASE_SELECTION_STORAGE_KEY, PLL_CASE_IDS));
+let _ollCaseSelection = sanitizeOllCaseSelection(load(OLL_CASE_SELECTION_STORAGE_KEY, OLL_CASE_IDS));
+const _caseSelectionRevisions = { ll: 0, pll: 0 };
 
 let _currentScramble = null;
 let _prevScramble = null;
@@ -123,8 +133,8 @@ let _cubingWarmupPromise = null;
 function sanitizeScrambleQueue(value, type = null) {
     if (!Array.isArray(value)) return [];
     return value
-        .filter((entry) => typeof entry === 'string' && entry.trim())
-        .map((entry) => normalizeGeneratedScrambleForType(type, entry))
+        .map((entry) => normalizeGeneratedScrambleEntryForType(type, entry))
+        .filter(Boolean)
         .slice(0, SCRAMBLE_QUEUE_MAX);
 }
 
@@ -154,6 +164,29 @@ function normalizeScrambleText(value) {
         .replace(/[`´‘’′]/g, "'")
         .replace(/\s+/g, ' ')
         .trim();
+}
+
+function normalizeGeneratedScrambleEntryForType(type, value) {
+    const normalizedType = sanitizeScrambleType(type);
+    const rawText = typeof value === 'string' ? value : value?.text;
+    if (typeof rawText !== 'string' || !rawText.trim()) return null;
+
+    const text = normalizeGeneratedScrambleForType(normalizedType, rawText);
+    const rawCaseId = String(value?.caseId ?? '').trim().toLowerCase();
+    const validCaseIds = normalizedType === 'll'
+        ? OLL_CASE_ID_SET
+        : normalizedType === 'pll'
+            ? PLL_CASE_ID_SET
+            : null;
+
+    if (validCaseIds) {
+        return validCaseIds.has(rawCaseId) ? { text, caseId: rawCaseId } : null;
+    }
+    return text;
+}
+
+function getGeneratedScrambleText(value) {
+    return typeof value === 'string' ? value : String(value?.text ?? '');
 }
 
 function invertMoveModifier(modifier = '') {
@@ -488,11 +521,15 @@ async function fillScrambleQueue(type) {
     const existingPromise = _queueFillPromises.get(normalizedType);
     if (existingPromise) return existingPromise;
 
+    const caseSelectionRevision = _caseSelectionRevisions[normalizedType];
     const fillPromise = (async () => {
         try {
             const queue = getScrambleQueue(normalizedType);
             while (queue.length < SCRAMBLE_QUEUE_TARGET) {
-                queue.push(await createScrambleForType(normalizedType));
+                const scramble = await createScrambleForType(normalizedType);
+                if (caseSelectionRevision != null
+                    && caseSelectionRevision !== _caseSelectionRevisions[normalizedType]) return;
+                queue.push(scramble);
                 persistScrambleQueues();
                 if (queue.length < SCRAMBLE_QUEUE_TARGET) {
                     await yieldQueueFillTurn(normalizedType);
@@ -502,6 +539,11 @@ async function fillScrambleQueue(type) {
             console.error(`Failed to prefill ${normalizedType} scramble queue:`, e);
         } finally {
             _queueFillPromises.delete(normalizedType);
+            if (caseSelectionRevision != null
+                && caseSelectionRevision !== _caseSelectionRevisions[normalizedType]
+                && _scrambleType === normalizedType) {
+                scheduleQueueFill(normalizedType);
+            }
         }
     })();
 
@@ -711,8 +753,14 @@ async function createScrambowScrambleBatch(type, count, { signal = null, onProgr
     return scrambles;
 }
 
-async function createScrambleForType(type) {
+async function createScrambleForType(type, { ignoreCaseSelection = false } = {}) {
     const normalizedType = sanitizeScrambleType(type);
+    if (normalizedType === 'll') {
+        return createOllCaseScramble(ignoreCaseSelection ? OLL_CASE_IDS : _ollCaseSelection);
+    }
+    if (normalizedType === 'pll') {
+        return createPllCaseScramble(ignoreCaseSelection ? PLL_CASE_IDS : _pllCaseSelection);
+    }
     const cubingEventId = CUBING_SCRAMBLE_EVENTS.get(normalizedType);
     if (cubingEventId) return createCubingScramble(cubingEventId);
     if (SCRAMBOW_SUPPORTED_TYPES.has(normalizedType)) return createScrambowScramble(normalizedType);
@@ -730,12 +778,16 @@ function resetScrambleHistory() {
     _isViewingPrev = false;
 }
 
-function pushNewScramble(scrambleStr, type = _scrambleType, isManual = false) {
+function pushNewScramble(scrambleValue, type = _scrambleType, isManual = false) {
     const entryType = sanitizeScrambleType(type);
+    const normalizedEntry = isManual
+        ? { text: String(scrambleValue ?? ''), caseId: null }
+        : normalizeGeneratedScrambleEntryForType(entryType, scrambleValue);
 
     _prevScramble = _currentScramble;
     _currentScramble = {
-        text: isManual ? String(scrambleStr ?? '') : normalizeGeneratedScrambleForType(entryType, scrambleStr),
+        text: getGeneratedScrambleText(normalizedEntry),
+        caseId: normalizedEntry && typeof normalizedEntry === 'object' ? normalizedEntry.caseId : null,
         isManual,
         type: entryType,
     };
@@ -754,21 +806,75 @@ export function setScrambleType(type) {
     const nextType = sanitizeScrambleType(type);
     if (nextType === _scrambleType) return false;
 
+    _scrambleRequestRevision += 1;
     _scrambleType = nextType;
     persistScrambleType();
     resetScrambleHistory();
     return true;
 }
 
-export async function getScramble() {
-    const type = _scrambleType;
-    const text = await generateNextScrambleForType(type);
-    pushNewScramble(text, type, false);
-    return text;
+export function getPllCaseSelection() {
+    return [..._pllCaseSelection];
 }
 
-export async function generateScrambleForType(type) {
-    return generateNextScrambleForType(type);
+export function setPllCaseSelection(caseIds) {
+    const nextSelection = sanitizePllCaseSelection(caseIds);
+    if (nextSelection.length === _pllCaseSelection.length
+        && nextSelection.every((caseId, index) => caseId === _pllCaseSelection[index])) {
+        return false;
+    }
+
+    _pllCaseSelection = nextSelection;
+    if (_scrambleType === 'pll') _scrambleRequestRevision += 1;
+    _caseSelectionRevisions.pll += 1;
+    save(PLL_CASE_SELECTION_STORAGE_KEY, _pllCaseSelection);
+    getScrambleQueue('pll').length = 0;
+    persistScrambleQueues();
+    if (_scrambleType === 'pll') scheduleQueueFill('pll');
+    return true;
+}
+
+export function getOllCaseSelection() {
+    return [..._ollCaseSelection];
+}
+
+export function setOllCaseSelection(caseIds) {
+    const nextSelection = sanitizeOllCaseSelection(caseIds);
+    if (nextSelection.length === _ollCaseSelection.length
+        && nextSelection.every((caseId, index) => caseId === _ollCaseSelection[index])) {
+        return false;
+    }
+
+    _ollCaseSelection = nextSelection;
+    if (_scrambleType === 'll') _scrambleRequestRevision += 1;
+    _caseSelectionRevisions.ll += 1;
+    save(OLL_CASE_SELECTION_STORAGE_KEY, _ollCaseSelection);
+    getScrambleQueue('ll').length = 0;
+    persistScrambleQueues();
+    if (_scrambleType === 'll') scheduleQueueFill('ll');
+    return true;
+}
+
+export async function getScramble() {
+    const type = _scrambleType;
+    const requestRevision = ++_scrambleRequestRevision;
+    let scramble;
+    try {
+        scramble = await generateNextScrambleForType(type);
+    } catch (error) {
+        if (requestRevision !== _scrambleRequestRevision || type !== _scrambleType) return null;
+        throw error;
+    }
+    if (requestRevision !== _scrambleRequestRevision || type !== _scrambleType) return null;
+    pushNewScramble(scramble, type, false);
+    return _currentScramble?.text ?? '';
+}
+
+export async function generateScrambleForType(type, { ignoreCaseSelection = false } = {}) {
+    if (ignoreCaseSelection) {
+        return getGeneratedScrambleText(await createScrambleForType(type, { ignoreCaseSelection: true }));
+    }
+    return getGeneratedScrambleText(await generateNextScrambleForType(type));
 }
 
 async function createCubingScrambleBatch(eventId, count, { signal = null, onProgress = null } = {}) {
@@ -849,7 +955,38 @@ async function createCustomSubsetScrambleBatch(type, count, { signal = null, onP
     return scrambles;
 }
 
-export async function generateScrambleBatchForType(type, count, { signal = null, onProgress = null } = {}) {
+async function createCaseTrainerScrambleBatch(type, count, {
+    signal = null,
+    onProgress = null,
+    useCaseSelection = false,
+} = {}) {
+    const scrambles = [];
+    const allowedCaseIds = type === 'll'
+        ? (useCaseSelection ? _ollCaseSelection : OLL_CASE_IDS)
+        : (useCaseSelection ? _pllCaseSelection : PLL_CASE_IDS);
+
+    while (scrambles.length < count) {
+        throwIfBatchGenerationAborted(signal);
+        const batchSize = Math.min(CUSTOM_BATCH_SIZE, count - scrambles.length);
+        for (let index = 0; index < batchSize; index += 1) {
+            scrambles.push(type === 'll'
+                ? createOllCaseScramble(allowedCaseIds).text
+                : createPllCaseScramble(allowedCaseIds).text);
+        }
+
+        throwIfBatchGenerationAborted(signal);
+        reportBatchGenerationProgress(onProgress, scrambles.length, count);
+        if (scrambles.length < count) await yieldBatchGenerationTurn();
+    }
+
+    return scrambles;
+}
+
+export async function generateScrambleBatchForType(type, count, {
+    signal = null,
+    onProgress = null,
+    useCaseSelection = false,
+} = {}) {
     const normalizedType = typeof type === 'string' ? type.trim().toLowerCase() : '';
     const total = Math.max(0, Math.min(999, Number.parseInt(count, 10) || 0));
 
@@ -862,6 +999,10 @@ export async function generateScrambleBatchForType(type, count, { signal = null,
     }
 
     reportBatchGenerationProgress(onProgress, 0, total);
+
+    if (normalizedType === 'll' || normalizedType === 'pll') {
+        return createCaseTrainerScrambleBatch(normalizedType, total, { signal, onProgress, useCaseSelection });
+    }
 
     const cubingEventId = CUBING_SCRAMBLE_EVENTS.get(normalizedType);
     if (cubingEventId) {
@@ -906,6 +1047,7 @@ export function getCurrentScramble() {
 }
 
 export function setCurrentScramble(scrambleStr) {
+    _scrambleRequestRevision += 1;
     const nextText = String(scrambleStr ?? '');
     const active = getActiveScrambleEntry();
     const entryType = active?.type ?? _scrambleType;
@@ -914,11 +1056,20 @@ export function setCurrentScramble(scrambleStr) {
         pushNewScramble(nextText, entryType, true);
     } else if (_currentScramble) {
         _currentScramble.text = nextText;
+        _currentScramble.caseId = null;
         _currentScramble.isManual = true;
         _currentScramble.type = entryType;
     } else {
         pushNewScramble(nextText, entryType, true);
     }
+}
+
+export function getCurrentTrainerCase() {
+    const active = getActiveScrambleEntry();
+    if (!active?.caseId || active.isManual) return null;
+    if (active.type === 'll') return { trainerId: 'oll', caseId: active.caseId };
+    if (active.type === 'pll') return { trainerId: 'pll', caseId: active.caseId };
+    return null;
 }
 
 export function isCurrentScrambleManual() {

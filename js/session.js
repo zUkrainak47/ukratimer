@@ -82,6 +82,9 @@ function cloneSolveForPersistence(solve) {
     return {
         ...solve,
         ...(Array.isArray(solve.phaseSplits) ? { phaseSplits: [...solve.phaseSplits] } : {}),
+        ...(solve.trainerCase && typeof solve.trainerCase === 'object'
+            ? { trainerCase: { ...solve.trainerCase } }
+            : {}),
     };
 }
 
@@ -493,6 +496,11 @@ class SessionManager extends EventEmitter {
         }
     }
 
+    async getTrainerCaseSolvesSnapshot(trainerId) {
+        await this.waitForPendingSolvePersistence();
+        return db.getTrainerCaseSolves(trainerId);
+    }
+
     getSolveMutationGeneration() {
         return this._solveMutationGeneration;
     }
@@ -519,7 +527,11 @@ class SessionManager extends EventEmitter {
 
     // --- Solve CRUD ---
 
-    addSolve(time, scramble, isManual = false, penalty = null, { phaseSplits = null, phaseCount = null } = {}) {
+    addSolve(time, scramble, isManual = false, penalty = null, {
+        phaseSplits = null,
+        phaseCount = null,
+        trainerCase = null,
+    } = {}) {
         const session = this.getActiveSession();
         this._markSolveDataMutation();
         const normalizedPhaseSplits = Array.isArray(phaseSplits)
@@ -540,6 +552,14 @@ class SessionManager extends EventEmitter {
         if (normalizedPhaseSplits.length > 1) {
             solve.phaseSplits = normalizedPhaseSplits;
             solve.phaseCount = normalizePhaseCount(phaseCount, normalizedPhaseSplits.length);
+        }
+        const trainerId = String(trainerCase?.trainerId ?? '').trim().toLowerCase();
+        const caseId = String(trainerCase?.caseId ?? '').trim().toLowerCase();
+        if ((trainerId === 'oll' || trainerId === 'pll') && caseId) {
+            solve.trainerCase = {
+                trainerId,
+                caseId,
+            };
         }
         session.solves.push(solve);
         session.solveCount += 1;

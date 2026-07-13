@@ -1,11 +1,13 @@
 import { timer, State as TimerState } from './timer.js?v=2026070902';
-import { SCRAMBLE_TYPE_OPTIONS, generateScrambleBatchForType, generateScrambleForType, getScramble, getCurrentScramble, getCurrentScrambleType, getPrevScramble, getNextScramble, getSelectedScrambleType, setCurrentScramble, setScrambleType, isCurrentScrambleManual, hasPrevScramble, isViewingPreviousScramble, preloadScrambleEngines, needsCubingWarmup, runCubingWarmup } from './scramble.js?v=2026070902';
+import { SCRAMBLE_TYPE_OPTIONS, generateScrambleBatchForType, generateScrambleForType, getScramble, getCurrentScramble, getCurrentScrambleType, getCurrentTrainerCase, getPrevScramble, getNextScramble, getSelectedScrambleType, setCurrentScramble, setScrambleType, getOllCaseSelection, setOllCaseSelection, getPllCaseSelection, setPllCaseSelection, isCurrentScrambleManual, hasPrevScramble, isViewingPreviousScramble, preloadScrambleEngines, needsCubingWarmup, runCubingWarmup } from './scramble.js?v=2026070902';
+import { PLL_CASES, PLL_CASE_IDS } from './pll-cases.js?v=2026070902';
+import { OLL_CASES, OLL_CASE_IDS } from './oll-cases.js?v=2026070902';
 import { sessionManager } from './session.js?v=2026070902';
 import { settings, DEFAULTS, THEME_OPTIONS, THEME_COLOR_SECTIONS, THEME_DEFAULT_ID, THEME_OLED_ID, THEME_CUSTOM_IDS, SETTING_SCOPE_GLOBAL, SETTING_SCOPE_SESSION, SESSION_SCOPABLE_SETTING_KEYS, AUTO_EXPORT_EVERY_100_SOLVES_NEVER, AUTO_EXPORT_EVERY_100_SOLVES_REMIND, AUTO_EXPORT_EVERY_100_SOLVES_GOOGLE_DRIVE, AUTO_EXPORT_EVERY_100_SOLVES_FILE, composeThemeColor, decomposeThemeColor, getLinkedSessionScopeKeys, getThemePresetColors, isCustomThemeId, isInspectionTimeEnabled, normalizeAutoExportEvery100Solves } from './settings.js?v=2026070902';
 import { buildRollingBestFlags, buildRollingStatValues, getAverageTrimCount, parseGraphStatType, parseRollingStatType, rollingStatAt, StatsCache } from './stats.js?v=2026070902';
 import { formatTime, formatSolveTime, formatSolveTimeWithSplits, formatTimerDisplayTime, getEffectiveTime, getSolvePhaseSplits, normalizePhaseCount, formatDate, formatReadableDate, formatDateTime, parseCustomStatsFilter, parseTimeInputToMs, truncateTimeDisplay } from './utils.js?v=2026070902';
 import { initModal, showSolveDetail, showAverageDetail, showTextDetail, closeModal, closeMoveSessionMenus, customConfirm, customConfirmChoice, customPrompt, getModalSelectionContext, setModalStatNavigator, setModalCloseHandler, setModalStatButtons, armModalGhostClickGuard } from './modal.js?v=2026070902';
-import { applyFtoScramble, applyMegaminxScramble, applyPyraminxScramble, applyScramble, applySquare1Scramble, applySkewbScramble, applyClockScramble, clearCubeDisplay, drawFtoHalfPreview, drawMegaminxFacePreview, drawSquare1, drawClock, initCubeDisplay, updateCubeDisplay, updateFtoDisplay, updateMegaminxDisplay, updatePyraminxDisplay, updateSquare1Display, updateSkewbDisplay, updateClockDisplay } from './cube-display.js?v=2026070902';
+import { applyFtoScramble, applyMegaminxScramble, applyPyraminxScramble, applyScramble, applySquare1Scramble, applySkewbScramble, applyClockScramble, clearCubeDisplay, drawFtoHalfPreview, drawMegaminxFacePreview, drawSquare1, drawClock, initCubeDisplay, updateCubeDisplay, updateLastLayerTopView, updateFtoDisplay, updateMegaminxDisplay, updatePyraminxDisplay, updateSquare1Display, updateSkewbDisplay, updateClockDisplay } from './cube-display.js?v=2026070902';
 import { initGraph, updateGraph, updateGraphData, setLineVisibility, getLineVisibility, applyAction, graphEvents, getGraphLineDefinitions, setGraphViewMode } from './graph.js?v=2026070902';
 import { closeTimeDistributionModal, initTimeDistributionModal, isTimeDistributionModalOpen, refreshTimeDistributionData, refreshTimeDistributionTheme, showTimeDistributionModal } from './distribution.js?v=2026070902';
 import { closeDailyStreakModal, initDailyStreakModal, isDailyStreakModalOpen, refreshDailyStreakModal, showDailyStreakModal } from './daily-streak-modal.js?v=2026070902';
@@ -19,6 +21,7 @@ import { battleManager } from './battle.js?v=2026070902';
 import { CHANGELOG_ENTRIES, LATEST_CHANGELOG_ENTRY_ID } from './changelog.js?v=2026070902';
 
 let currentScramble = '';
+let scrambleUiRequestId = 0;
 let currentSortCol = null;
 let currentSortDir = null; // 'asc' or 'desc'
 let scrambleCopyTimeout = null;
@@ -140,6 +143,7 @@ let scrambleGeneratorOverlayEl = null;
 let scrambleGeneratorAbortController = null;
 let scrambleGeneratorScrambles = [];
 let scrambleGeneratorGeneratedType = '';
+let scrambleGeneratorGeneratedCaseSelectionCount = null;
 let scrambleGeneratorOutputText = '';
 let scrambleGeneratorRequestId = 0;
 let battleDeferredSolveUiPreviousStats = null;
@@ -1296,13 +1300,26 @@ const ALT_SCRAMBLE_TYPE_SHORTCUTS = new Map([
     ['KeyC', 'clock'],
     ['KeyS', 'skewb'],
 ]);
-const blockingOverlayIds = ['modal-overlay', 'session-stats-overlay', 'distribution-overlay', 'daily-streak-overlay', 'scramble-preview-overlay', 'confirm-overlay', 'prompt-overlay', 'shortcuts-overlay', 'chart-image-overlay', 'changelog-overlay', 'theme-customization-overlay', 'battle-overlay', 'graph-overlay', 'battle-create-overlay', 'scramble-generator-overlay'];
+const blockingOverlayIds = ['modal-overlay', 'session-stats-overlay', 'distribution-overlay', 'daily-streak-overlay', 'scramble-preview-overlay', 'confirm-overlay', 'prompt-overlay', 'shortcuts-overlay', 'chart-image-overlay', 'changelog-overlay', 'theme-customization-overlay', 'battle-overlay', 'graph-overlay', 'battle-create-overlay', 'scramble-generator-overlay', 'trainer-cases-overlay'];
 const THEME_OPTION_LABELS = new Map(THEME_OPTIONS.map(({ value, label }) => [value, label]));
 let settingsOverlayEl = null;
 let shortcutsOverlayEl = null;
 let themeCustomizationOverlayEl = null;
 let scramblePreviewOverlayEl = null;
 let changelogOverlayEl = null;
+let trainerCasesOverlayEl = null;
+let trainerStatsDetailLayerEl = null;
+let activeCaseTrainerId = 'oll';
+let trainerCasesReturnFocusEl = null;
+let trainerStatsDetailReturnFocusEl = null;
+let trainerCasesActiveTab = 'cases';
+let trainerStatsScope = 'session';
+let trainerStatsSelectedCaseId = null;
+let trainerStatsRenderRequestId = 0;
+let trainerStatsEntriesContext = null;
+let trainerCasesInitialSelection = [];
+let trainerCasesSelectionInitialized = false;
+let trainerCasesCloseConfirmationPending = false;
 let scramblePreviewModalCanvas = null;
 let scramblePreviewModalSizeFrame = 0;
 let scramblePreviewThemeRefreshTimeout = 0;
@@ -1476,6 +1493,12 @@ function pushHistoryState() {
     activeHistoryInterception = true;
 }
 
+function adoptHistoryInterceptionState() {
+    if (!window.history.state?.isBackIntercepted) return false;
+    activeHistoryInterception = true;
+    return true;
+}
+
 function backToDismiss() {
     if (activeHistoryInterception && window.history.state?.isBackIntercepted) {
         activeHistoryInterception = false;
@@ -1541,6 +1564,17 @@ function handlePopState(event) {
 
     if (isSessionStatsModalOpen()) {
         closeSessionStatsModal({ isPopState: true });
+        return;
+    }
+
+    if (isTrainerStatsDetailModalOpen()) {
+        closeTrainerStatsDetailModal();
+        if (!adoptHistoryInterceptionState()) pushHistoryState();
+        return;
+    }
+
+    if (isTrainerCasesModalOpen()) {
+        void requestCloseTrainerCasesModal({ isPopState: true });
         return;
     }
 
@@ -2318,7 +2352,7 @@ async function flushPendingBattleSolveUpload({ throwOnFailure = false } = {}) {
         let nextBattleScramble;
         if (battleManager.needsPendingSolveNextScramble()) {
             try {
-                nextBattleScramble = await generateScrambleForType(battleManager.getScrambleType());
+                nextBattleScramble = await generateScrambleForType(battleManager.getScrambleType(), { ignoreCaseSelection: true });
             } catch (error) {
                 console.error('Failed to generate next battle scramble:', error);
                 schedulePendingBattleSolveScrambleRetry();
@@ -4184,9 +4218,11 @@ async function commitSolve(elapsed, penalty = null, { isManual = false, phaseSpl
     syncStatsCacheWithFilteredSolves();
     const previousStats = statsCache.getStats();
     _skipSolveAddedRefresh = true;
+    const trainerCase = getCurrentTrainerCase();
     const solve = sessionManager.addSolve(elapsed, currentScramble, isManual, penalty, {
         phaseSplits,
         phaseCount,
+        trainerCase,
     });
     _skipSolveAddedRefresh = false;
     if (!Array.isArray(phaseSplits) || phaseSplits.length < 2) {
@@ -5816,6 +5852,801 @@ function initScramblePreviewModal() {
     syncPreviewButtonFace();
 }
 
+const CASE_TRAINER_CONFIGS = Object.freeze({
+    oll: Object.freeze({
+        label: 'OLL',
+        scrambleType: 'll',
+        greyNonYellow: true,
+        groupByCategory: true,
+        hideCaseNames: true,
+        cases: OLL_CASES,
+        caseIds: OLL_CASE_IDS,
+        getSelection: getOllCaseSelection,
+        setSelection: setOllCaseSelection,
+    }),
+    pll: Object.freeze({
+        label: 'PLL',
+        scrambleType: 'pll',
+        greyNonYellow: false,
+        groupByCategory: false,
+        hideCaseNames: false,
+        cases: PLL_CASES,
+        caseIds: PLL_CASE_IDS,
+        getSelection: getPllCaseSelection,
+        setSelection: setPllCaseSelection,
+    }),
+});
+
+const TRAINER_CASE_GROUP_ORDER = Object.freeze([
+    'P Shapes',
+    'T Shapes',
+    'Line Shapes',
+    'Square Shapes',
+    'Fish Shapes',
+    'C Shapes',
+    'Knight Move Shapes',
+    'W Shapes',
+    'Awkward Shapes',
+    'All Corners Oriented',
+    'L Shapes',
+    'Lightning Shapes',
+    'OCLL',
+    'Dot Cases',
+]);
+
+function getTrainerCaseStatsSummary(entries) {
+    const finiteTimes = entries
+        .map(({ solve }) => getEffectiveTime(solve))
+        .filter(Number.isFinite);
+    const mean = finiteTimes.length > 0
+        ? finiteTimes.reduce((sum, time) => sum + time, 0) / finiteTimes.length
+        : null;
+    const best = finiteTimes.length > 0
+        ? finiteTimes.reduce((currentBest, time) => Math.min(currentBest, time), Infinity)
+        : null;
+    return {
+        attempts: entries.length,
+        mean,
+        best,
+    };
+}
+
+function formatTrainerStatValue(value) {
+    return Number.isFinite(value) ? formatTime(value) : '—';
+}
+
+function renderTrainerStatsGrid(config, entriesByCase = null) {
+    const gridEl = getEl('trainer-stats-grid');
+    if (!gridEl) return;
+
+    const isLoading = !(entriesByCase instanceof Map);
+    const fragment = document.createDocumentFragment();
+    config.cases.forEach((trainerCase) => {
+        const entries = entriesByCase?.get(trainerCase.id) || [];
+        const summary = getTrainerCaseStatsSummary(entries);
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'trainer-stat-card';
+        card.classList.toggle('has-solves', !isLoading && summary.attempts > 0);
+        card.classList.toggle('is-loading', isLoading);
+        card.disabled = isLoading;
+        card.dataset.caseId = trainerCase.id;
+
+        const canvas = document.createElement('canvas');
+        canvas.className = 'trainer-stat-preview';
+        canvas.dataset.caseId = trainerCase.id;
+        canvas.setAttribute('aria-hidden', 'true');
+
+        const info = document.createElement('span');
+        info.className = 'trainer-stat-info';
+
+        const name = document.createElement('span');
+        name.className = 'trainer-stat-name';
+        name.textContent = trainerCase.name;
+
+        const attempts = document.createElement('span');
+        attempts.className = 'trainer-stat-attempts';
+        attempts.textContent = isLoading
+            ? 'Loading…'
+            : `${summary.attempts} solve${summary.attempts === 1 ? '' : 's'}`;
+
+        const mean = document.createElement('span');
+        mean.className = 'trainer-stat-metric';
+        mean.innerHTML = `mean <strong>${isLoading ? '—' : formatTrainerStatValue(summary.mean)}</strong>`;
+
+        const best = document.createElement('span');
+        best.className = 'trainer-stat-metric';
+        best.innerHTML = `best <strong>${isLoading ? '—' : formatTrainerStatValue(summary.best)}</strong>`;
+
+        info.append(name, attempts, mean, best);
+        card.append(canvas, info);
+        fragment.appendChild(card);
+    });
+    gridEl.replaceChildren(fragment);
+    window.requestAnimationFrame(renderTrainerStatsCasePreviews);
+}
+
+function syncTrainerStatsControls() {
+    ['session', 'all'].forEach((scope) => {
+        const button = getEl(`trainer-stats-scope-${scope}`);
+        const active = trainerStatsScope === scope;
+        button?.classList.toggle('active', active);
+        button?.setAttribute('aria-pressed', String(active));
+    });
+}
+
+async function collectTrainerStatsEntries(config, { scope, trainerId, sessionId = null }) {
+    const caseIdSet = new Set(config.caseIds);
+    const entriesByCase = new Map(config.caseIds.map((caseId) => [caseId, []]));
+    const solveEntries = scope === 'all'
+        ? (await sessionManager.getTrainerCaseSolvesSnapshot(trainerId)).map((solve) => ({
+            solve,
+            sessionId: solve.sessionId,
+        }))
+        : ((await sessionManager.ensureSessionSolvesLoaded(sessionId))?.solves || [])
+            .map((solve, solveIndex) => ({
+                solve,
+                solveIndex,
+                sessionId: solve.sessionId,
+            }));
+
+    solveEntries.forEach(({ solve, solveIndex, sessionId }) => {
+        const metadata = solve?.trainerCase;
+        if (metadata?.trainerId !== trainerId) return;
+        const caseId = String(metadata.caseId ?? '').trim().toLowerCase();
+        if (!caseIdSet.has(caseId)) return;
+        entriesByCase.get(caseId).push({
+            solve,
+            solveIndex,
+            sessionId,
+        });
+    });
+
+    return entriesByCase;
+}
+
+function renderTrainerStatsCasePreviews() {
+    const config = getActiveCaseTrainerConfig();
+    const caseById = new Map(config.cases.map((trainerCase) => [trainerCase.id, trainerCase]));
+    document.querySelectorAll('#trainer-stats-grid canvas[data-case-id]').forEach((canvas) => {
+        const trainerCase = caseById.get(canvas.dataset.caseId);
+        if (trainerCase) updateLastLayerTopView(canvas, trainerCase.setup, {
+            greyNonYellow: config.greyNonYellow,
+        });
+    });
+    syncTrainerCasesScrollbarWidth();
+}
+
+function closeTrainerStatsDetailModal({ restoreFocus = true } = {}) {
+    trainerStatsSelectedCaseId = null;
+    trainerCasesOverlayEl?.classList.remove('secondary-active');
+    if (trainerStatsDetailLayerEl) {
+        trainerStatsDetailLayerEl.hidden = true;
+        trainerStatsDetailLayerEl.setAttribute('aria-hidden', 'true');
+    }
+    const returnFocusEl = trainerStatsDetailReturnFocusEl;
+    trainerStatsDetailReturnFocusEl = null;
+    window.requestAnimationFrame(renderTrainerStatsCasePreviews);
+    if (restoreFocus && returnFocusEl?.isConnected) {
+        window.requestAnimationFrame(() => returnFocusEl.focus({ preventScroll: true }));
+    }
+}
+
+function renderTrainerStatsDetail(caseId, entriesByCase, returnFocusEl = null) {
+    const config = getActiveCaseTrainerConfig();
+    const trainerCase = config.cases.find((entry) => entry.id === caseId);
+    if (!trainerCase) {
+        closeTrainerStatsDetailModal();
+        return;
+    }
+
+    trainerStatsSelectedCaseId = caseId;
+    if (returnFocusEl instanceof HTMLElement) trainerStatsDetailReturnFocusEl = returnFocusEl;
+    const entries = [...(entriesByCase.get(caseId) || [])]
+        .sort((left, right) => (right.solve.timestamp || 0) - (left.solve.timestamp || 0));
+    const summary = getTrainerCaseStatsSummary(entries);
+    const titleEl = getEl('trainer-stats-detail-title');
+    const summaryEl = getEl('trainer-stats-detail-summary');
+    const previewEl = getEl('trainer-stats-detail-preview');
+    const timesEl = getEl('trainer-stats-times');
+    if (titleEl) titleEl.textContent = `${trainerCase.name} Stats`;
+    if (summaryEl) {
+        summaryEl.textContent = `${summary.attempts} attempt${summary.attempts === 1 ? '' : 's'} · mean ${formatTrainerStatValue(summary.mean)} · best ${formatTrainerStatValue(summary.best)}`;
+    }
+    trainerCasesOverlayEl?.classList.add('secondary-active');
+    if (trainerStatsDetailLayerEl) {
+        trainerStatsDetailLayerEl.hidden = false;
+        trainerStatsDetailLayerEl.setAttribute('aria-hidden', 'false');
+    }
+    window.requestAnimationFrame(() => {
+        if (previewEl) updateLastLayerTopView(previewEl, trainerCase.setup, {
+            greyNonYellow: config.greyNonYellow,
+        });
+        getEl('trainer-stats-detail-close')?.focus({ preventScroll: true });
+    });
+    if (!timesEl) return;
+
+    if (entries.length === 0) {
+        const emptyEl = document.createElement('p');
+        emptyEl.className = 'trainer-stats-empty';
+        emptyEl.textContent = 'No recorded solves for this case yet.';
+        timesEl.replaceChildren(emptyEl);
+        return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    entries.forEach(({ solve, sessionId }) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'trainer-stat-time';
+        button.dataset.solveId = solve.id;
+        button.dataset.sessionId = sessionId;
+
+        const timeEl = document.createElement('span');
+        timeEl.className = 'trainer-stat-time-value';
+        timeEl.textContent = formatSolveTime(solve);
+
+        button.appendChild(timeEl);
+        fragment.appendChild(button);
+    });
+    timesEl.replaceChildren(fragment);
+}
+
+async function renderTrainerStats() {
+    const config = getActiveCaseTrainerConfig();
+    const trainerId = activeCaseTrainerId;
+    const scope = trainerStatsScope;
+    const sessionId = scope === 'session' ? sessionManager.getActiveSessionId() : null;
+    const gridEl = getEl('trainer-stats-grid');
+    const statusEl = getEl('trainer-stats-status');
+    if (!gridEl) return;
+
+    const requestId = ++trainerStatsRenderRequestId;
+    trainerStatsEntriesContext = null;
+    gridEl.setAttribute('aria-busy', 'true');
+    renderTrainerStatsGrid(config);
+    syncTrainerStatsControls();
+    if (statusEl) statusEl.textContent = scope === 'all' ? 'Loading all sessions…' : 'Loading session…';
+
+    let entriesByCase;
+    try {
+        entriesByCase = await collectTrainerStatsEntries(config, { scope, trainerId, sessionId });
+    } catch (error) {
+        if (requestId === trainerStatsRenderRequestId
+            && activeCaseTrainerId === trainerId
+            && trainerStatsScope === scope) {
+            if (scope === 'session' && sessionManager.getActiveSessionId() !== sessionId) {
+                void renderTrainerStats();
+                return;
+            }
+            gridEl.setAttribute('aria-busy', 'false');
+            if (statusEl) statusEl.textContent = 'Could not load trainer stats.';
+        }
+        console.error('Failed to load trainer stats:', error);
+        return;
+    }
+    if (requestId !== trainerStatsRenderRequestId
+        || activeCaseTrainerId !== trainerId
+        || trainerStatsScope !== scope) return;
+    if (scope === 'session' && sessionManager.getActiveSessionId() !== sessionId) {
+        void renderTrainerStats();
+        return;
+    }
+
+    trainerStatsEntriesContext = { trainerId, scope, sessionId, entriesByCase };
+    gridEl.setAttribute('aria-busy', 'false');
+
+    const totalAttempts = Array.from(entriesByCase.values()).reduce((sum, entries) => sum + entries.length, 0);
+    if (statusEl) {
+        statusEl.textContent = `${totalAttempts} included solve${totalAttempts === 1 ? '' : 's'}.`;
+    }
+
+    renderTrainerStatsGrid(config, entriesByCase);
+
+    if (trainerStatsSelectedCaseId) {
+        const selectedCard = gridEl.querySelector(`.trainer-stat-card[data-case-id="${trainerStatsSelectedCaseId}"]`);
+        renderTrainerStatsDetail(trainerStatsSelectedCaseId, entriesByCase, selectedCard);
+    } else {
+        closeTrainerStatsDetailModal({ restoreFocus: false });
+    }
+}
+
+function setTrainerCasesActiveTab(tabId) {
+    trainerCasesActiveTab = tabId === 'stats' ? 'stats' : 'cases';
+    ['cases', 'stats'].forEach((tab) => {
+        const active = tab === trainerCasesActiveTab;
+        const button = getEl(`trainer-cases-tab-${tab}`);
+        const panel = getEl(`trainer-cases-panel-${tab}`);
+        button?.classList.toggle('active', active);
+        button?.setAttribute('aria-selected', String(active));
+        if (button) button.tabIndex = active ? 0 : -1;
+        panel?.classList.toggle('active', active);
+        if (panel) panel.hidden = !active;
+    });
+
+    const config = getActiveCaseTrainerConfig();
+    const summaryEl = getEl('trainer-cases-summary');
+    if (summaryEl) {
+        summaryEl.textContent = trainerCasesActiveTab === 'stats'
+            ? `Review performance for each ${config.label} case.`
+            : `Choose the cases that can appear when ${config.label} is selected.`;
+    }
+
+    if (trainerCasesActiveTab === 'stats') {
+        void renderTrainerStats();
+    } else {
+        trainerStatsRenderRequestId += 1;
+        trainerStatsEntriesContext = null;
+        getEl('trainer-stats-grid')?.setAttribute('aria-busy', 'false');
+        if (!trainerCasesSelectionInitialized) {
+            renderTrainerCaseGrid();
+        }
+        window.requestAnimationFrame(() => {
+            syncTrainerCasesScrollbarWidth();
+            renderTrainerCasePreviews();
+        });
+    }
+}
+
+function getActiveCaseTrainerConfig() {
+    return CASE_TRAINER_CONFIGS[activeCaseTrainerId] || CASE_TRAINER_CONFIGS.oll;
+}
+
+function isTrainerCasesModalOpen() {
+    return trainerCasesOverlayEl?.classList.contains('active') === true;
+}
+
+function isTrainerStatsDetailModalOpen() {
+    return isTrainerCasesModalOpen()
+        && trainerStatsDetailLayerEl != null
+        && !trainerStatsDetailLayerEl.hidden;
+}
+
+function getTrainerCasesModalDraftSelection() {
+    return Array.from(document.querySelectorAll('#trainer-cases-grid input[data-case-id]:checked'))
+        .map((input) => input.dataset.caseId)
+        .filter(Boolean);
+}
+
+function isTrainerCasesSelectionDirty() {
+    if (!trainerCasesSelectionInitialized) return false;
+    const initialSelection = new Set(trainerCasesInitialSelection);
+    const draftSelection = getTrainerCasesModalDraftSelection();
+    return draftSelection.length !== initialSelection.size
+        || draftSelection.some((caseId) => !initialSelection.has(caseId));
+}
+
+function syncTrainerCaseGroupToggles() {
+    document.querySelectorAll('#trainer-cases-grid .trainer-case-group').forEach((groupEl) => {
+        const inputs = Array.from(groupEl.querySelectorAll('input[data-case-id]'));
+        const selectedCount = inputs.filter((input) => input.checked).length;
+        const allSelected = inputs.length > 0 && selectedCount === inputs.length;
+        const noneSelected = selectedCount === 0;
+        const toggleEl = groupEl.querySelector('.trainer-case-group-toggle');
+
+        groupEl.classList.toggle('is-all-selected', allSelected);
+        groupEl.classList.toggle('is-none-selected', noneSelected);
+        groupEl.classList.toggle('is-partially-selected', !allSelected && !noneSelected);
+        if (toggleEl) {
+            toggleEl.setAttribute('aria-pressed', allSelected ? 'true' : (noneSelected ? 'false' : 'mixed'));
+            toggleEl.setAttribute('aria-label', `${allSelected ? 'Disable' : 'Enable'} all ${groupEl.dataset.groupName} cases`);
+        }
+    });
+}
+
+function syncTrainerCasesModalCount(selectedCount = getTrainerCasesModalDraftSelection().length) {
+    const config = getActiveCaseTrainerConfig();
+    const countEl = getEl('trainer-cases-count');
+    const saveButton = getEl('trainer-cases-save');
+
+    if (countEl) countEl.textContent = `${selectedCount} of ${config.cases.length} selected`;
+    if (saveButton) {
+        saveButton.disabled = selectedCount === 0;
+        saveButton.textContent = getSelectedScrambleType() === config.scrambleType
+            ? 'Save cases'
+            : `Save & switch to ${config.label}`;
+    }
+    syncTrainerCaseGroupToggles();
+}
+
+function syncTrainerCasesModalSelection(selectedIds = getActiveCaseTrainerConfig().getSelection()) {
+    const selectedSet = new Set(selectedIds);
+    document.querySelectorAll('#trainer-cases-grid input[data-case-id]').forEach((input) => {
+        input.checked = selectedSet.has(input.dataset.caseId);
+    });
+    syncTrainerCasesModalCount();
+}
+
+function renderTrainerCaseGrid() {
+    const config = getActiveCaseTrainerConfig();
+    const gridEl = getEl('trainer-cases-grid');
+    if (!gridEl) return;
+
+    const createCaseOption = (trainerCase) => {
+        const optionEl = document.createElement('label');
+        optionEl.className = 'trainer-case-option';
+        if (config.hideCaseNames) optionEl.classList.add('trainer-case-option-preview-only');
+        optionEl.title = config.hideCaseNames ? trainerCase.name : (trainerCase.category || trainerCase.name);
+
+        const inputEl = document.createElement('input');
+        inputEl.type = 'checkbox';
+        inputEl.className = 'trainer-case-input';
+        inputEl.dataset.caseId = trainerCase.id;
+        inputEl.setAttribute('aria-label', trainerCase.name);
+
+        const canvasEl = document.createElement('canvas');
+        canvasEl.className = 'trainer-case-preview';
+        canvasEl.dataset.caseId = trainerCase.id;
+        canvasEl.setAttribute('aria-hidden', 'true');
+
+        optionEl.append(inputEl, canvasEl);
+        if (!config.hideCaseNames) {
+            const nameEl = document.createElement('span');
+            nameEl.className = 'trainer-case-name';
+            nameEl.textContent = trainerCase.name;
+            optionEl.appendChild(nameEl);
+        }
+        return optionEl;
+    };
+
+    const fragment = document.createDocumentFragment();
+    gridEl.classList.toggle('is-grouped', config.groupByCategory);
+    if (config.groupByCategory) {
+        const groupedCases = new Map();
+        config.cases.forEach((trainerCase) => {
+            const groupName = trainerCase.category || 'Other';
+            if (!groupedCases.has(groupName)) groupedCases.set(groupName, []);
+            groupedCases.get(groupName).push(trainerCase);
+        });
+
+        Array.from(groupedCases.entries())
+            .sort(([firstGroupName], [secondGroupName]) => {
+                const firstIndex = TRAINER_CASE_GROUP_ORDER.indexOf(firstGroupName);
+                const secondIndex = TRAINER_CASE_GROUP_ORDER.indexOf(secondGroupName);
+                const fallbackIndex = TRAINER_CASE_GROUP_ORDER.length;
+                return (firstIndex === -1 ? fallbackIndex : firstIndex)
+                    - (secondIndex === -1 ? fallbackIndex : secondIndex);
+            })
+            .forEach(([groupName, trainerCases]) => {
+                const groupEl = document.createElement('section');
+                groupEl.className = 'trainer-case-group';
+                groupEl.dataset.groupName = groupName;
+                groupEl.style.setProperty('--trainer-case-group-columns', Math.min(trainerCases.length, 6));
+
+                const toggleEl = document.createElement('button');
+                toggleEl.type = 'button';
+                toggleEl.className = 'trainer-case-group-toggle';
+
+                const titleEl = document.createElement('span');
+                titleEl.className = 'trainer-case-group-title';
+                titleEl.textContent = groupName;
+                toggleEl.appendChild(titleEl);
+
+                const groupGridEl = document.createElement('div');
+                groupGridEl.className = 'trainer-case-group-grid';
+                trainerCases.forEach((trainerCase) => groupGridEl.appendChild(createCaseOption(trainerCase)));
+                groupEl.append(toggleEl, groupGridEl);
+                fragment.appendChild(groupEl);
+            });
+    } else {
+        config.cases.forEach((trainerCase) => fragment.appendChild(createCaseOption(trainerCase)));
+    }
+    gridEl.replaceChildren(fragment);
+    trainerCasesSelectionInitialized = true;
+    syncTrainerCasesModalSelection();
+}
+
+function renderTrainerCasePreviews() {
+    const config = getActiveCaseTrainerConfig();
+    const caseById = new Map(config.cases.map((trainerCase) => [trainerCase.id, trainerCase]));
+    document.querySelectorAll('#trainer-cases-grid canvas[data-case-id]').forEach((canvas) => {
+        const trainerCase = caseById.get(canvas.dataset.caseId);
+        if (trainerCase) updateLastLayerTopView(canvas, trainerCase.setup, {
+            greyNonYellow: config.greyNonYellow,
+        });
+    });
+}
+
+function syncTrainerCasesScrollbarWidth() {
+    [getEl('trainer-cases-grid'), getEl('trainer-stats-overview')].filter(Boolean).forEach((scrollEl) => {
+        const scrollbarWidth = Math.max(0, scrollEl.offsetWidth - scrollEl.clientWidth);
+        scrollEl.style.setProperty('--trainer-cases-scrollbar-width', `${scrollbarWidth}px`);
+    });
+}
+
+function openTrainerCasesModal(trainerId, returnFocusEl = null, {
+    initialTab = 'cases',
+    preserveHistoryState = false,
+} = {}) {
+    if (!trainerCasesOverlayEl || !CASE_TRAINER_CONFIGS[trainerId]) return;
+    if (!isTrainerCasesModalOpen()) {
+        if (!preserveHistoryState || !adoptHistoryInterceptionState()) pushHistoryState();
+    }
+    activeCaseTrainerId = trainerId;
+    trainerCasesReturnFocusEl = returnFocusEl instanceof HTMLElement ? returnFocusEl : null;
+    const config = getActiveCaseTrainerConfig();
+    trainerCasesInitialSelection = [...config.getSelection()];
+    trainerCasesSelectionInitialized = false;
+    getEl('trainer-cases-grid')?.replaceChildren();
+    syncTrainerCasesModalCount(trainerCasesInitialSelection.length);
+    trainerCasesActiveTab = initialTab === 'stats' ? 'stats' : 'cases';
+    trainerStatsSelectedCaseId = null;
+    trainerStatsEntriesContext = null;
+    closeTrainerStatsDetailModal({ restoreFocus: false });
+    trainerStatsRenderRequestId += 1;
+    getEl('trainer-cases-title').textContent = `${config.label} Trainer`;
+    setTrainerCasesActiveTab(trainerCasesActiveTab);
+    trainerCasesOverlayEl.classList.add('active');
+    trainerCasesOverlayEl.setAttribute('aria-hidden', 'false');
+    window.requestAnimationFrame(() => {
+        if (!isTrainerCasesModalOpen()) return;
+        syncTrainerCasesScrollbarWidth();
+        getEl('trainer-cases-close')?.focus({ preventScroll: true });
+    });
+}
+
+function closeTrainerCasesModal({ isPopState = false, preserveHistoryState = false } = {}) {
+    if (!isTrainerCasesModalOpen()) return;
+    if (!isPopState && !preserveHistoryState) backToDismiss();
+    closeTrainerStatsDetailModal({ restoreFocus: false });
+    trainerStatsRenderRequestId += 1;
+    trainerStatsEntriesContext = null;
+    getEl('trainer-stats-grid')?.setAttribute('aria-busy', 'false');
+    const returnFocusEl = trainerCasesReturnFocusEl;
+    trainerCasesReturnFocusEl = null;
+    trainerCasesOverlayEl.classList.remove('active');
+    trainerCasesOverlayEl.setAttribute('aria-hidden', 'true');
+    window.requestAnimationFrame(() => {
+        if (!isTrainerCasesModalOpen() && returnFocusEl?.isConnected) {
+            returnFocusEl.focus({ preventScroll: true });
+        }
+    });
+}
+
+async function confirmTrainerCasesModalClose() {
+    if (!isTrainerCasesSelectionDirty()) return true;
+    if (trainerCasesCloseConfirmationPending) return false;
+
+    trainerCasesCloseConfirmationPending = true;
+    const returnFocusEl = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    try {
+        const shouldDiscard = await customConfirmChoice('Discard unsaved case selection changes?', {
+            cancelLabel: 'Keep editing',
+            okLabel: 'Discard changes',
+            okValue: true,
+            okClassName: 'btn-danger',
+            defaultAction: 'cancel',
+        });
+        if (shouldDiscard === true) return true;
+        if (returnFocusEl?.isConnected) {
+            window.requestAnimationFrame(() => returnFocusEl.focus({ preventScroll: true }));
+        }
+        return false;
+    } finally {
+        trainerCasesCloseConfirmationPending = false;
+    }
+}
+
+async function requestCloseTrainerCasesModal({ isPopState = false } = {}) {
+    if (!(await confirmTrainerCasesModalClose())) {
+        if (!adoptHistoryInterceptionState()) pushHistoryState();
+        return false;
+    }
+
+    // A dirty modal's confirmation creates a replacement marker after Back
+    // consumes the original. Adopt and dismiss it just like an explicit close.
+    if (isPopState && adoptHistoryInterceptionState()) {
+        closeTrainerCasesModal();
+        return true;
+    }
+
+    closeTrainerCasesModal({ isPopState });
+    return true;
+}
+
+function initTrainerCasesModal() {
+    trainerCasesOverlayEl = getEl('trainer-cases-overlay');
+    trainerStatsDetailLayerEl = getEl('trainer-stats-detail-layer');
+    const gridEl = getEl('trainer-cases-grid');
+    const trainerStatsButton = getEl('btn-trainer-stats');
+    if (!trainerCasesOverlayEl || !gridEl) return;
+
+    window.addEventListener('resize', syncTrainerCasesScrollbarWidth);
+    trainerStatsButton?.addEventListener('click', () => {
+        const trainerId = trainerStatsButton.dataset.trainerId;
+        if (!trainerId || !CASE_TRAINER_CONFIGS[trainerId]) return;
+        closeScrambleTypeMenus();
+        hideShortcutTooltip();
+        openTrainerCasesModal(trainerId, trainerStatsButton, { initialTab: 'stats' });
+    });
+    gridEl.addEventListener('change', () => syncTrainerCasesModalCount());
+    gridEl.addEventListener('click', (event) => {
+        const toggleEl = event.target.closest('.trainer-case-group-toggle');
+        if (!toggleEl || !gridEl.contains(toggleEl)) return;
+        const groupEl = toggleEl.closest('.trainer-case-group');
+        const inputs = Array.from(groupEl?.querySelectorAll('input[data-case-id]') || []);
+        const shouldSelect = !inputs.every((input) => input.checked);
+        inputs.forEach((input) => { input.checked = shouldSelect; });
+        syncTrainerCasesModalCount();
+    });
+    getEl('trainer-cases-select-all')?.addEventListener('click', () => {
+        syncTrainerCasesModalSelection(getActiveCaseTrainerConfig().caseIds);
+    });
+    getEl('trainer-cases-select-none')?.addEventListener('click', () => syncTrainerCasesModalSelection([]));
+    getEl('trainer-cases-invert')?.addEventListener('click', () => {
+        const currentSelection = new Set(getTrainerCasesModalDraftSelection());
+        syncTrainerCasesModalSelection(
+            getActiveCaseTrainerConfig().caseIds.filter((caseId) => !currentSelection.has(caseId)),
+        );
+    });
+    getEl('trainer-cases-close')?.addEventListener('click', () => void requestCloseTrainerCasesModal());
+    getEl('trainer-cases-cancel')?.addEventListener('click', () => void requestCloseTrainerCasesModal());
+    getEl('trainer-cases-tab-cases')?.addEventListener('click', () => setTrainerCasesActiveTab('cases'));
+    getEl('trainer-cases-tab-stats')?.addEventListener('click', () => setTrainerCasesActiveTab('stats'));
+    getEl('trainer-cases-overlay')?.querySelector('.trainer-cases-tabs')?.addEventListener('keydown', (event) => {
+        const tabs = ['cases', 'stats'];
+        const currentIndex = tabs.indexOf(trainerCasesActiveTab);
+        let nextIndex = currentIndex;
+
+        if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+        else if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % tabs.length;
+        else if (event.key === 'Home') nextIndex = 0;
+        else if (event.key === 'End') nextIndex = tabs.length - 1;
+        else return;
+
+        event.preventDefault();
+        const nextTab = tabs[nextIndex];
+        setTrainerCasesActiveTab(nextTab);
+        getEl(`trainer-cases-tab-${nextTab}`)?.focus({ preventScroll: true });
+    });
+    getEl('trainer-stats-scope-session')?.addEventListener('click', () => {
+        if (trainerStatsScope === 'session') return;
+        trainerStatsScope = 'session';
+        trainerStatsSelectedCaseId = null;
+        void renderTrainerStats();
+    });
+    getEl('trainer-stats-scope-all')?.addEventListener('click', () => {
+        if (trainerStatsScope === 'all') return;
+        trainerStatsScope = 'all';
+        trainerStatsSelectedCaseId = null;
+        void renderTrainerStats();
+    });
+    getEl('trainer-stats-grid')?.addEventListener('click', (event) => {
+        const card = event.target.closest('.trainer-stat-card[data-case-id]');
+        if (!card) return;
+        const caseId = card.dataset.caseId;
+        const context = trainerStatsEntriesContext;
+        if (!context
+            || context.trainerId !== activeCaseTrainerId
+            || context.scope !== trainerStatsScope
+            || (context.scope === 'session' && context.sessionId !== sessionManager.getActiveSessionId())
+            || !isTrainerCasesModalOpen()
+            || trainerCasesActiveTab !== 'stats') return;
+        renderTrainerStatsDetail(caseId, context.entriesByCase, card);
+    });
+    getEl('trainer-stats-detail-close')?.addEventListener('click', closeTrainerStatsDetailModal);
+    getEl('trainer-stats-times')?.addEventListener('click', async (event) => {
+        const button = event.target.closest('.trainer-stat-time[data-solve-id]');
+        if (!button) return;
+        const trainerId = activeCaseTrainerId;
+        const caseId = trainerStatsSelectedCaseId;
+        const session = await sessionManager.ensureSessionSolvesLoaded(button.dataset.sessionId);
+        if (!isTrainerCasesModalOpen() || activeCaseTrainerId !== trainerId || trainerStatsSelectedCaseId !== caseId) return;
+        const solveIndex = session?.solves?.findIndex((solve) => solve.id === button.dataset.solveId) ?? -1;
+        const solve = solveIndex >= 0 ? session.solves[solveIndex] : null;
+        if (!solve) return;
+        const config = getActiveCaseTrainerConfig();
+        const trainerCase = config.cases.find((entry) => entry.id === trainerStatsSelectedCaseId);
+        const returnContext = {
+            trainerId: activeCaseTrainerId,
+            caseId: trainerStatsSelectedCaseId,
+            scope: trainerStatsScope,
+            returnFocusEl: trainerCasesReturnFocusEl,
+        };
+        if (!(await confirmTrainerCasesModalClose())) return;
+        trainerCasesReturnFocusEl = null;
+        closeTrainerCasesModal({ preserveHistoryState: true });
+        setModalCloseHandler(() => {
+            trainerStatsScope = returnContext.scope;
+            openTrainerCasesModal(returnContext.trainerId, returnContext.returnFocusEl, {
+                preserveHistoryState: true,
+            });
+            trainerStatsSelectedCaseId = returnContext.caseId;
+            setTrainerCasesActiveTab('stats');
+        });
+        showSolveDetail(solve, solveIndex, null, {
+            enableStatNavigation: false,
+            detailLabel: trainerCase?.name || config.label,
+        });
+    });
+    getEl('trainer-cases-save')?.addEventListener('click', async () => {
+        const config = getActiveCaseTrainerConfig();
+        const selection = getTrainerCasesModalDraftSelection();
+        if (selection.length === 0) return;
+        config.setSelection(selection);
+        await applyActiveSessionScrambleType(config.scrambleType, {
+            loadScramble: false,
+            allowWhileLoading: true,
+        });
+        closeTrainerCasesModal();
+
+        if (getSelectedScrambleType() === config.scrambleType && !battleManager.isJoined()) {
+            await reloadScrambleForSelectedType();
+        }
+    });
+
+    let trainerCasesMouseDownTarget = null;
+    let trainerCasesMouseUpTarget = null;
+    trainerCasesOverlayEl.addEventListener('mousedown', (event) => {
+        trainerCasesMouseDownTarget = event.target;
+    });
+    trainerCasesOverlayEl.addEventListener('mouseup', (event) => {
+        trainerCasesMouseUpTarget = event.target;
+    });
+    trainerCasesOverlayEl.addEventListener('click', () => {
+        if (trainerCasesMouseDownTarget === trainerCasesOverlayEl
+            && trainerCasesMouseUpTarget === trainerCasesOverlayEl) {
+            void requestCloseTrainerCasesModal();
+        }
+        trainerCasesMouseDownTarget = null;
+        trainerCasesMouseUpTarget = null;
+    });
+    let trainerStatsDetailMouseDownTarget = null;
+    let trainerStatsDetailMouseUpTarget = null;
+    trainerStatsDetailLayerEl?.addEventListener('mousedown', (event) => {
+        trainerStatsDetailMouseDownTarget = event.target;
+    });
+    trainerStatsDetailLayerEl?.addEventListener('mouseup', (event) => {
+        trainerStatsDetailMouseUpTarget = event.target;
+    });
+    trainerStatsDetailLayerEl?.addEventListener('click', () => {
+        if (trainerStatsDetailMouseDownTarget === trainerStatsDetailLayerEl
+            && trainerStatsDetailMouseUpTarget === trainerStatsDetailLayerEl) {
+            closeTrainerStatsDetailModal();
+        }
+        trainerStatsDetailMouseDownTarget = null;
+        trainerStatsDetailMouseUpTarget = null;
+    });
+    document.addEventListener('keydown', (event) => {
+        if (!isTrainerCasesModalOpen()) return;
+        if (event.code === 'Escape') {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            if (trainerStatsDetailLayerEl && !trainerStatsDetailLayerEl.hidden) {
+                closeTrainerStatsDetailModal();
+            } else {
+                void requestCloseTrainerCasesModal();
+            }
+            return;
+        }
+        if (event.key !== 'Tab') return;
+
+        const focusRoot = trainerStatsDetailLayerEl && !trainerStatsDetailLayerEl.hidden
+            ? trainerStatsDetailLayerEl
+            : trainerCasesOverlayEl;
+        const focusableEls = Array.from(focusRoot.querySelectorAll(
+            'button:not(:disabled), input:not(:disabled), [href], [tabindex]:not([tabindex="-1"])',
+        )).filter((element) => element instanceof HTMLElement);
+        if (focusableEls.length === 0) {
+            event.preventDefault();
+            return;
+        }
+
+        const firstEl = focusableEls[0];
+        const lastEl = focusableEls[focusableEls.length - 1];
+        if (!focusRoot.contains(document.activeElement)) {
+            event.preventDefault();
+            firstEl.focus();
+        } else if (event.shiftKey && document.activeElement === firstEl) {
+            event.preventDefault();
+            lastEl.focus();
+        } else if (!event.shiftKey && document.activeElement === lastEl) {
+            event.preventDefault();
+            firstEl.focus();
+        }
+    });
+}
+
 // ──── Bootstrap ────
 let storageUpgradeBlockedAlertShown = false;
 
@@ -5834,6 +6665,7 @@ async function init() {
     const sessionInitPromise = sessionManager.init();
     initCubeDisplay(document.getElementById('cube-canvas'));
     initScramblePreviewModal();
+    initTrainerCasesModal();
     populateScrambleTypeMenus();
     void preloadScrambleEngines();
     await sessionInitPromise;
@@ -6828,6 +7660,8 @@ function renderScrambleSubsetOptions(menuEl, puzzleId = '') {
     const fragment = document.createDocumentFragment();
 
     subsetOptions.forEach((option) => {
+        const trainerEntry = Object.entries(CASE_TRAINER_CONFIGS)
+            .find(([, config]) => config.scrambleType === option.id) || null;
         const optionButton = document.createElement('button');
         optionButton.type = 'button';
         optionButton.className = 'scramble-type-option scramble-type-subset-option';
@@ -6836,6 +7670,39 @@ function renderScrambleSubsetOptions(menuEl, puzzleId = '') {
         optionButton.setAttribute('role', 'menuitemradio');
         optionButton.setAttribute('aria-checked', 'false');
         optionButton.textContent = option.menuLabel;
+
+        if (puzzleId === '333' && trainerEntry) {
+            const [trainerId, config] = trainerEntry;
+            const rowEl = document.createElement('div');
+            rowEl.className = 'scramble-type-option-row';
+            rowEl.setAttribute('role', 'none');
+
+            const configureButton = document.createElement('button');
+            configureButton.type = 'button';
+            configureButton.className = 'scramble-type-option scramble-case-configure-option scramble-case-count-option';
+            configureButton.dataset.configureCases = trainerId;
+            configureButton.setAttribute('role', 'menuitem');
+            const selectedCount = config.getSelection().length;
+            configureButton.setAttribute(
+                'aria-label',
+                `Edit ${config.label} cases, ${selectedCount} of ${config.cases.length} selected`,
+            );
+            configureButton.title = `Edit ${config.label} cases`;
+
+            const countEl = document.createElement('span');
+            countEl.textContent = `${selectedCount}/${config.cases.length}`;
+
+            const indicatorEl = document.createElement('span');
+            indicatorEl.className = 'scramble-case-count-indicator';
+            indicatorEl.setAttribute('aria-hidden', 'true');
+            indicatorEl.textContent = '›';
+
+            configureButton.append(countEl, indicatorEl);
+            rowEl.append(optionButton, configureButton);
+            fragment.appendChild(rowEl);
+            return;
+        }
+
         fragment.appendChild(optionButton);
     });
 
@@ -6969,6 +7836,19 @@ function positionScrambleTypeMenu(menuEl, { ensureActiveVisible = false } = {}) 
         dropdownEl.style.setProperty('--scramble-type-dropdown-max-height', `${maxHeight}px`);
     } else {
         dropdownEl.style.removeProperty('--scramble-type-dropdown-max-height');
+    }
+
+    if (menuEl.id === 'scramble-type-menu-mobile') {
+        dropdownEl.style.setProperty('--scramble-type-mobile-offset-x', '0px');
+        const zenButtonEl = getEl('btn-zen');
+        const zenButtonRect = zenButtonEl?.getBoundingClientRect();
+        if (zenButtonRect?.width > 0) {
+            const unclampedDropdownRect = dropdownEl.getBoundingClientRect();
+            const offsetX = Math.min(0, Math.floor(zenButtonRect.right - unclampedDropdownRect.right));
+            dropdownEl.style.setProperty('--scramble-type-mobile-offset-x', `${offsetX}px`);
+        }
+    } else {
+        dropdownEl.style.removeProperty('--scramble-type-mobile-offset-x');
     }
 
     const activeOptionEl = panels.mainPanel.querySelector('.scramble-type-puzzle-option.active');
@@ -7160,6 +8040,25 @@ function syncScrambleTypeMenus(type = getSelectedScrambleType()) {
     const battleCreateScrambleTypeSelect = getEl('battle-create-scramble-type');
     const buttonLabel = getScrambleTypeButtonLabel(activeType);
     const buttonDescription = getScrambleTypeButtonDescription(activeType);
+    const trainerEntry = Object.entries(CASE_TRAINER_CONFIGS)
+        .find(([, config]) => config.scrambleType === activeType) || null;
+    const trainerStatsButton = getEl('btn-trainer-stats');
+    const sessionInfo = getEl('session-info');
+
+    if (trainerStatsButton) {
+        const isVisible = Boolean(trainerEntry) && !battleManager.isJoined() && !isBattleEnvironmentActive;
+        trainerStatsButton.hidden = !isVisible;
+        sessionInfo?.classList.toggle('trainer-stats-available', isVisible);
+        if (trainerEntry) {
+            const [trainerId, config] = trainerEntry;
+            trainerStatsButton.dataset.trainerId = trainerId;
+            trainerStatsButton.setAttribute('aria-label', `Open ${config.label} trainer stats`);
+            const labelEl = trainerStatsButton.querySelector('.trainer-stats-launch-label');
+            if (labelEl) labelEl.textContent = `${config.label} stats`;
+        } else {
+            delete trainerStatsButton.dataset.trainerId;
+        }
+    }
 
     document.querySelectorAll('.scramble-type-menu').forEach((menuEl) => {
         const visibleSubsetPuzzleId = menuEl.dataset.subsetPuzzleId || '';
@@ -7210,8 +8109,11 @@ async function reloadScrambleForSelectedType() {
     await loadNewScramble();
 }
 
-async function applyActiveSessionScrambleType(nextType, { loadScramble = true } = {}) {
-    if (document.getElementById('scramble-text')?.classList.contains('loading')) return false;
+async function applyActiveSessionScrambleType(nextType, {
+    loadScramble = true,
+    allowWhileLoading = false,
+} = {}) {
+    if (!allowWhileLoading && document.getElementById('scramble-text')?.classList.contains('loading')) return false;
     if (battleManager.isJoined()) return false;
 
     const activeSessionId = sessionManager.getActiveSessionId();
@@ -7243,6 +8145,7 @@ async function syncScrambleTypeWithActiveSession({ loadScramble = false } = {}) 
 
 async function loadNewScramble() {
     const el = document.getElementById('scramble-text');
+    const requestId = ++scrambleUiRequestId;
     if (battleManager.isJoined()) {
         if (battleManager.hasPendingSolveUpload()) {
             renderMutedScrambleMessage('Uploading battle solve');
@@ -7264,15 +8167,19 @@ async function loadNewScramble() {
     }
 
     let loadingTimer = window.setTimeout(() => {
+        if (requestId !== scrambleUiRequestId) return;
         clearStructuredScrambleLayout(el);
         el.textContent = 'Generating...';
         el.classList.add('loading');
     }, 120);
 
     try {
-        currentScramble = await getScramble();
-        updateScrambleUI(currentScramble);
+        const nextScramble = await getScramble();
+        if (requestId !== scrambleUiRequestId || nextScramble == null) return '';
+        currentScramble = nextScramble;
+        updateScrambleUI(nextScramble);
     } catch (error) {
+        if (requestId !== scrambleUiRequestId) return '';
         console.error('Failed to load scramble:', error);
         clearStructuredScrambleLayout(el);
         el.textContent = 'Scrambler unavailable';
@@ -7435,8 +8342,10 @@ async function loadNextScramble({ preserveManualTimeFocus = false } = {}) {
     }
 
     closeScrambleTypeMenus();
+    const requestId = ++scrambleUiRequestId;
 
     const loadingTimer = window.setTimeout(() => {
+        if (requestId !== scrambleUiRequestId) return;
         clearStructuredScrambleLayout(textEl);
         textEl.textContent = 'Generating...';
         textEl.classList.add('loading');
@@ -7444,9 +8353,11 @@ async function loadNextScramble({ preserveManualTimeFocus = false } = {}) {
 
     try {
         const nextScramble = await getNextScramble();
+        if (requestId !== scrambleUiRequestId || nextScramble == null) return false;
         updateScrambleUI(nextScramble);
         return true;
     } catch (error) {
+        if (requestId !== scrambleUiRequestId) return false;
         console.error('Failed to load next scramble:', error);
         clearStructuredScrambleLayout(textEl);
         textEl.textContent = 'Scrambler unavailable';
@@ -7629,6 +8540,16 @@ function initScrambleControls() {
         });
 
         dropdownEl?.addEventListener('click', async (event) => {
+            const configureCasesEl = event.target instanceof Element
+                ? event.target.closest('.scramble-case-configure-option')
+                : null;
+            if (configureCasesEl instanceof HTMLButtonElement && dropdownEl.contains(configureCasesEl)) {
+                const returnFocusEl = menuEl.querySelector('.scramble-type-btn');
+                closeScrambleTypeMenus();
+                openTrainerCasesModal(configureCasesEl.dataset.configureCases || 'oll', returnFocusEl);
+                return;
+            }
+
             const puzzleOptionEl = event.target instanceof Element
                 ? event.target.closest('.scramble-type-puzzle-option')
                 : null;
@@ -10258,6 +11179,7 @@ function renderPhaseMeanChips(solves) {
     const configuredColumns = getConfiguredSolvesTableStatTokens();
     const statCount = configuredColumns.length;
     const solveCountEl = document.getElementById('solve-count');
+    const trainerStatsButton = document.getElementById('btn-trainer-stats');
     const sessionMeanEl = document.getElementById('session-mean');
 
     sessionInfoEl.querySelectorAll('[data-phase-mean-chip]').forEach((chip) => chip.remove());
@@ -10265,6 +11187,7 @@ function renderPhaseMeanChips(solves) {
 
     if (phaseColumnCount === 0) {
         solveCountEl?.style.removeProperty('grid-column');
+        trainerStatsButton?.style.removeProperty('grid-column');
         sessionMeanEl?.style.removeProperty('grid-column');
         syncSessionInfoPlacement();
         return;
@@ -10275,6 +11198,7 @@ function renderPhaseMeanChips(solves) {
     const meanInfoStart = solveInfoSpan + 1;
     const phaseStartColumn = 3 + statCount;
     solveCountEl?.style.setProperty('grid-column', `1 / span ${solveInfoSpan}`);
+    trainerStatsButton?.style.setProperty('grid-column', `1 / span ${solveInfoSpan}`);
     sessionMeanEl?.style.setProperty('grid-column', `${meanInfoStart} / span ${meanInfoSpan}`);
 
     const means = getPhaseMeanValues(solves, phaseColumnCount);
@@ -13095,7 +14019,7 @@ function initBattleControls() {
         beginBattleMode(scrambleType);
         const initialScramble = roomProbe?.exists
             ? roomProbe.roomInfo?.currentScramble
-            : await generateScrambleForType(scrambleType);
+            : await generateScrambleForType(scrambleType, { ignoreCaseSelection: true });
         await battleManager.joinRoom({
             nickname,
             roomId,
@@ -13355,6 +14279,9 @@ function initScrambleGeneratorControls() {
     const typeSelect = getEl('scramble-generator-type');
     const amountInput = getEl('scramble-generator-amount');
     const prefixSelect = getEl('scramble-generator-prefix');
+    const caseOptionEl = getEl('scramble-generator-case-option');
+    const caseOptionCountEl = getEl('scramble-generator-case-option-count');
+    const useSelectedCasesInput = getEl('scramble-generator-use-selected-cases');
     const statusEl = getEl('scramble-generator-status');
     const outputEl = getEl('scramble-generator-output');
     const generateButton = getEl('scramble-generator-generate');
@@ -13362,6 +14289,7 @@ function initScrambleGeneratorControls() {
     const downloadButton = getEl('scramble-generator-download');
 
     if (!scrambleGeneratorOverlayEl || !settingsOpenButton || !closeButton || !typeSelect || !amountInput || !prefixSelect
+        || !caseOptionEl || !caseOptionCountEl || !useSelectedCasesInput
         || !statusEl || !outputEl || !generateButton || !copyButton || !downloadButton) {
         return;
     }
@@ -13378,6 +14306,27 @@ function initScrambleGeneratorControls() {
         statusEl.classList.toggle('is-error', isError);
     };
 
+    const getCaseSelectionDetails = (type = typeSelect.value) => {
+        if (type === 'll') {
+            return { selectedCount: getOllCaseSelection().length, totalCount: OLL_CASE_IDS.length };
+        }
+        if (type === 'pll') {
+            return { selectedCount: getPllCaseSelection().length, totalCount: PLL_CASE_IDS.length };
+        }
+        return null;
+    };
+
+    const syncCaseOption = () => {
+        const details = getCaseSelectionDetails();
+        const hasCaseSubset = details && details.selectedCount < details.totalCount;
+        caseOptionEl.hidden = !hasCaseSubset;
+        if (!hasCaseSubset) {
+            useSelectedCasesInput.checked = false;
+            return;
+        }
+        caseOptionCountEl.textContent = `${details.selectedCount} of ${details.totalCount} cases selected`;
+    };
+
     const syncStatusFromOutput = () => {
         if (!scrambleGeneratorScrambles.length) {
             setStatus(getScrambleGeneratorIdleStatusText());
@@ -13386,7 +14335,10 @@ function initScrambleGeneratorControls() {
 
         const typeLabel = getScrambleGeneratorTypeLabel(scrambleGeneratorGeneratedType || typeSelect.value);
         const count = scrambleGeneratorScrambles.length;
-        setStatus(`Generated ${count} ${typeLabel} scramble${count === 1 ? '' : 's'}.`);
+        const caseSelectionText = Number.isInteger(scrambleGeneratorGeneratedCaseSelectionCount)
+            ? ` from ${scrambleGeneratorGeneratedCaseSelectionCount} selected case${scrambleGeneratorGeneratedCaseSelectionCount === 1 ? '' : 's'}`
+            : '';
+        setStatus(`Generated ${count} ${typeLabel} scramble${count === 1 ? '' : 's'}${caseSelectionText}.`);
     };
 
     const setActionFeedback = (button, label) => {
@@ -13418,6 +14370,7 @@ function initScrambleGeneratorControls() {
         typeSelect.disabled = isGenerating;
         amountInput.disabled = isGenerating;
         prefixSelect.disabled = isGenerating;
+        useSelectedCasesInput.disabled = isGenerating;
 
         generateButton.disabled = isGenerating || !hasValidAmount || !typeSelect.value;
         generateButton.textContent = isGenerating ? 'Generating...' : 'Generate';
@@ -13436,6 +14389,8 @@ function initScrambleGeneratorControls() {
         if (!prefixSelect.value) {
             prefixSelect.value = 'number-dot';
         }
+        useSelectedCasesInput.checked = false;
+        syncCaseOption();
 
         if (scrambleGeneratorScrambles.length) {
             syncOutputText();
@@ -13489,6 +14444,7 @@ function initScrambleGeneratorControls() {
     });
 
     typeSelect.addEventListener('change', () => {
+        syncCaseOption();
         syncActionState();
     });
 
@@ -13510,6 +14466,11 @@ function initScrambleGeneratorControls() {
         }
 
         const type = typeSelect.value || getSelectedScrambleType();
+        const caseSelectionDetails = getCaseSelectionDetails(type);
+        const useCaseSelection = Boolean(caseSelectionDetails
+            && caseSelectionDetails.selectedCount < caseSelectionDetails.totalCount
+            && useSelectedCasesInput.checked);
+        const selectedCaseCount = useCaseSelection ? caseSelectionDetails.selectedCount : null;
         cancelScrambleGeneratorRequest();
         scrambleGeneratorAbortController = new AbortController();
         const abortController = scrambleGeneratorAbortController;
@@ -13522,6 +14483,7 @@ function initScrambleGeneratorControls() {
         try {
             const scrambles = await generateScrambleBatchForType(type, amount, {
                 signal: abortController.signal,
+                useCaseSelection,
                 onProgress: ({ completed, total }) => {
                     if (requestId !== scrambleGeneratorRequestId) return;
                     setStatus(`Generating ${completed} / ${total} scramble${total === 1 ? '' : 's'}...`);
@@ -13532,6 +14494,7 @@ function initScrambleGeneratorControls() {
 
             scrambleGeneratorScrambles = scrambles;
             scrambleGeneratorGeneratedType = type;
+            scrambleGeneratorGeneratedCaseSelectionCount = selectedCaseCount;
             syncOutputText();
             syncStatusFromOutput();
         } catch (error) {
