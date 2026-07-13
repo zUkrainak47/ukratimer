@@ -17,6 +17,13 @@ function freezeChangelogEntry(entry) {
 
 export const CHANGELOG_ENTRIES = Object.freeze([
     {
+        id: '2026-07-14-oll-pll-trainer',
+        date: '2026-07-14',
+        title: 'OLL/PLL Trainer',
+        summary: 'You can now select specific cases for training. Available in the scramble selector under 3x3x3 > OLL/PLL.'
+    },
+
+    {
         id: '2026-07-09-calendar',
         date: '2026-07-09',
         title: 'Daily Activity Calendar colors',
