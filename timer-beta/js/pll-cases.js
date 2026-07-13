@@ -7,7 +7,9 @@
  */
 
 import {
+    canonicalizeLastLayerScramble,
     createLastLayerCaseScramble,
+    invertFaceTurnAlgorithm,
     normalizeAlgorithmToFaceTurns,
 } from './oll-cases.js?v=2026070902';
 
@@ -41,14 +43,98 @@ const UNSUPPORTED_PLL_ALGORITHMS = new Set([
     "M2 U2 M2 U' M2 U2 M2 U' M2",
 ]);
 
-export const PLL_CASES = Object.freeze(RAW_PLL_CASES.map(([caseName, category, setup, algorithms]) => Object.freeze({
-    id: caseName.toLowerCase(),
-    name: caseName + ' Perm',
-    category,
-    setup: normalizeAlgorithmToFaceTurns(setup),
-    algorithms: Object.freeze([...algorithms]),
-    scrambleAlgorithms: Object.freeze(algorithms.filter((algorithm) => !UNSUPPORTED_PLL_ALGORITHMS.has(algorithm))),
-})));
+// H and Z algorithms built around double slice moves normalize into especially
+// recognizable opposite-face pairs. Exclude those from scramble selection so
+// the generated move sequence does not immediately reveal the trained case.
+const DOUBLE_SLICE_MOVE = /\b[MSE]2\b/;
+const MAX_PLL_BASE_SCRAMBLE_MOVES = 20;
+const OPPOSITE_FACE_DOUBLE_TURNS = Object.freeze({
+    U2: 'D2',
+    D2: 'U2',
+    R2: 'L2',
+    L2: 'R2',
+    F2: 'B2',
+    B2: 'F2',
+});
+
+function hasOppositeFaceDoubleTurnPair(algorithm) {
+    const moves = invertFaceTurnAlgorithm(algorithm).split(' ');
+    return moves.some((move, index) => {
+        const oppositeMove = OPPOSITE_FACE_DOUBLE_TURNS[move];
+        return oppositeMove != null && oppositeMove === moves[index + 1];
+    });
+}
+
+function isUnsupportedPllAlgorithm(caseName, algorithm) {
+    if (UNSUPPORTED_PLL_ALGORITHMS.has(algorithm)) return true;
+    return (caseName === 'H' || caseName === 'Z')
+        && (DOUBLE_SLICE_MOVE.test(algorithm) || hasOppositeFaceDoubleTurnPair(algorithm));
+}
+
+function moveCount(algorithm) {
+    return String(algorithm ?? '').split(' ').filter(Boolean).length;
+}
+
+function isSelectablePllAlgorithm(caseName, algorithm) {
+    if (isUnsupportedPllAlgorithm(caseName, algorithm)) return false;
+
+    const scramble = invertFaceTurnAlgorithm(algorithm);
+    return Boolean(scramble) && moveCount(scramble) <= MAX_PLL_BASE_SCRAMBLE_MOVES;
+}
+
+function isSelectablePllSetup(caseName, setup) {
+    if (isUnsupportedPllAlgorithm(caseName, setup)) return false;
+
+    const normalizedSetup = normalizeAlgorithmToFaceTurns(setup);
+    return Boolean(normalizedSetup) && moveCount(normalizedSetup) <= MAX_PLL_BASE_SCRAMBLE_MOVES;
+}
+
+function selectUniquePllAlgorithms(caseName, algorithms) {
+    const seenScrambles = new Set();
+
+    return algorithms.filter((algorithm) => {
+        if (!isSelectablePllAlgorithm(caseName, algorithm)) return false;
+
+        const scrambleKey = canonicalizeLastLayerScramble(invertFaceTurnAlgorithm(algorithm));
+        if (seenScrambles.has(scrambleKey)) return false;
+        seenScrambles.add(scrambleKey);
+        return true;
+    });
+}
+
+function createPllCase(caseName, category, setup, algorithms) {
+    const normalizedSetup = normalizeAlgorithmToFaceTurns(setup);
+    let scrambleSelection = null;
+
+    const getScrambleSelection = () => {
+        if (scrambleSelection) return scrambleSelection;
+
+        const scrambleAlgorithms = Object.freeze(selectUniquePllAlgorithms(caseName, algorithms));
+        const algorithmScrambleKeys = new Set(scrambleAlgorithms
+            .map((algorithm) => canonicalizeLastLayerScramble(invertFaceTurnAlgorithm(algorithm))));
+        const includeSetupInScrambles = isSelectablePllSetup(caseName, setup)
+            && !algorithmScrambleKeys.has(canonicalizeLastLayerScramble(normalizedSetup));
+
+        scrambleSelection = Object.freeze({ scrambleAlgorithms, includeSetupInScrambles });
+        return scrambleSelection;
+    };
+
+    return Object.freeze({
+        id: caseName.toLowerCase(),
+        name: caseName + ' Perm',
+        category,
+        setup: normalizedSetup,
+        algorithms: Object.freeze([...algorithms]),
+        get includeSetupInScrambles() {
+            return getScrambleSelection().includeSetupInScrambles;
+        },
+        get scrambleAlgorithms() {
+            return getScrambleSelection().scrambleAlgorithms;
+        },
+    });
+}
+
+export const PLL_CASES = Object.freeze(RAW_PLL_CASES.map((pllCase) => createPllCase(...pllCase)));
 
 export const PLL_CASE_IDS = Object.freeze(PLL_CASES.map(({ id }) => id));
 const PLL_CASE_ID_SET = new Set(PLL_CASE_IDS);

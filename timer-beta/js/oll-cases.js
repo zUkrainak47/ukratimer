@@ -68,6 +68,8 @@ const RAW_OLL_CASES = [
 
 const FACE_NAMES = Object.freeze(['U', 'R', 'F', 'D', 'L', 'B']);
 const FACE_NAME_SET = new Set(FACE_NAMES);
+const MAX_OLL_BASE_SCRAMBLE_MOVES = 20;
+const SIDE_FACE_CYCLE = Object.freeze(['R', 'B', 'L', 'F']);
 const IDENTITY_FACE_MAP = Object.freeze({ U: 'U', R: 'R', F: 'F', D: 'D', L: 'L', B: 'B' });
 const ROTATION_FACE_MAPS = Object.freeze({
     x: Object.freeze({ U: 'F', R: 'R', F: 'D', D: 'B', L: 'L', B: 'U' }),
@@ -223,6 +225,41 @@ export function invertFaceTurnAlgorithm(algorithm) {
         .join(' ');
 }
 
+function moveCount(algorithm) {
+    return String(algorithm ?? '').split(' ').filter(Boolean).length;
+}
+
+export function canonicalizeLastLayerScramble(scramble) {
+    const moves = scramble.split(' ').filter(Boolean);
+    // The generator adds a uniformly random final AUF, so an existing final U
+    // move does not distinguish the set or distribution of generated scrambles.
+    if (/^U(?:2|')?$/.test(moves[moves.length - 1] || '')) moves.pop();
+
+    const rotations = Array.from({ length: 4 }, (_, rotationIndex) => moves
+        .map((move) => {
+            const faceIndex = SIDE_FACE_CYCLE.indexOf(move[0]);
+            if (faceIndex < 0) return move;
+            return SIDE_FACE_CYCLE[(faceIndex + rotationIndex) % SIDE_FACE_CYCLE.length] + move.slice(1);
+        })
+        .join(' '));
+
+    return rotations.sort()[0];
+}
+
+function selectUniqueOllAlgorithms(algorithms) {
+    const seenScrambles = new Set();
+
+    return algorithms.filter((algorithm) => {
+        const scramble = invertFaceTurnAlgorithm(algorithm);
+        if (!scramble || moveCount(scramble) > MAX_OLL_BASE_SCRAMBLE_MOVES) return false;
+
+        const scrambleKey = canonicalizeLastLayerScramble(scramble);
+        if (seenScrambles.has(scrambleKey)) return false;
+        seenScrambles.add(scrambleKey);
+        return true;
+    });
+}
+
 function remapFaceTurns(algorithm, rotationIndex) {
     const normalized = normalizeAlgorithmToFaceTurns(algorithm);
     if (!normalized || rotationIndex % 4 === 0) return normalized;
@@ -253,13 +290,18 @@ export function createLastLayerCaseScramble(trainerCase, random = Math.random) {
         throw new Error('Cannot generate a last-layer scramble without case algorithms.');
     }
 
-    // Treat the spreadsheet setup as one candidate alongside every inverted
-    // solution, rather than making it the fixed scramble for this case.
-    const candidateIndex = randomIndex(candidateAlgorithms.length + 1, random);
-    const baseSetup = candidateIndex === 0
+    // Treat an eligible spreadsheet setup as one candidate alongside every
+    // inverted solution, rather than making it the fixed scramble for this case.
+    const includeSetup = trainerCase.includeSetupInScrambles !== false;
+    const candidateIndex = randomIndex(candidateAlgorithms.length + (includeSetup ? 1 : 0), random);
+    const baseSetup = includeSetup && candidateIndex === 0
         ? trainerCase.setup
-        : invertFaceTurnAlgorithm(candidateAlgorithms[candidateIndex - 1]);
-    const remappedSetup = remapFaceTurns(baseSetup || trainerCase.setup, randomIndex(4, random));
+        : invertFaceTurnAlgorithm(candidateAlgorithms[candidateIndex - (includeSetup ? 1 : 0)]);
+    if (!baseSetup) {
+        throw new Error('Failed to select a valid last-layer scramble for case ' + trainerCase.name + '.');
+    }
+
+    const remappedSetup = remapFaceTurns(baseSetup, randomIndex(4, random));
     const scramble = simplifyFaceTurns([
         ...remappedSetup.split(' ').filter(Boolean),
         randomAuf(random),
@@ -272,14 +314,41 @@ export function createLastLayerCaseScramble(trainerCase, random = Math.random) {
     return scramble;
 }
 
-export const OLL_CASES = Object.freeze(RAW_OLL_CASES.map(([number, category, setup, algorithms]) => Object.freeze({
-    id: String(number),
-    number,
-    name: 'OLL ' + number,
-    category,
-    setup: normalizeAlgorithmToFaceTurns(setup),
-    algorithms: Object.freeze([...algorithms]),
-})));
+function createOllCase(number, category, setup, algorithms) {
+    const normalizedSetup = normalizeAlgorithmToFaceTurns(setup);
+    let scrambleSelection = null;
+
+    const getScrambleSelection = () => {
+        if (scrambleSelection) return scrambleSelection;
+
+        const scrambleAlgorithms = Object.freeze(selectUniqueOllAlgorithms(algorithms));
+        const algorithmScrambleKeys = new Set(scrambleAlgorithms
+            .map((algorithm) => canonicalizeLastLayerScramble(invertFaceTurnAlgorithm(algorithm))));
+        const includeSetupInScrambles = Boolean(normalizedSetup)
+            && moveCount(normalizedSetup) <= MAX_OLL_BASE_SCRAMBLE_MOVES
+            && !algorithmScrambleKeys.has(canonicalizeLastLayerScramble(normalizedSetup));
+
+        scrambleSelection = Object.freeze({ scrambleAlgorithms, includeSetupInScrambles });
+        return scrambleSelection;
+    };
+
+    return Object.freeze({
+        id: String(number),
+        number,
+        name: 'OLL ' + number,
+        category,
+        setup: normalizedSetup,
+        algorithms: Object.freeze([...algorithms]),
+        get includeSetupInScrambles() {
+            return getScrambleSelection().includeSetupInScrambles;
+        },
+        get scrambleAlgorithms() {
+            return getScrambleSelection().scrambleAlgorithms;
+        },
+    });
+}
+
+export const OLL_CASES = Object.freeze(RAW_OLL_CASES.map((ollCase) => createOllCase(...ollCase)));
 
 export const OLL_CASE_IDS = Object.freeze(OLL_CASES.map(({ id }) => id));
 const OLL_CASE_ID_SET = new Set(OLL_CASE_IDS);
