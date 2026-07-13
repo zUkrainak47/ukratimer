@@ -1,5 +1,41 @@
 const TRAINER_ID_TO_CODE = Object.freeze({ oll: 0, pll: 1 });
 const TRAINER_CODE_TO_ID = Object.freeze(['oll', 'pll']);
+const TRAINER_SELECTION_KEYS = Object.freeze(['ollCaseSelection', 'pllCaseSelection']);
+const OLL_CASE_ID_SET = new Set(Array.from({ length: 57 }, (_, index) => String(index + 1)));
+const PLL_CASE_ID_SET = new Set([
+    'aa', 'ab', 'e', 'f', 'ga', 'gb', 'gc', 'gd', 'h', 'ja', 'jb',
+    'na', 'nb', 'ra', 'rb', 't', 'ua', 'ub', 'v', 'y', 'z',
+]);
+const TRAINER_SELECTION_CASE_ID_SETS = Object.freeze({
+    ollCaseSelection: OLL_CASE_ID_SET,
+    pllCaseSelection: PLL_CASE_ID_SET,
+});
+
+export function normalizeCsTimerTrainerSelections(value) {
+    if (!value || typeof value !== 'object') return {};
+
+    const normalized = {};
+    TRAINER_SELECTION_KEYS.forEach((key) => {
+        if (!Array.isArray(value[key])) return;
+
+        normalized[key] = [...new Set(value[key]
+            .filter((caseId) => typeof caseId === 'string' || typeof caseId === 'number')
+            .map((caseId) => String(caseId).trim().toLowerCase())
+            .filter((caseId) => TRAINER_SELECTION_CASE_ID_SETS[key].has(caseId)))];
+    });
+    return normalized;
+}
+
+export function buildCsTimerTrainerSelections(value) {
+    const normalized = normalizeCsTimerTrainerSelections(value);
+
+    return Object.fromEntries(TRAINER_SELECTION_KEYS.map((key) => [
+        key,
+        normalized[key]?.length
+            ? normalized[key]
+            : [...TRAINER_SELECTION_CASE_ID_SETS[key]],
+    ]));
+}
 
 export function normalizeTrainerCaseMetadata(value) {
     if (!value || typeof value !== 'object') return null;

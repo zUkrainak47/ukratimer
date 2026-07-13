@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 
 import {
     buildCsTimerTrainerCaseMetadata,
+    buildCsTimerTrainerSelections,
+    normalizeCsTimerTrainerSelections,
     normalizeTrainerCaseMetadata,
     resolveCsTimerTrainerCaseMetadata,
 } from '../js/cstimer-trainer-metadata.mjs';
@@ -30,6 +32,56 @@ test('rejects malformed and unsupported trainer metadata', () => {
     assert.equal(normalizeTrainerCaseMetadata(null), null);
     assert.equal(normalizeTrainerCaseMetadata({ trainerId: 'f2l', caseId: '1' }), null);
     assert.equal(normalizeTrainerCaseMetadata({ trainerId: 'oll', caseId: ' ' }), null);
+});
+
+test('normalizes trainer selections for csTimer backup metadata', () => {
+    assert.deepEqual(normalizeCsTimerTrainerSelections({
+        ollCaseSelection: [' 21 ', 57, '21', '', null],
+        pllCaseSelection: [' UA ', 'ub', 'ua'],
+    }), {
+        ollCaseSelection: ['21', '57'],
+        pllCaseSelection: ['ua', 'ub'],
+    });
+});
+
+test('preserves explicit empty selections and ignores malformed selection fields', () => {
+    assert.deepEqual(normalizeCsTimerTrainerSelections({
+        ollCaseSelection: [],
+        pllCaseSelection: 'ua',
+    }), {
+        ollCaseSelection: [],
+    });
+    assert.deepEqual(normalizeCsTimerTrainerSelections(null), {});
+});
+
+test('drops unsupported OLL and PLL case IDs from trainer selections', () => {
+    assert.deepEqual(normalizeCsTimerTrainerSelections({
+        ollCaseSelection: [0, 1, 57, 58, 'bogus'],
+        pllCaseSelection: ['ua', 'bogus', 21, 'Z'],
+    }), {
+        ollCaseSelection: ['1', '57'],
+        pllCaseSelection: ['ua', 'z'],
+    });
+});
+
+test('builds effective trainer selections for csTimer export metadata', () => {
+    const defaults = buildCsTimerTrainerSelections({
+        ollCaseSelection: [],
+        pllCaseSelection: ['bogus'],
+    });
+    assert.deepEqual(defaults.ollCaseSelection, Array.from({ length: 57 }, (_, index) => String(index + 1)));
+    assert.deepEqual(defaults.pllCaseSelection, [
+        'aa', 'ab', 'e', 'f', 'ga', 'gb', 'gc', 'gd', 'h', 'ja', 'jb',
+        'na', 'nb', 'ra', 'rb', 't', 'ua', 'ub', 'v', 'y', 'z',
+    ]);
+
+    assert.deepEqual(buildCsTimerTrainerSelections({
+        ollCaseSelection: ['21'],
+        pllCaseSelection: ['UA', 'z'],
+    }), {
+        ollCaseSelection: ['21'],
+        pllCaseSelection: ['ua', 'z'],
+    });
 });
 
 test('builds sparse compact metadata', () => {

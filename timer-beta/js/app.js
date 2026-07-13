@@ -1492,6 +1492,12 @@ function pushHistoryState() {
     activeHistoryInterception = true;
 }
 
+function adoptHistoryInterceptionState() {
+    if (!window.history.state?.isBackIntercepted) return false;
+    activeHistoryInterception = true;
+    return true;
+}
+
 function backToDismiss() {
     if (activeHistoryInterception && window.history.state?.isBackIntercepted) {
         activeHistoryInterception = false;
@@ -1557,6 +1563,11 @@ function handlePopState(event) {
 
     if (isSessionStatsModalOpen()) {
         closeSessionStatsModal({ isPopState: true });
+        return;
+    }
+
+    if (isTrainerCasesModalOpen()) {
+        void requestCloseTrainerCasesModal({ isPopState: true });
         return;
     }
 
@@ -6330,8 +6341,14 @@ function syncTrainerCasesScrollbarWidth() {
     });
 }
 
-function openTrainerCasesModal(trainerId, returnFocusEl = null, { initialTab = 'cases' } = {}) {
+function openTrainerCasesModal(trainerId, returnFocusEl = null, {
+    initialTab = 'cases',
+    preserveHistoryState = false,
+} = {}) {
     if (!trainerCasesOverlayEl || !CASE_TRAINER_CONFIGS[trainerId]) return;
+    if (!isTrainerCasesModalOpen()) {
+        if (!preserveHistoryState || !adoptHistoryInterceptionState()) pushHistoryState();
+    }
     activeCaseTrainerId = trainerId;
     trainerCasesReturnFocusEl = returnFocusEl instanceof HTMLElement ? returnFocusEl : null;
     const config = getActiveCaseTrainerConfig();
@@ -6355,8 +6372,9 @@ function openTrainerCasesModal(trainerId, returnFocusEl = null, { initialTab = '
     });
 }
 
-function closeTrainerCasesModal() {
-    if (!trainerCasesOverlayEl) return;
+function closeTrainerCasesModal({ isPopState = false, preserveHistoryState = false } = {}) {
+    if (!isTrainerCasesModalOpen()) return;
+    if (!isPopState && !preserveHistoryState) backToDismiss();
     closeTrainerStatsDetailModal({ restoreFocus: false });
     trainerStatsRenderRequestId += 1;
     trainerStatsEntriesContext = null;
@@ -6396,9 +6414,20 @@ async function confirmTrainerCasesModalClose() {
     }
 }
 
-async function requestCloseTrainerCasesModal() {
-    if (!(await confirmTrainerCasesModalClose())) return false;
-    closeTrainerCasesModal();
+async function requestCloseTrainerCasesModal({ isPopState = false } = {}) {
+    if (!(await confirmTrainerCasesModalClose())) {
+        if (!adoptHistoryInterceptionState()) pushHistoryState();
+        return false;
+    }
+
+    // A dirty modal's confirmation creates a replacement marker after Back
+    // consumes the original. Adopt and dismiss it just like an explicit close.
+    if (isPopState && adoptHistoryInterceptionState()) {
+        closeTrainerCasesModal();
+        return true;
+    }
+
+    closeTrainerCasesModal({ isPopState });
     return true;
 }
 
@@ -6503,10 +6532,12 @@ function initTrainerCasesModal() {
         };
         if (!(await confirmTrainerCasesModalClose())) return;
         trainerCasesReturnFocusEl = null;
-        closeTrainerCasesModal();
+        closeTrainerCasesModal({ preserveHistoryState: true });
         setModalCloseHandler(() => {
             trainerStatsScope = returnContext.scope;
-            openTrainerCasesModal(returnContext.trainerId, returnContext.returnFocusEl);
+            openTrainerCasesModal(returnContext.trainerId, returnContext.returnFocusEl, {
+                preserveHistoryState: true,
+            });
             trainerStatsSelectedCaseId = returnContext.caseId;
             setTrainerCasesActiveTab('stats');
         });

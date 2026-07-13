@@ -7,6 +7,8 @@ import {
 } from './setting-scopes.js?v=2026070902';
 import {
     buildCsTimerTrainerCaseMetadata,
+    buildCsTimerTrainerSelections,
+    normalizeCsTimerTrainerSelections,
     resolveCsTimerTrainerCaseMetadata,
 } from './cstimer-trainer-metadata.mjs?v=2026070902';
 
@@ -1836,7 +1838,7 @@ export async function importSessionCsv(text, { mode = IMPORT_MODE_REWRITE, onPro
 // ──── csTimer Format Conversion ────
 
 const UKRA_TIMER_CSTIMER_META_KEY = 'ukraTimerMeta';
-const UKRA_TIMER_CSTIMER_META_VERSION = 2;
+const UKRA_TIMER_CSTIMER_META_VERSION = 3;
 const UKRA_TIMER_CSTIMER_SESSION_META_ID_KEY = 'ukraTimerSessionId';
 const CSTIMER_SCRAMBLE_TYPE_TO_INTERNAL = Object.freeze({
     '222so': '222',
@@ -2164,11 +2166,12 @@ function _parseUkraTimerCsTimerMeta(rawValue) {
     return parsed;
 }
 
-function _getUkraTimerCsTimerMetaPayload(settingsData, sessionsData = []) {
+function _getUkraTimerCsTimerMetaPayload(settingsData, sessionsData = [], trainerSelections = {}) {
     return JSON.stringify({
         version: UKRA_TIMER_CSTIMER_META_VERSION,
         settings: settingsData,
         sessions: sessionsData,
+        trainerSelections: normalizeCsTimerTrainerSelections(trainerSelections),
     });
 }
 
@@ -2780,6 +2783,7 @@ export async function importCsTimer(csData, { mode = IMPORT_MODE_REWRITE, onProg
         _stripCsTimerCompatibleSettingScopes(metadataSettings.settingScopes),
     );
     const metadataSessions = Array.isArray(metadata?.sessions) ? metadata.sessions : [];
+    const metadataTrainerSelections = normalizeCsTimerTrainerSelections(metadata?.trainerSelections);
     const metadataSessionResolver = _buildUkraTimerCsTimerMetadataSessionResolver(metadataSessions);
     const importedSessions = [];
 
@@ -3094,6 +3098,7 @@ export async function importCsTimer(csData, { mode = IMPORT_MODE_REWRITE, onProg
     save('activeSessionId', activeImportedSessionId);
     save('scrambleType', activeImportedScrambleType);
     save('settings', newSettings);
+    Object.entries(metadataTrainerSelections).forEach(([key, selection]) => save(key, selection));
 
     _reportImportProgress(onProgress, {
         source: 'cstimer',
@@ -3128,6 +3133,10 @@ export async function exportCsTimer() {
         : {};
     const metadataSettings = _buildCsTimerMetadataSettings(storedSettingsData);
     const metadataSessions = [];
+    const metadataTrainerSelections = buildCsTimerTrainerSelections({
+        ollCaseSelection: load('ollCaseSelection', []),
+        pllCaseSelection: load('pllCaseSelection', []),
+    });
     const activeCsScrambleType = _mapInternalScrambleTypeToCsTimer(activeSession?.scrambleType || '333');
 
     sessions.forEach((session, i) => {
@@ -3216,6 +3225,7 @@ export async function exportCsTimer() {
         [UKRA_TIMER_CSTIMER_META_KEY]: _getUkraTimerCsTimerMetaPayload(
             metadataSettings,
             metadataSessions,
+            metadataTrainerSelections,
         ),
     };
 
