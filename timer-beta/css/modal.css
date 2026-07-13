@@ -985,6 +985,16 @@
     background: color-mix(in srgb, var(--preview-cube-yellow) 8%, var(--bg-secondary));
 }
 
+.trainer-stat-card.is-loading {
+    cursor: wait;
+    opacity: 0.62;
+}
+
+.trainer-stat-card.is-loading:hover {
+    border-color: transparent;
+    background: var(--bg-secondary);
+}
+
 .trainer-stat-preview {
     display: block;
     width: 62px;

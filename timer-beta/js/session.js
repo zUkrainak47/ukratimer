@@ -496,6 +496,11 @@ class SessionManager extends EventEmitter {
         }
     }
 
+    async getTrainerCaseSolvesSnapshot(trainerId) {
+        await this.waitForPendingSolvePersistence();
+        return db.getTrainerCaseSolves(trainerId);
+    }
+
     getSolveMutationGeneration() {
         return this._solveMutationGeneration;
     }

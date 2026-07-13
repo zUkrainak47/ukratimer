@@ -1315,6 +1315,7 @@ let trainerCasesActiveTab = 'cases';
 let trainerStatsScope = 'session';
 let trainerStatsSelectedCaseId = null;
 let trainerStatsRenderRequestId = 0;
+let trainerStatsEntriesContext = null;
 let trainerCasesInitialSelection = [];
 let trainerCasesSelectionInitialized = false;
 let trainerCasesCloseConfirmationPending = false;
@@ -5896,6 +5897,57 @@ function formatTrainerStatValue(value) {
     return Number.isFinite(value) ? formatTime(value) : '—';
 }
 
+function renderTrainerStatsGrid(config, entriesByCase = null) {
+    const gridEl = getEl('trainer-stats-grid');
+    if (!gridEl) return;
+
+    const isLoading = !(entriesByCase instanceof Map);
+    const fragment = document.createDocumentFragment();
+    config.cases.forEach((trainerCase) => {
+        const entries = entriesByCase?.get(trainerCase.id) || [];
+        const summary = getTrainerCaseStatsSummary(entries);
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'trainer-stat-card';
+        card.classList.toggle('has-solves', !isLoading && summary.attempts > 0);
+        card.classList.toggle('is-loading', isLoading);
+        card.disabled = isLoading;
+        card.dataset.caseId = trainerCase.id;
+
+        const canvas = document.createElement('canvas');
+        canvas.className = 'trainer-stat-preview';
+        canvas.dataset.caseId = trainerCase.id;
+        canvas.setAttribute('aria-hidden', 'true');
+
+        const info = document.createElement('span');
+        info.className = 'trainer-stat-info';
+
+        const name = document.createElement('span');
+        name.className = 'trainer-stat-name';
+        name.textContent = trainerCase.name;
+
+        const attempts = document.createElement('span');
+        attempts.className = 'trainer-stat-attempts';
+        attempts.textContent = isLoading
+            ? 'Loading…'
+            : `${summary.attempts} solve${summary.attempts === 1 ? '' : 's'}`;
+
+        const mean = document.createElement('span');
+        mean.className = 'trainer-stat-metric';
+        mean.innerHTML = `mean <strong>${isLoading ? '—' : formatTrainerStatValue(summary.mean)}</strong>`;
+
+        const best = document.createElement('span');
+        best.className = 'trainer-stat-metric';
+        best.innerHTML = `best <strong>${isLoading ? '—' : formatTrainerStatValue(summary.best)}</strong>`;
+
+        info.append(name, attempts, mean, best);
+        card.append(canvas, info);
+        fragment.appendChild(card);
+    });
+    gridEl.replaceChildren(fragment);
+    window.requestAnimationFrame(renderTrainerStatsCasePreviews);
+}
+
 function syncTrainerStatsControls() {
     ['session', 'all'].forEach((scope) => {
         const button = getEl(`trainer-stats-scope-${scope}`);
@@ -5905,24 +5957,30 @@ function syncTrainerStatsControls() {
     });
 }
 
-async function collectTrainerStatsEntries(config) {
-    const sessions = trainerStatsScope === 'all'
-        ? await Promise.all(sessionManager.getSessions().map(({ id }) => sessionManager.ensureSessionSolvesLoaded(id)))
-        : [await sessionManager.ensureSessionSolvesLoaded(sessionManager.getActiveSessionId())];
+async function collectTrainerStatsEntries(config, { scope, trainerId, sessionId = null }) {
     const caseIdSet = new Set(config.caseIds);
     const entriesByCase = new Map(config.caseIds.map((caseId) => [caseId, []]));
-
-    sessions.filter(Boolean).forEach((session) => {
-        session.solves.forEach((solve, solveIndex) => {
-            const metadata = solve?.trainerCase;
-            if (metadata?.trainerId !== activeCaseTrainerId) return;
-            const caseId = String(metadata.caseId ?? '').trim().toLowerCase();
-            if (!caseIdSet.has(caseId)) return;
-            entriesByCase.get(caseId).push({
+    const solveEntries = scope === 'all'
+        ? (await sessionManager.getTrainerCaseSolvesSnapshot(trainerId)).map((solve) => ({
+            solve,
+            sessionId: solve.sessionId,
+        }))
+        : ((await sessionManager.ensureSessionSolvesLoaded(sessionId))?.solves || [])
+            .map((solve, solveIndex) => ({
                 solve,
                 solveIndex,
-                sessionId: session.id,
-            });
+                sessionId: solve.sessionId,
+            }));
+
+    solveEntries.forEach(({ solve, solveIndex, sessionId }) => {
+        const metadata = solve?.trainerCase;
+        if (metadata?.trainerId !== trainerId) return;
+        const caseId = String(metadata.caseId ?? '').trim().toLowerCase();
+        if (!caseIdSet.has(caseId)) return;
+        entriesByCase.get(caseId).push({
+            solve,
+            solveIndex,
+            sessionId,
         });
     });
 
@@ -5999,12 +6057,11 @@ function renderTrainerStatsDetail(caseId, entriesByCase, returnFocusEl = null) {
     }
 
     const fragment = document.createDocumentFragment();
-    entries.forEach(({ solve, solveIndex, sessionId }) => {
+    entries.forEach(({ solve, sessionId }) => {
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'trainer-stat-time';
         button.dataset.solveId = solve.id;
-        button.dataset.solveIndex = String(solveIndex);
         button.dataset.sessionId = sessionId;
 
         const timeEl = document.createElement('span');
@@ -6019,61 +6076,54 @@ function renderTrainerStatsDetail(caseId, entriesByCase, returnFocusEl = null) {
 
 async function renderTrainerStats() {
     const config = getActiveCaseTrainerConfig();
+    const trainerId = activeCaseTrainerId;
+    const scope = trainerStatsScope;
+    const sessionId = scope === 'session' ? sessionManager.getActiveSessionId() : null;
     const gridEl = getEl('trainer-stats-grid');
     const statusEl = getEl('trainer-stats-status');
     if (!gridEl) return;
 
     const requestId = ++trainerStatsRenderRequestId;
+    trainerStatsEntriesContext = null;
+    gridEl.setAttribute('aria-busy', 'true');
+    renderTrainerStatsGrid(config);
     syncTrainerStatsControls();
-    if (statusEl) statusEl.textContent = trainerStatsScope === 'all' ? 'Loading all sessions…' : '';
+    if (statusEl) statusEl.textContent = scope === 'all' ? 'Loading all sessions…' : 'Loading session…';
 
-    const entriesByCase = await collectTrainerStatsEntries(config);
-    if (requestId !== trainerStatsRenderRequestId || activeCaseTrainerId !== (config.scrambleType === 'll' ? 'oll' : 'pll')) return;
+    let entriesByCase;
+    try {
+        entriesByCase = await collectTrainerStatsEntries(config, { scope, trainerId, sessionId });
+    } catch (error) {
+        if (requestId === trainerStatsRenderRequestId
+            && activeCaseTrainerId === trainerId
+            && trainerStatsScope === scope) {
+            if (scope === 'session' && sessionManager.getActiveSessionId() !== sessionId) {
+                void renderTrainerStats();
+                return;
+            }
+            gridEl.setAttribute('aria-busy', 'false');
+            if (statusEl) statusEl.textContent = 'Could not load trainer stats.';
+        }
+        console.error('Failed to load trainer stats:', error);
+        return;
+    }
+    if (requestId !== trainerStatsRenderRequestId
+        || activeCaseTrainerId !== trainerId
+        || trainerStatsScope !== scope) return;
+    if (scope === 'session' && sessionManager.getActiveSessionId() !== sessionId) {
+        void renderTrainerStats();
+        return;
+    }
+
+    trainerStatsEntriesContext = { trainerId, scope, sessionId, entriesByCase };
+    gridEl.setAttribute('aria-busy', 'false');
 
     const totalAttempts = Array.from(entriesByCase.values()).reduce((sum, entries) => sum + entries.length, 0);
     if (statusEl) {
         statusEl.textContent = `${totalAttempts} included solve${totalAttempts === 1 ? '' : 's'}.`;
     }
 
-    const fragment = document.createDocumentFragment();
-    config.cases.forEach((trainerCase) => {
-        const entries = entriesByCase.get(trainerCase.id) || [];
-        const summary = getTrainerCaseStatsSummary(entries);
-        const card = document.createElement('button');
-        card.type = 'button';
-        card.className = 'trainer-stat-card';
-        card.classList.toggle('has-solves', summary.attempts > 0);
-        card.dataset.caseId = trainerCase.id;
-
-        const canvas = document.createElement('canvas');
-        canvas.className = 'trainer-stat-preview';
-        canvas.dataset.caseId = trainerCase.id;
-        canvas.setAttribute('aria-hidden', 'true');
-
-        const info = document.createElement('span');
-        info.className = 'trainer-stat-info';
-
-        const name = document.createElement('span');
-        name.className = 'trainer-stat-name';
-        name.textContent = trainerCase.name;
-
-        const attempts = document.createElement('span');
-        attempts.className = 'trainer-stat-attempts';
-        attempts.textContent = `${summary.attempts} solve${summary.attempts === 1 ? '' : 's'}`;
-
-        const mean = document.createElement('span');
-        mean.className = 'trainer-stat-metric';
-        mean.innerHTML = `mean <strong>${formatTrainerStatValue(summary.mean)}</strong>`;
-
-        const best = document.createElement('span');
-        best.className = 'trainer-stat-metric';
-        best.innerHTML = `best <strong>${formatTrainerStatValue(summary.best)}</strong>`;
-
-        info.append(name, attempts, mean, best);
-        card.append(canvas, info);
-        fragment.appendChild(card);
-    });
-    gridEl.replaceChildren(fragment);
+    renderTrainerStatsGrid(config, entriesByCase);
 
     if (trainerStatsSelectedCaseId) {
         const selectedCard = gridEl.querySelector(`.trainer-stat-card[data-case-id="${trainerStatsSelectedCaseId}"]`);
@@ -6091,6 +6141,7 @@ function setTrainerCasesActiveTab(tabId) {
         const panel = getEl(`trainer-cases-panel-${tab}`);
         button?.classList.toggle('active', active);
         button?.setAttribute('aria-selected', String(active));
+        if (button) button.tabIndex = active ? 0 : -1;
         panel?.classList.toggle('active', active);
         if (panel) panel.hidden = !active;
     });
@@ -6106,6 +6157,9 @@ function setTrainerCasesActiveTab(tabId) {
     if (trainerCasesActiveTab === 'stats') {
         void renderTrainerStats();
     } else {
+        trainerStatsRenderRequestId += 1;
+        trainerStatsEntriesContext = null;
+        getEl('trainer-stats-grid')?.setAttribute('aria-busy', 'false');
         if (!trainerCasesSelectionInitialized) {
             renderTrainerCaseGrid();
         }
@@ -6287,6 +6341,7 @@ function openTrainerCasesModal(trainerId, returnFocusEl = null, { initialTab = '
     syncTrainerCasesModalCount(trainerCasesInitialSelection.length);
     trainerCasesActiveTab = initialTab === 'stats' ? 'stats' : 'cases';
     trainerStatsSelectedCaseId = null;
+    trainerStatsEntriesContext = null;
     closeTrainerStatsDetailModal({ restoreFocus: false });
     trainerStatsRenderRequestId += 1;
     getEl('trainer-cases-title').textContent = `${config.label} Trainer`;
@@ -6303,6 +6358,9 @@ function openTrainerCasesModal(trainerId, returnFocusEl = null, { initialTab = '
 function closeTrainerCasesModal() {
     if (!trainerCasesOverlayEl) return;
     closeTrainerStatsDetailModal({ restoreFocus: false });
+    trainerStatsRenderRequestId += 1;
+    trainerStatsEntriesContext = null;
+    getEl('trainer-stats-grid')?.setAttribute('aria-busy', 'false');
     const returnFocusEl = trainerCasesReturnFocusEl;
     trainerCasesReturnFocusEl = null;
     trainerCasesOverlayEl.classList.remove('active');
@@ -6383,6 +6441,22 @@ function initTrainerCasesModal() {
     getEl('trainer-cases-cancel')?.addEventListener('click', () => void requestCloseTrainerCasesModal());
     getEl('trainer-cases-tab-cases')?.addEventListener('click', () => setTrainerCasesActiveTab('cases'));
     getEl('trainer-cases-tab-stats')?.addEventListener('click', () => setTrainerCasesActiveTab('stats'));
+    getEl('trainer-cases-overlay')?.querySelector('.trainer-cases-tabs')?.addEventListener('keydown', (event) => {
+        const tabs = ['cases', 'stats'];
+        const currentIndex = tabs.indexOf(trainerCasesActiveTab);
+        let nextIndex = currentIndex;
+
+        if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+        else if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % tabs.length;
+        else if (event.key === 'Home') nextIndex = 0;
+        else if (event.key === 'End') nextIndex = tabs.length - 1;
+        else return;
+
+        event.preventDefault();
+        const nextTab = tabs[nextIndex];
+        setTrainerCasesActiveTab(nextTab);
+        getEl(`trainer-cases-tab-${nextTab}`)?.focus({ preventScroll: true });
+    });
     getEl('trainer-stats-scope-session')?.addEventListener('click', () => {
         if (trainerStatsScope === 'session') return;
         trainerStatsScope = 'session';
@@ -6395,24 +6469,30 @@ function initTrainerCasesModal() {
         trainerStatsSelectedCaseId = null;
         void renderTrainerStats();
     });
-    getEl('trainer-stats-grid')?.addEventListener('click', async (event) => {
+    getEl('trainer-stats-grid')?.addEventListener('click', (event) => {
         const card = event.target.closest('.trainer-stat-card[data-case-id]');
         if (!card) return;
         const caseId = card.dataset.caseId;
-        const config = getActiveCaseTrainerConfig();
-        const trainerId = activeCaseTrainerId;
-        const entriesByCase = await collectTrainerStatsEntries(config);
-        if (!isTrainerCasesModalOpen() || trainerCasesActiveTab !== 'stats' || activeCaseTrainerId !== trainerId) return;
-        renderTrainerStatsDetail(caseId, entriesByCase, card);
+        const context = trainerStatsEntriesContext;
+        if (!context
+            || context.trainerId !== activeCaseTrainerId
+            || context.scope !== trainerStatsScope
+            || (context.scope === 'session' && context.sessionId !== sessionManager.getActiveSessionId())
+            || !isTrainerCasesModalOpen()
+            || trainerCasesActiveTab !== 'stats') return;
+        renderTrainerStatsDetail(caseId, context.entriesByCase, card);
     });
     getEl('trainer-stats-detail-close')?.addEventListener('click', closeTrainerStatsDetailModal);
     getEl('trainer-stats-times')?.addEventListener('click', async (event) => {
         const button = event.target.closest('.trainer-stat-time[data-solve-id]');
         if (!button) return;
-        const session = sessionManager.getSessionById(button.dataset.sessionId);
-        const solveIndex = Number(button.dataset.solveIndex);
-        const solve = session?.solves?.[solveIndex];
-        if (!solve || solve.id !== button.dataset.solveId) return;
+        const trainerId = activeCaseTrainerId;
+        const caseId = trainerStatsSelectedCaseId;
+        const session = await sessionManager.ensureSessionSolvesLoaded(button.dataset.sessionId);
+        if (!isTrainerCasesModalOpen() || activeCaseTrainerId !== trainerId || trainerStatsSelectedCaseId !== caseId) return;
+        const solveIndex = session?.solves?.findIndex((solve) => solve.id === button.dataset.solveId) ?? -1;
+        const solve = solveIndex >= 0 ? session.solves[solveIndex] : null;
+        if (!solve) return;
         const config = getActiveCaseTrainerConfig();
         const trainerCase = config.cases.find((entry) => entry.id === trainerStatsSelectedCaseId);
         const returnContext = {

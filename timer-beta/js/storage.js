@@ -29,6 +29,10 @@ const BACKUP_LOCAL_STORAGE_KEYS = Object.freeze([
     'ollCaseSelection',
 ]);
 const BACKUP_LOCAL_STORAGE_KEY_SET = new Set(BACKUP_LOCAL_STORAGE_KEYS);
+const MERGE_PERSISTENT_BACKUP_KEYS = new Set([
+    'pllCaseSelection',
+    'ollCaseSelection',
+]);
 const IMPORT_PROGRESS_YIELD_INTERVAL = 10000;
 const LOCAL_ONLY_SETTING_KEYS = new Set(['zenMode']);
 const LOCAL_ONLY_SESSION_SETTING_KEYS = new Set(['zenMode']);
@@ -349,7 +353,19 @@ function _sanitizeSessionSettingsForTransport(sessionSettings) {
     return sanitized;
 }
 
-function _applyImportedBackupValues(data, { replaceMissing = false, autoExportSolveSequence = 0 } = {}) {
+export function getMissingBackupKeysForReplacement(providedKeys, preserveMissingKeys = null) {
+    const providedKeySet = providedKeys instanceof Set ? providedKeys : new Set(providedKeys || []);
+    return BACKUP_LOCAL_STORAGE_KEYS.filter((key) => (
+        !providedKeySet.has(key)
+        && !(preserveMissingKeys instanceof Set && preserveMissingKeys.has(key))
+    ));
+}
+
+function _applyImportedBackupValues(data, {
+    replaceMissing = false,
+    preserveMissingKeys = null,
+    autoExportSolveSequence = 0,
+} = {}) {
     const nextValues = new Map();
 
     for (const [key, value] of Object.entries(data || {})) {
@@ -366,13 +382,10 @@ function _applyImportedBackupValues(data, { replaceMissing = false, autoExportSo
     }
 
     if (replaceMissing) {
-        BACKUP_LOCAL_STORAGE_KEYS.forEach((key) => {
-            if (nextValues.has(key)) {
-                save(key, nextValues.get(key));
-            } else {
-                remove(key);
-            }
+        nextValues.forEach((value, key) => {
+            save(key, value);
         });
+        getMissingBackupKeysForReplacement(new Set(nextValues.keys()), preserveMissingKeys).forEach(remove);
         return;
     }
 
@@ -1420,6 +1433,7 @@ export async function importAll(data, { mode = IMPORT_MODE_REWRITE, onProgress =
     // selected scramble type). Cache/runtime keys stay device-local.
     _applyImportedBackupValues(importedBackupValues, {
         replaceMissing: true,
+        preserveMissingKeys: importMode === IMPORT_MODE_MERGE ? MERGE_PERSISTENT_BACKUP_KEYS : null,
         autoExportSolveSequence: finalSolves.length,
     });
 
