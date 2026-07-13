@@ -41,6 +41,7 @@ const LOCAL_PRECACHE_PATHS = [
     './js/graph.js?v=2026070902',
     './js/utils.js?v=2026070902',
     './js/storage.js?v=2026070902',
+    './js/cstimer-trainer-metadata.mjs?v=2026070902',
     './js/db.js?v=2026070902',
     './js/distribution.js?v=2026070902',
     './js/daily-streak-modal.js?v=2026070902',
