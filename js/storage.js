@@ -1,16 +1,16 @@
-import * as db from './db.js?v=2026071401';
+import * as db from './db.js?v=2026080901';
 import {
     SETTING_SCOPE_GLOBAL,
     SETTING_SCOPE_SESSION,
     SUMMARY_STATS_SCOPE_SETTING_KEYS,
     normalizeSettingScopes,
-} from './setting-scopes.js?v=2026071401';
+} from './setting-scopes.js?v=2026080901';
 import {
     buildCsTimerTrainerCaseMetadata,
     buildCsTimerTrainerSelections,
     normalizeCsTimerTrainerSelections,
     resolveCsTimerTrainerCaseMetadata,
-} from './cstimer-trainer-metadata.mjs?v=2026071401';
+} from './cstimer-trainer-metadata.mjs?v=2026080901';
 
 const STORAGE_PREFIX = 'cubetimer_';
 const STORAGE_VERSION = 1;
